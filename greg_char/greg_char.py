@@ -13,7 +13,7 @@ import pdb
 parser = argparse.ArgumentParser(description="Program to train a story generator")
 parser.add_argument("--data", default="./data", type=str, help="directory with input.txt")
 parser.add_argument("--seq_len", default=50, type=int, help="length of the sequences for the rnn")
-epochs = 1
+epochs = 20
 batch_size = 60
 batch_len = 50
 cell_state_size = 128 # in cell
@@ -34,8 +34,10 @@ def load_file(file_dir):
   counter = collections.Counter(data)
   number_of_letters = len(counter.keys())
   ch_to_id_map = {}
+  id_to_ch_map = {}
   for i, ch in enumerate(counter.keys()):
     ch_to_id_map[ch] = i
+    id_to_ch_map[i] = ch
 
   input = []
 
@@ -60,9 +62,9 @@ def load_file(file_dir):
   # (60, 50)
   targets = setup_inputs(targets)
 
-  return([input, targets, number_of_letters, ch_to_id_map])
+  return([input, targets, number_of_letters, ch_to_id_map, id_to_ch_map])
 
-input, targets, number_of_letters, ch_to_id_map = load_file(args.data)
+input, targets, number_of_letters, ch_to_id_map, id_to_ch_map = load_file(args.data)
 
 # setup the model
 
@@ -105,7 +107,7 @@ def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_let
   probs = tf.nn.softmax(logits, -1, name="probs")
 
   loss = seq2seq.sequence_loss_by_example([logits], [tf.reshape(target_placeholder, [-1])], [tf.ones([batch_size * batch_len])], number_of_letters)
-  lr = tf.Variable(1.0, trainable=False)
+  lr = tf.Variable(0.0, trainable=False)
   tvars = tf.trainable_variables()
 
   optimizer = tf.train.AdamOptimizer(lr)
@@ -116,17 +118,20 @@ def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_let
   grads_and_vars = zip(grads, tvars)
   train_op = optimizer.apply_gradients(grads_and_vars)
 
-  return([train_op, probs, decoder_initial_state, input_placeholder, target_placeholder, cost_op, last_state, logits])
+  return([train_op, probs, decoder_initial_state, input_placeholder, target_placeholder, cost_op, last_state, logits, lr])
 
-train_op, probs, decoder_initial_state, input_placeholder, target_placeholder, cost_op, last_state, logits = model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_letters, False)
+train_op, probs, decoder_initial_state, input_placeholder, target_placeholder, cost_op, last_state, logits, lr = model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_letters, False)
 
 # train the model
 
 sess = tf.Session()
 sess.run(tf.global_variables_initializer())
-sess
+
+learning_rate = 0.002
+decay = 0.97
 for epoch in range(epochs):
   print("Epoch %s" %(epoch+1))
+  sess.run(tf.assign(lr, learning_rate * (decay ** epoch)))
   state = sess.run(decoder_initial_state)
   for i, t in zip(input, targets):
     #pdb.set_trace()
@@ -135,26 +140,56 @@ for epoch in range(epochs):
       feed[c] = state[i].c
       feed[h] = state[i].h
     cost, _, state = sess.run([cost_op, train_op, last_state], feed_dict=feed)
-    #print("cost %i" % (cost))
 
 # sample the model
 
-train_op, probs, decoder_initial_state, input_placeholder, target_placeholder, cost_op, last_state, logits = model(cell_state_size, rnn_cells_depth, 1, 1, number_of_letters, True)
+train_op, probs, decoder_initial_state, input_placeholder, target_placeholder, cost_op, last_state, logits, lr = model(cell_state_size, rnn_cells_depth, 1, 1, number_of_letters, True)
 
-prime = "The "
+prime = "MEN"
+result = prime
 state = sess.run(decoder_initial_state)
 for ch in prime:
   id = ch_to_id_map[ch]
   i = [[id]]
   t = [[id]]
    
-  feed = {input_placeholder: i, target_placeholder: t}
-  for i, (c, h) in enumerate(decoder_initial_state):
-    feed[c] = state[i].c
-    feed[h] = state[i].h
+  feed = {input_placeholder: i, decoder_initial_state: state}
+  #for i, (c, h) in enumerate(decoder_initial_state):
+    #feed[c] = state[i].c
+    #feed[h] = state[i].h
 
   actual_probs, state = sess.run([probs, last_state], feed_dict=feed)
 
+# now the super hacky part. Generate one character at a time. If we generate
+# exactly what the RNN says the output is very repetitive so instead of doing
+# that we get the probabilities for each output and randomly select a character
+# based on its likelyhood. That makes the output not boring. 
+# FUTURE WORK: get the hacky bit in the neural network
+
+def hacky_character_picker( probs ):
+  cs = np.cumsum(probs)
+  t = np.sum(probs)
+  r = np.random.rand(1)
+  cutoff = r * t
+  return int(np.searchsorted(cs, cutoff))
+ 
+for i in range(500):
+  id = hacky_character_picker(actual_probs)
+  #id = np.argmax(actual_probs)
+  ch = id_to_ch_map[id]
+  result = result + ch
+  i = [[id]]
+  
+  feed = {input_placeholder: i, decoder_initial_state: state}
+  #feed = {input_placeholder: i}
+  #for i, (c, h) in enumerate(decoder_initial_state):
+    #feed[c] = state[i].c
+    #feed[h] = state[i].h
+
+  actual_probs, state = sess.run([probs, last_state], feed_dict=feed)
+
+print("AND the result is: ")
+print(result)
 
 
 
