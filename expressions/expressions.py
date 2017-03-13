@@ -1,3 +1,4 @@
+# described is at http://gregmcclement.blogspot.ca/2017/03/parsing-expressions-with-neural-nets.html
 import tensorflow as tf
 import numpy as np
 import pdb
