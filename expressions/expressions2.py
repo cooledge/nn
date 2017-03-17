@@ -1,4 +1,4 @@
-# described is at http://gregmcclement.blogspot.ca/2017/03/parsing-expressions-with-neural-nets.html
+# described is at http://gregmcclement.blogspot.ca/2017/03/parsing-natural-languages.html
 
 import tensorflow as tf
 import numpy as np
