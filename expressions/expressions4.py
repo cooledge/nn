@@ -4,6 +4,81 @@ import tensorflow as tf
 import numpy as np
 import pdb
 
+class ParserModel:
+
+  def __init__(self, priorities):
+    self.priorities = priorities
+    self.init_data()
+    self.get_preference_model()
+    self.get_parser_model()
+
+  def from_op_to_id(self, op):
+    try:
+      if op in self.op_to_id.keys():
+        return(self.op_to_id[op])
+      else:
+        return(self.op_to_id['c'])
+    except:
+      return(self.op_to_id['c'])
+     
+  def init_data(self):
+    ops = set([])
+    for tuple in self.priorities:
+      ops.add(tuple[0])
+      ops.add(tuple[1])
+
+    self.id_to_op = {}
+    self.op_to_id = {}
+    for op in ops:
+      id = len(self.id_to_op)
+      self.id_to_op[id] = op
+      self.op_to_id[op] = id
+
+    self.number_of_ops = len(ops)
+    batch_size = len(self.priorities)
+    self.inputs = np.zeros((batch_size, self.number_of_ops))
+    self.labels = np.zeros((batch_size, self.number_of_ops))
+    batch_no = -1
+    for k, v in self.priorities:
+      batch_no = batch_no + 1
+      self.labels[batch_no][self.from_op_to_id(k)] = 1.0
+      self.inputs[batch_no][self.from_op_to_id(v)] = 1.0
+
+  def get_preference_model(self):
+    self.model_inputs = tf.placeholder(tf.float32, shape=(None, self.number_of_ops), name="inputs")
+    self.model_labels = tf.placeholder(tf.float32, shape=(None, self.number_of_ops), name="labels")
+    #model_w = tf.get_variable("w", shape=(self.number_of_ops, self.number_of_ops), dtype=tf.float32)
+    model_w = tf.Variable(tf.zeros((self.number_of_ops, self.number_of_ops)))
+    #model_b = tf.get_variable("b", shape=(self.number_of_ops), dtype=tf.float32)
+    model_b = tf.Variable(tf.zeros((self.number_of_ops)))
+    model_logits =  tf.matmul(self.model_inputs, model_w) + model_b
+    self.model_loss = tf.losses.softmax_cross_entropy(self.model_labels, model_logits)
+    self.model_predict = tf.nn.softmax(model_logits)
+    model_optimizer = tf.train.AdamOptimizer(0.05)
+    self.model_train_op = model_optimizer.minimize(self.model_loss)
+
+  def get_parser_model(self):
+    model_combined = tf.squeeze(tf.reshape(tf.reduce_sum(tf.split(self.model_predict, self.number_of_ops, axis=1), 1), (1, -1)))
+    model_reduced = tf.nn.relu(self.model_inputs - model_combined)
+    self.model_op_idx = tf.arg_max(tf.reduce_sum(model_reduced, 1), 0)
+
+  def train(self, epochs = 50):
+    for epoch in range(epochs):
+      feed_dict = { self.model_inputs: self.inputs, self.model_labels: self.labels }
+      _, loss = session.run([self.model_train_op, self.model_loss], feed_dict)
+      print("Epoch {0} loss {1}".format(epoch, loss))
+
+  def model_op_ids(self):
+    return self.model_op_ids
+
+  def get_op(self, expression):
+    inputs = np.zeros((len(expression), self.number_of_ops))
+    for i in range(len(expression)):
+      inputs[i][self.from_op_to_id(expression[i])] = 1
+    op_idx = session.run(self.model_op_idx, feed_dict = { self.model_inputs: inputs })
+
+    return op_idx
+
 priorities = [
   ('to', 'a'),
   ('to', 'the'),
@@ -14,105 +89,29 @@ priorities = [
   ('0', 'c')
 ]
 
+'''
+priorities = [
+  ('preposition', 'article'),
+  ('infix verb', 'preposition'),
+  ('constant', 'infix verb'),
+  ('0', 'c')
+]
 
-ops = ['move', 'bought', 'a', 'the', 'to', 'c', '0']
+words = {
+  ('to', 'preposition'),
+  ('from', 'preposition'),
+  ('move', 'infix verb'),
+  ('bought', 'infix verb')
+}
 
-id_to_op = {}
-op_to_id = {}
-for op in ops:
-  id = len(id_to_op)
-  id_to_op[id] = op
-  op_to_id[op] = id
+'''
 
-def from_op_to_id(op):
-  try:
-    if op in op_to_id.keys():
-      return(op_to_id[op])
-    else:
-      return(op_to_id['c'])
-  except:
-    return(op_to_id['c'])
- 
-number_of_ops = len(ops)
-batch_size = len(priorities)
-inputs = np.zeros((batch_size, number_of_ops))
-labels = np.zeros((batch_size, number_of_ops))
-batch_no = -1
-for k, v in priorities:
-  batch_no = batch_no + 1
-  labels[batch_no][from_op_to_id(k)] = 1.0
-  inputs[batch_no][from_op_to_id(v)] = 1.0
-
-def get_preference_model(number_of_ops):
-  model_inputs = tf.placeholder(tf.float32, shape=(None, number_of_ops), name="inputs")
-  model_labels = tf.placeholder(tf.float32, shape=(None, number_of_ops), name="labels")
-  model_w = tf.get_variable("w", shape=(number_of_ops, number_of_ops), dtype=tf.float32)
-  model_b = tf.get_variable("b", shape=(number_of_ops), dtype=tf.float32)
-  model_logits =  tf.matmul(model_inputs, model_w) + model_b
-  model_loss = tf.losses.softmax_cross_entropy(model_labels, model_logits)
-  model_predict = tf.nn.softmax(model_logits)
-  model_optimizer = tf.train.AdamOptimizer(0.05)
-  model_train_op = model_optimizer.minimize(model_loss)
-  return model_inputs, model_labels, model_train_op, model_loss, model_predict
-
-model_inputs, model_labels, model_train_op, model_loss, model_predict = get_preference_model(number_of_ops)
-
-def get_parser_model(model_inputs, model_predict):
-  number_of_ops = int(model_inputs.get_shape()[1])
-  model_combined = tf.squeeze(tf.reshape(tf.reduce_sum(tf.split(model_predict, number_of_ops, axis=1), 1), (1, -1)))
-  model_reduced = tf.nn.relu(model_inputs - model_combined)
-  model_op_idx = tf.arg_max(tf.reduce_sum(model_reduced, 1), 0)
-  return model_op_idx
-
-model_op_idx = get_parser_model(model_inputs, model_predict)
+parser_model = ParserModel(priorities)
 
 session = tf.Session()
 session.run(tf.global_variables_initializer())
 
-epochs = 50
-for epoch in range(epochs):
-  feed_dict = { model_inputs: inputs, model_labels: labels }
-  _, loss = session.run([model_train_op, model_loss], feed_dict)
-  print("Epoch {0} loss {1}".format(epoch, loss))
-
-# check it
-
-for op in ops:
-  inputs = np.zeros((1, number_of_ops))
-  inputs[0][from_op_to_id(op)] = 1
-  predict, = session.run([model_predict], feed_dict = {model_inputs: inputs})
-  predict = predict[0]
-  found = []
-  for i in range(len(predict)):
-    if predict[i] > 0.25:
-      found.append("{0} - {1:0.2f}".format(id_to_op[i], predict[i]))
-
-  print("op {0} found {1}".format(op, found))
-
-'''
-   c+-*/(**)
-   
-   input:        000100    001000
-
-   predict:      111000    100000
-
-   combined:     211000 (sum across predict)
-
-   reduced:      -2-1-1000 -2-10100
-'''
-
-
-def get_op(expression):
-  inputs = np.zeros((len(expression), number_of_ops))
-  for i in range(len(expression)):
-    inputs[i][from_op_to_id(expression[i])] = 1
-  op_idx = session.run(model_op_idx, feed_dict = { model_inputs: inputs })
-
-  return op_idx
-
-'''
-model_inputs, model_labels, = expression_evaluator(number_of_ops)
-'''
+parser_model.train()
 
 while True:
   ex_string = input("Enter an sentence if you dare: ")
@@ -121,14 +120,12 @@ while True:
 
   expression = ex_string.split()
   print("Input Expression: {0}".format(expression))
-  #while len(expression) > 1:
   while len(expression) > 1:
-    op_idx = get_op(expression)
+    op_idx = parser_model.get_op(expression)
     op = expression[op_idx]
 
-    # did all the real ops
-    if from_op_to_id(op) == 'c':
-      break;
+    if op == 'c':
+      break
     
     if op == 'bought':
       before = expression[:op_idx-1]
