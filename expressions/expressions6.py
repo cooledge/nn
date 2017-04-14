@@ -179,9 +179,40 @@ that is you cool data structure (CDS)
 
 expression -> CDS -> expression -f-> CDS -> expression -f-> CDS
 
-
-
 '''
+
+class CDS:
+
+  def __init__(self, length, depth):
+    self.length = length
+    self.depth = depth
+
+    nodes = tf.placeholder((length), name="nodes")
+    layer_outputs = [nodes]
+    layer_matrix = []
+    for d in range(depth):
+      m = tf.get_variable("m{0}".format(d), shape=(length, length))
+      layer_matrix = m
+      layer_outputs.append(layer_outputs[d-1] * m)
+
+    values = {}
+ 
+  # join nodes at depth into the next level to node 
+  def join(depth, nodes, to, value): 
+    for node in nodes:
+      layers[depth][node][to] = 1
+    values[(depth,to)] = value
+ 
+  def current():
+    for pos in values:
+      # set the   
+
+  def from_expression(expression):
+
+  def to_expression():  
+
+  # map from node to expression
+
 
 while True:
   ex_string = input("Enter an sentence if you dare: ")
