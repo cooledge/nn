@@ -3,6 +3,7 @@
 import tensorflow as tf
 import numpy as np
 import pdb
+import sys
 from hierarchy3 import HierarchyModel
 from chain1 import ChainModel
 
@@ -120,8 +121,15 @@ session.run(tf.global_variables_initializer())
 chain_model = ChainModel(hierarchy_model, parser_model)
 chain_model.train(session)
 
+if sys.version_info:
+  def read_string(message):
+    return raw_input(message)
+else:
+  def read_string(message):
+    return input(message)
+
 while True:
-  ex_string = input("Enter an sentence if you dare: ")
+  ex_string = read_string("Enter an sentence if you dare: ")
   if ex_string == "":
     break
 
