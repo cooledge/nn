@@ -3,6 +3,14 @@
 import tensorflow as tf
 import numpy as np
 import pdb
+import sys
+
+if sys.version_info.major == 2:
+  def read_string(message):
+    return raw_input(message)
+else:
+  def read_string(message):
+    return input(message)
 
 class ParserModel:
 
@@ -114,7 +122,7 @@ session.run(tf.global_variables_initializer())
 parser_model.train()
 
 while True:
-  ex_string = input("Enter an sentence if you dare: ")
+  ex_string = read_string("Enter an sentence if you dare: ")
   if ex_string == "":
     break
 
