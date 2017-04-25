@@ -2,8 +2,9 @@
 
 import tensorflow as tf
 import numpy as np
+import sys
 import pdb
-from hierarchy3 import HierarchyModel
+from hierarchy4 import HierarchyModel
 from chain1 import ChainModel
 
 class ParserModel:
@@ -183,26 +184,69 @@ expression -> CDS -> expression -f-> CDS -> expression -f-> CDS
 
 class CDS:
 
-  def __init__(self, length, depth):
+  def __init__(self, session, length, depth):
+    self.session = session
     self.length = length
     self.depth = depth
+    self.values = [ [None for _ in range(length)] for _ in range(depth) ]
+    self.placeholders = [ tf.placeholder(tf.float32, shape=(1, length)) for _ in range(depth) ]
 
-    nodes = tf.placeholder((length), name="nodes")
-    layer_outputs = [nodes]
-    layer_matrix = []
+    self.nodes = []
+    self.layers = []
+    
+    self.nodes.append(tf.constant([[1]], dtype=tf.float32))
+
+    m = tf.Variable(tf.zeros([1,length]), name="m1")
+    self.layers.append(m)
+    self.nodes.append(tf.matmul(self.nodes[-1], self.layers[-1]))
+
+    il = 0
     for d in range(depth):
-      m = tf.get_variable("m{0}".format(d), shape=(length, length))
-      layer_matrix = m
-      layer_outputs.append(layer_outputs[d-1] * m)
+      il = il + length
+      m = tf.Variable(tf.zeros([il, length]), name="m{0}".format(d+2))
+      self.layers.append(m)
+      i = tf.reshape([self.nodes[1:]], (1, il))
+      self.nodes.append(tf.matmul(i, self.layers[-1]))
 
-    values = {}
+    '''
+    row = 0
+    column = 0
+    tf.matmul(self.nodes[row][column], self.layers[row])
+    '''
+   
+  def show(self):
+    o = self.session.run(self.nodes)
+    for row in o:
+      for column in row:
+        print(column)
+    print("") 
+
+  def in_graph(session):
+    #session.run(self.nodes[1:], { self.nodes[0]: 1 })
+    session.run(self.nodes[1:])
  
+  #def is_leaf():
+
   # join nodes at depth into the next level to node 
-  def join(depth, nodes, to, value): 
+  def join(self, from_row, from_col, to_row, to_col, value): 
+    layer = self.layers[to_row]
+    update = np.zeros(layer.get_shape())
+    update[from_row*self.length + from_col][to_col] = 1.0
+    self.session.run(layer.assign_add(update))
+    '''
+    a1 = tf.assign(layer[from_row*self.length + from_col][to_col], tf.constant(1))
+    self.session(a1)
+    values = np.zeros((1, self.length))
     for node in nodes:
-      layers[depth][node][to] = 1
-    values[(depth,to)] = value
+      pdb.set_trace()
+      layer = self.layers[depth]
+      placeholders = tf.placeholder(tf.float32, shape=(1, self.length))
+      self.session.run(tf.assign(layer, tf.constant(1))) 
+      #layers[depth][node][to] = 1
+    #self.values[depth][to] = value
+    '''
  
+  '''
   def current():
     for pos in values:
       # set the   
@@ -212,10 +256,33 @@ class CDS:
   def to_expression():  
 
   # map from node to expression
+  '''
 
+pdb.set_trace()
+session2 = tf.Session()
+cds = CDS(session2, 15, 7)
+session2.run(tf.global_variables_initializer())
+cds.show()
+cds.join(0, 0, 0, 0, "value10")
+cds.join(0, 0, 0, 1, "value10")
+cds.join(0, 0, 0, 2, "value10")
+
+cds.join(0, 0, 2, 1, "value10")
+cds.join(0, 1, 2, 1, "value10")
+
+cds.join(0, 2, 3, 1, "value10")
+cds.join(2, 1, 3, 1, "value10")
+cds.show()
+
+if sys.version_info.major == 2:
+  def read_string(message):
+    return raw_input(message)
+else:
+  def read_string(message):
+    return input(message)
 
 while True:
-  ex_string = input("Enter an sentence if you dare: ")
+  ex_string = read_string("Enter an sentence if you dare: ")
   if ex_string == "":
     break
 
