@@ -188,7 +188,7 @@ class CDS:
     self.session = session
     self.length = length
     self.depth = depth
-    self.values = [ [None for _ in range(length)] for _ in range(depth) ]
+    self.values = [ [None for _ in range(length)] for _ in range(depth+1) ]
     self.placeholders = [ tf.placeholder(tf.float32, shape=(1, length)) for _ in range(depth) ]
 
     self.nodes = []
@@ -208,17 +208,50 @@ class CDS:
       i = tf.reshape([self.nodes[1:]], (1, il))
       self.nodes.append(tf.matmul(i, self.layers[-1]))
 
-    '''
-    row = 0
-    column = 0
-    tf.matmul(self.nodes[row][column], self.layers[row])
-    '''
+    self.leaves = []
+  
+    for d in range(len(self.nodes)-1): 
+      self.debug = []
+      s = tf.clip_by_value(self.nodes[d+1], 0, 1)
+      self.debug.append(s)
+      for m in self.layers[d+1:]:
+        l = tf.slice(m, [d*length,0], [length,length])
+        r = tf.reduce_sum(l, [1]) * -1
+        s = s + r
+        self.debug.append(s)
+      self.leaves.append(s)
    
   def show(self):
-    o = self.session.run(self.nodes)
-    for row in o:
+    nodes, leaves, debug, layers = self.session.run([self.nodes, self.leaves, self.debug, self.layers])
+
+    print("Nodes")
+    for row in nodes:
       for column in row:
         print(column)
+
+    print("Leaves")
+    for row in leaves:
+      for column in row:
+        print(column)
+
+    print("Values")
+    for row in range(len(self.values)):
+      for col in range(len(self.values[row])):
+        if self.values[row][col]:
+          print("[{0}][{1}]: {2}".format(row, col, self.values[row][col]))
+
+    print("Current")
+    print(self.current())
+    '''
+    print("Debug")
+    for l in debug:
+      print(l)
+
+    print("Layers")
+    for i in range(len(layers)):
+      print("{0}: {1}".format(i, layers[i]))
+    '''
+
     print("") 
 
   def in_graph(session):
@@ -228,41 +261,33 @@ class CDS:
   #def is_leaf():
 
   # join nodes at depth into the next level to node 
-  def join(self, from_row, from_col, to_row, to_col, value): 
+  def join(self, from_row, from_col, to_row, to_col): 
     layer = self.layers[to_row]
     update = np.zeros(layer.get_shape())
     update[from_row*self.length + from_col][to_col] = 1.0
     self.session.run(layer.assign_add(update))
-    '''
-    a1 = tf.assign(layer[from_row*self.length + from_col][to_col], tf.constant(1))
-    self.session(a1)
-    values = np.zeros((1, self.length))
-    for node in nodes:
-      pdb.set_trace()
-      layer = self.layers[depth]
-      placeholders = tf.placeholder(tf.float32, shape=(1, self.length))
-      self.session.run(tf.assign(layer, tf.constant(1))) 
-      #layers[depth][node][to] = 1
-    #self.values[depth][to] = value
-    '''
- 
-  '''
-  def current():
-    for pos in values:
-      # set the   
 
-  def from_expression(expression):
+  def joins(self, froms, to, value):
+    for f in froms:
+      self.join(f[0], f[1], to[0], to[1])
+    self.values[to[0]][to[1]] = value
 
-  def to_expression():  
+  def current(self):
+    current = []
+    leaves = self.session.run(self.leaves)
+    for row in range(len(leaves)):
+      for col in range(len(leaves[0][0])):
+        if leaves[row][0][col] > 0:
+          current.append(((row,col), self.values[row][col]))
+    return current
 
-  # map from node to expression
-  '''
-
-pdb.set_trace()
+''' 
 session2 = tf.Session()
-cds = CDS(session2, 15, 7)
+length = 4
+depth = 3
+cds = CDS(session2, length, depth)
 session2.run(tf.global_variables_initializer())
-cds.show()
+#cds.show()
 cds.join(0, 0, 0, 0, "value10")
 cds.join(0, 0, 0, 1, "value10")
 cds.join(0, 0, 0, 2, "value10")
@@ -273,6 +298,7 @@ cds.join(0, 1, 2, 1, "value10")
 cds.join(0, 2, 3, 1, "value10")
 cds.join(2, 1, 3, 1, "value10")
 cds.show()
+'''
 
 if sys.version_info.major == 2:
   def read_string(message):
@@ -286,7 +312,19 @@ while True:
   if ex_string == "":
     break
 
+  max_length = 5
+  max_depth = 4
+  #cds = CDS(session, max_length, max_depth)
+  #session.run(tf.global_variables_initializer())
   expression = ex_string.split()
+
+  '''
+  for i in range(len(expression)):
+    cds.joins( [(0,0)], (0,i), expression[i] )
+  cds.show() 
+  '''
+
+  
   print("Input Expression: {0}".format(expression))
   while len(expression) > 1:
     op_idx = chain_model.apply(session, expression)
@@ -294,7 +332,7 @@ while True:
 
     if op == 'constant':
       break
-  
+ 
     expression = op_to_apply[op](op, expression) 
 
 
