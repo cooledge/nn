@@ -115,13 +115,7 @@ hierarchy_model = HierarchyModel(words, 'constant', one_hot_spec)
 
 parser_model = ParserModel(priorities, 'constant', one_hot_spec)
 
-session = tf.Session()
-session.run(tf.global_variables_initializer())
-
-chain_model = ChainModel(hierarchy_model, parser_model)
-chain_model.train(session)
-
-def apply_move_chess_piece(op, expression):
+def apply_move_chess_piece(op, op_idx, expression, cds):
   before = expression[:op_idx]
   after = expression[op_idx+3:]
   r = expression[op_idx + 1]
@@ -129,7 +123,7 @@ def apply_move_chess_piece(op, expression):
   result = { "action": 'move_chess_piece', "piece": r, "square": to["thing"] }
   return before + [result] + after
 
-def apply_bought(op, expression):
+def apply_bought(op, op_idx, expression, cds):
   before = expression[:op_idx-1]
   after = expression[op_idx+2:]
   l = expression[op_idx - 1]
@@ -137,14 +131,42 @@ def apply_bought(op, expression):
   result = { "action": "buy", "buyer": l, "thing": r }
   return before + [result] + after
 
-def apply_preposition(op, expression):
+def apply_preposition(op, op_idx, expression, cds):
+
+  '''  
+  expression2 = cds.current()
+  before2 = [ tuple[1] for tuple in expression2[:op_idx]]
+  after2 = [ tuple[1] for tuple in expression2[op_idx+2:]]
+  r2 = expression2[op_idx + 1][1]
+  result2 = { "preposition": op, "thing": r2 }
+  result2 = before2 + [result2] + after2
+  '''
+ 
   before = expression[:op_idx]
   after = expression[op_idx+2:]
   r = expression[op_idx + 1]
   result = { "preposition": op, "thing": r }
-  return before + [result] + after
+  result1 = before + [result] + after
+  pdb.set_trace()
+  return result1
 
-def apply_article(op, expression):
+def increment_depth(tuple):
+  return (tuple[0]+1, tuple[1])
+
+def apply_article(op, op_idx, expression, cds):
+  '''
+  current = cds.current()
+  pdb.set_trace()
+  cds.joins( [current[op_idx][0], current[op_idx+1][0]], increment_depth(current[op_idx][0]), "result to be set" )
+  '''
+  '''
+  expression = cds.current()
+  before = [tuple[1] for tuple in expression[:op_idx]]
+  after = [tuple[1] for tuple in expression[op_idx+2:]]
+  r = expression[op_idx + 1][1]
+  result = { "determiner": op, "thing": r }
+  return before + [result] + after
+  '''
   before = expression[:op_idx]
   after = expression[op_idx+2:]
   r = expression[op_idx + 1]
@@ -307,24 +329,24 @@ else:
   def read_string(message):
     return input(message)
 
-while True:
-  ex_string = read_string("Enter an sentence if you dare: ")
-  if ex_string == "":
-    break
+session = tf.Session()
+session.run(tf.global_variables_initializer())
 
-  max_length = 5
-  max_depth = 4
-  #cds = CDS(session, max_length, max_depth)
-  #session.run(tf.global_variables_initializer())
-  expression = ex_string.split()
+chain_model = ChainModel(hierarchy_model, parser_model)
+chain_model.train(session)
 
-  '''
+def evaluate(string):
+  max_length = 10
+  max_depth = 6
+  session_cds = tf.Session()
+  cds = CDS(session_cds, max_length, max_depth)
+  session_cds.run(tf.global_variables_initializer())
+  expression = string.split()
+
   for i in range(len(expression)):
     cds.joins( [(0,0)], (0,i), expression[i] )
   cds.show() 
-  '''
 
-  
   print("Input Expression: {0}".format(expression))
   while len(expression) > 1:
     op_idx = chain_model.apply(session, expression)
@@ -333,8 +355,23 @@ while True:
     if op == 'constant':
       break
  
-    expression = op_to_apply[op](op, expression) 
+    expression = op_to_apply[op](op, op_idx, expression, cds) 
+  return expression
 
+expression1 = evaluate("move the boat to the island")
+expected1 = [{'action': 'move_chess_piece', 'piece': {'thing': 'boat', 'determiner': 'the'}, 'square': {'thing': 'island', 'determiner': 'the'}}]
+assert expression1 == expected1
+
+expression2 = evaluate("move t1 to t2")
+expected2 = [{'action': 'move_chess_piece', 'piece': 't1', 'square': 't2'}]
+assert expression2 == expected2
+
+while True:
+  ex_string = read_string("Enter an sentence if you dare: ")
+  if ex_string == "":
+    break
+
+  expression = evaluate(ex_string)
 
   for e in expression:
     if isinstance(e, dict):
