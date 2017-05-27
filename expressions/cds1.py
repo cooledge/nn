@@ -42,7 +42,11 @@ class CDS:
         s = s + r
         self.debug.append(s)
       self.leaves.append(s)
-   
+  
+  def initialize(self, values):
+    for i in range(len(values)):
+      self.joins([(0,0)], (0, i), values[i])
+
   def show(self):
     nodes, leaves, debug, layers = self.session.run([self.nodes, self.leaves, self.debug, self.layers])
 
@@ -97,8 +101,8 @@ class CDS:
   def current(self):
     current = []
     leaves = self.session.run(self.leaves)
-    for row in range(len(leaves)):
-      for col in range(len(leaves[0][0])):
+    for col in range(len(leaves[0][0])):
+      for row in range(len(leaves)):
         if leaves[row][0][col] > 0:
           current.append(((row,col), self.values[row][col]))
     return current
