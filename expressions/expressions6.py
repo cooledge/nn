@@ -256,7 +256,7 @@ def evaluate(string):
     except:
       break
 
-  return expression
+  return [t[1] for t in cds.current()]
 
 expression1 = evaluate("move the boat to the island")
 expected1 = [{'action': 'move_chess_piece', 'piece': {'thing': 'boat', 'determiner': 'the'}, 'square': {'thing': 'island', 'determiner': 'the'}}]
