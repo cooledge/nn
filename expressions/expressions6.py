@@ -116,62 +116,77 @@ hierarchy_model = HierarchyModel(words, 'constant', one_hot_spec)
 
 parser_model = ParserModel(priorities, 'constant', one_hot_spec)
 
-def apply_move_chess_piece(op, op_idx, expression, cds):
+def get_next_level(elements):
+  return max([element[0] for element in elements]) + 1
+ 
+def apply_move_chess_piece(op_idx, expression, cds):
+  op = expression[op_idx]
+
+  result = do_op(op_idx, [], "action", ["piece", "square"], cds, 
+              {
+                op_idx: lambda e: "move_chess_piece",
+                op_idx+2: lambda to: to["thing"]
+              })
+
   before = expression[:op_idx]
   after = expression[op_idx+3:]
-  r = expression[op_idx + 1]
-  to = expression[op_idx + 2]
-  result = { "action": 'move_chess_piece', "piece": r, "square": to["thing"] }
   return before + [result] + after
 
-def apply_bought(op, op_idx, expression, cds):
+def apply_bought(op_idx, expression, cds):
+  op = expression[op_idx]
+
+  result = do_op(op_idx, ["buyer"], "action", ["thing"], cds, {op_idx: lambda e: "buy"})
+
   before = expression[:op_idx-1]
   after = expression[op_idx+2:]
-  l = expression[op_idx - 1]
-  r = expression[op_idx + 1]
-  result = { "action": "buy", "buyer": l, "thing": r }
   return before + [result] + after
 
-def apply_preposition(op, op_idx, expression, cds):
-
-  '''  
+def do_op(op_idx, before_tags, op_tag, after_tags, cds, overrides = {}):
   expression2 = cds.current()
-  before2 = [ tuple[1] for tuple in expression2[:op_idx]]
-  after2 = [ tuple[1] for tuple in expression2[op_idx+2:]]
-  r2 = expression2[op_idx + 1][1]
-  result2 = { "preposition": op, "thing": r2 }
-  result2 = before2 + [result2] + after2
-  '''
+
+  tag_to_index = { op_tag: op_idx }
+  for idx, after_tag in enumerate(after_tags):
+    tag_to_index[after_tag] = op_idx + idx + 1
+  for idx, before_tag in enumerate(before_tags):
+    tag_to_index[before_tag] = op_idx - idx - 1
+
+  result = {}
+  for tag in tag_to_index:
+    idx = tag_to_index[tag]
+    if idx in overrides:
+      result[tag] = overrides[idx](expression2[idx][1])
+    else:
+      result[tag] = expression2[idx][1] 
+
+  op_pos = expression2[op_idx][0]
+  joins = [ expression2[idx][0] for idx in tag_to_index.values() ]
+  next_level = get_next_level(joins)
+  cds.joins(joins, (next_level, op_pos[1]), result)
+  return result
+
+def apply_preposition(op_idx, expression, cds):
+  op = expression[op_idx]
+  result = do_op(op_idx, [], "preposition", ["thing"], cds)
  
   before = expression[:op_idx]
   after = expression[op_idx+2:]
   r = expression[op_idx + 1]
-  result = { "preposition": op, "thing": r }
   result1 = before + [result] + after
-  pdb.set_trace()
   return result1
+
+def apply_done(op_idx, expression, cds):
+  raise "done"
 
 def increment_depth(tuple):
   return (tuple[0]+1, tuple[1])
 
-def apply_article(op, op_idx, expression, cds):
-  '''
-  current = cds.current()
-  pdb.set_trace()
-  cds.joins( [current[op_idx][0], current[op_idx+1][0]], increment_depth(current[op_idx][0]), "result to be set" )
-  '''
-  '''
-  expression = cds.current()
-  before = [tuple[1] for tuple in expression[:op_idx]]
-  after = [tuple[1] for tuple in expression[op_idx+2:]]
-  r = expression[op_idx + 1][1]
-  result = { "determiner": op, "thing": r }
-  return before + [result] + after
-  '''
+def apply_article(op_idx, expression, cds):
+  op = expression[op_idx]
+  result = do_op(op_idx, [], "determiner", ["thing"], cds)
+  
   before = expression[:op_idx]
   after = expression[op_idx+2:]
   r = expression[op_idx + 1]
-  result = { "determiner": op, "thing": r }
   return before + [result] + after
 
 op_to_apply = { 
@@ -179,7 +194,8 @@ op_to_apply = {
   "bought": apply_bought, 
   "to": apply_preposition, 
   "a": apply_article, 
-  "the": apply_article 
+  "the": apply_article,
+  "constant": apply_done
 }
 
 '''
@@ -226,8 +242,7 @@ def evaluate(string):
   session_cds.run(tf.global_variables_initializer())
   expression = string.split()
 
-  for i in range(len(expression)):
-    cds.joins( [(0,0)], (0,i), expression[i] )
+  cds.initialize(expression)
   cds.show() 
 
   print("Input Expression: {0}".format(expression))
@@ -235,10 +250,12 @@ def evaluate(string):
     op_idx = chain_model.apply(session, expression)
     op = expression[op_idx]
 
-    if op == 'constant':
+    try: 
+      op_to_apply[op](op_idx, expression, cds) 
+      expression = [t[1] for t in cds.current()]
+    except:
       break
- 
-    expression = op_to_apply[op](op, op_idx, expression, cds) 
+
   return expression
 
 expression1 = evaluate("move the boat to the island")

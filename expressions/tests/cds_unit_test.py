@@ -258,12 +258,6 @@ class TddTestCDS(unittest.TestCase):
     cds = self.check_current_joins_three_two_edges_case1_next_2_l1_cN(2, 1, 2)
     self.assertEqual([((0, 0), "l0_c0"), ((2, 0), "next")], cds.current())
 
-  '''
-  def test_current_joins_three_two_edges_case1_next_2_with_level_1_column_0(self):
-    cds.joins([(0, 1)], (1, 0), "l1_c0")
-    self.check_current_joins_three_two_edges_case1(2, (1, 0))
-  '''
-
   def check_current_joins_three_two_edges_case2(self, next_row):
     cds = CDS(self.session, 3, 2)
     self.session.run(tf.global_variables_initializer())
@@ -383,36 +377,4 @@ class TddTestCDS(unittest.TestCase):
 
   def test_current_joins_three_three_edges_case3(self):
     self.check_current_joins_three_three_edges_case1(2)
-
-  '''
-  def test_current_joins_set_one_one(self):
-    cds = CDS(self.session, 5, 5)
-    self.session.run(tf.global_variables_initializer())
-    cds.initialize(["l0_c0"])
-    cds.joins([(0, 0)], (1, 0), "one_one")
-    self.assertEqual([((1, 0), "one_one")], cds.current())
-
-  def test_current_joins_set_one_one_one(self):
-    cds = CDS(self.session, 5, 5)
-    self.session.run(tf.global_variables_initializer())
-    cds.initialize(["l0_c0"])
-    cds.joins([(0, 0)], (1, 0), "one_one")
-    cds.joins([(1, 0)], (2, 0), "one_one_one")
-    self.assertEqual([((2, 0), "one_one_one")], cds.current())
-
-  def test_current_joins_set_two_one(self):
-    cds = CDS(self.session, 5, 5)
-    self.session.run(tf.global_variables_initializer())
-    cds.initialize(["l0_c0", "l0_c1"])
-    cds.joins([(0, 0)], (1, 0), "one_one")
-    pdb.set_trace()
-    self.assertEqual([((1, 0), "one_one"), ((0, 1), "l0_c1")], cds.current())
-
-  def test_current_joins_set_two_two(self):
-    cds = CDS(self.session, 5, 5)
-    self.session.run(tf.global_variables_initializer())
-    cds.initialize(["l0_c0", "l0_c1"])
-    cds.joins([(0, 1)], (1, 1), "two_one")
-    self.assertEqual([((0, 0), "l0_c0"), ((1, 1), "two_one")], cds.current())
-  '''
 
