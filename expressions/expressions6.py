@@ -1,4 +1,5 @@
-# work in progress. I want to work on dealing with ambiguity and see what happens
+# this version has the current state of the parse represented in a NN
+# using the CDS data structure. 
 
 import tensorflow as tf
 import numpy as np
