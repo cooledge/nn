@@ -107,22 +107,3 @@ class CDS:
           current.append(((row,col), self.values[row][col]))
     return current
 
-''' 
-session2 = tf.Session()
-length = 4
-depth = 3
-cds = CDS(session2, length, depth)
-session2.run(tf.global_variables_initializer())
-#cds.show()
-cds.join(0, 0, 0, 0, "value10")
-cds.join(0, 0, 0, 1, "value10")
-cds.join(0, 0, 0, 2, "value10")
-
-cds.join(0, 0, 2, 1, "value10")
-cds.join(0, 1, 2, 1, "value10")
-
-cds.join(0, 2, 3, 1, "value10")
-cds.join(2, 1, 3, 1, "value10")
-cds.show()
-'''
-
