@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 import sys
 import pdb
-from chain1 import ChainModel
+from chain import ChainModel
 
 class CDS:
 

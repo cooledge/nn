@@ -5,9 +5,9 @@ import tensorflow as tf
 import numpy as np
 import sys
 import pdb
-from hierarchy4 import HierarchyModel
-from cds2 import CDS
-from chain1 import ChainModel
+from hierarchy import HierarchyModel
+from cds import CDS
+from chain import ChainModel
 
 class ParserModel:
 

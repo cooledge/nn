@@ -1,7 +1,7 @@
 import unittest
 import pdb
 import tensorflow as tf
-from cds2 import CDS
+from cds import CDS
 
 class TddTestCDS(unittest.TestCase):
 
