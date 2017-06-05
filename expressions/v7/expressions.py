@@ -1,6 +1,29 @@
 # this version has the current state of the parse represented in a NN
 # using the CDS data structure. 
 
+'''
+can you run neural nets in reverse?
+m1 implies what for arg1 and arg2 arg1 and implies what for m
+output of a neural net is one node for each type -> then convert that to a one hot vector ala hierarchy
+
+m1 m2 m3   +    arg1.1 arg1.2   + arg2.1 arg2.2 arg2.3
+  move a car by driving
+  move a chess piece with a hand
+  move from one house to another
+
+move1 after to -> together or not
+present + types
+
+nueral net for numbers
+proper names
+
+the processing loops sets weights in a fully connection multilayer net. That is used as input to the loop
+that is you cool data structure (CDS)
+
+expression -> CDS -> expression -f-> CDS -> expression -f-> CDS
+
+'''
+
 import tensorflow as tf
 import numpy as np
 import sys
@@ -120,10 +143,10 @@ parser_model = ParserModel(priorities, 'constant', one_hot_spec)
 def get_next_level(elements):
   return max([element[0] for element in elements]) + 1
  
-def apply_move_chess_piece(op_idx, expression, cds):
+def apply_move_chess_piece(evaluator, op_idx, expression, cds):
   op = expression[op_idx]
 
-  result = do_op(op_idx, [], "action", ["piece", "square"], cds, 
+  result = evaluator.do_op(op_idx, [], "action", ["piece", "square"], cds, 
               {
                 op_idx: lambda e: "move_chess_piece",
                 op_idx+2: lambda to: to["thing"]
@@ -133,41 +156,18 @@ def apply_move_chess_piece(op_idx, expression, cds):
   after = expression[op_idx+3:]
   return before + [result] + after
 
-def apply_bought(op_idx, expression, cds):
+def apply_bought(evaluator, op_idx, expression, cds):
   op = expression[op_idx]
 
-  result = do_op(op_idx, ["buyer"], "action", ["thing"], cds, {op_idx: lambda e: "buy"})
+  result = evaluator.do_op(op_idx, ["buyer"], "action", ["thing"], cds, {op_idx: lambda e: "buy"})
 
   before = expression[:op_idx-1]
   after = expression[op_idx+2:]
   return before + [result] + after
 
-def do_op(op_idx, before_tags, op_tag, after_tags, cds, overrides = {}):
-  expression2 = cds.current()
-
-  tag_to_index = { op_tag: op_idx }
-  for idx, after_tag in enumerate(after_tags):
-    tag_to_index[after_tag] = op_idx + idx + 1
-  for idx, before_tag in enumerate(before_tags):
-    tag_to_index[before_tag] = op_idx - idx - 1
-
-  result = {}
-  for tag in tag_to_index:
-    idx = tag_to_index[tag]
-    if idx in overrides:
-      result[tag] = overrides[idx](expression2[idx][1])
-    else:
-      result[tag] = expression2[idx][1] 
-
-  op_pos = expression2[op_idx][0]
-  joins = [ expression2[idx][0] for idx in tag_to_index.values() ]
-  next_level = get_next_level(joins)
-  cds.joins(joins, (next_level, op_pos[1]), result)
-  return result
-
-def apply_preposition(op_idx, expression, cds):
+def apply_preposition(evaluator, op_idx, expression, cds):
   op = expression[op_idx]
-  result = do_op(op_idx, [], "preposition", ["thing"], cds)
+  result = evaluator.do_op(op_idx, [], "preposition", ["thing"], cds)
  
   before = expression[:op_idx]
   after = expression[op_idx+2:]
@@ -175,20 +175,20 @@ def apply_preposition(op_idx, expression, cds):
   result1 = before + [result] + after
   return result1
 
-def apply_done(op_idx, expression, cds):
-  raise "done"
-
-def increment_depth(tuple):
-  return (tuple[0]+1, tuple[1])
-
-def apply_article(op_idx, expression, cds):
+def apply_article(evaluator, op_idx, expression, cds):
   op = expression[op_idx]
-  result = do_op(op_idx, [], "determiner", ["thing"], cds)
+  result = evaluator.do_op(op_idx, [], "determiner", ["thing"], cds)
   
   before = expression[:op_idx]
   after = expression[op_idx+2:]
   r = expression[op_idx + 1]
   return before + [result] + after
+
+def apply_done(evaluator, op_idx, expression, cds):
+  raise "done"
+
+def increment_depth(tuple):
+  return (tuple[0]+1, tuple[1])
 
 op_to_apply = { 
   "move": apply_move_chess_piece, 
@@ -198,29 +198,6 @@ op_to_apply = {
   "the": apply_article,
   "constant": apply_done
 }
-
-'''
-can you run neural nets in reverse?
-m1 implies what for arg1 and arg2 arg1 and implies what for m
-output of a neural net is one node for each type -> then convert that to a one hot vector ala hierarchy
-
-m1 m2 m3   +    arg1.1 arg1.2   + arg2.1 arg2.2 arg2.3
-  move a car by driving
-  move a chess piece with a hand
-  move from one house to another
-
-move1 after to -> together or not
-present + types
-
-nueral net for numbers
-proper names
-
-the processing loops sets weights in a fully connection multilayer net. That is used as input to the loop
-that is you cool data structure (CDS)
-
-expression -> CDS -> expression -f-> CDS -> expression -f-> CDS
-
-'''
 
 if sys.version_info.major == 2:
   def read_string(message):
@@ -235,35 +212,61 @@ session.run(tf.global_variables_initializer())
 chain_model = ChainModel(hierarchy_model, parser_model)
 chain_model.train(session)
 
-def evaluate(string):
-  max_length = 10
-  max_depth = 6
-  session_cds = tf.Session()
-  cds = CDS(session_cds, max_length, max_depth)
-  session_cds.run(tf.global_variables_initializer())
-  expression = string.split()
+class Evaluator:
 
-  cds.initialize(expression)
-  cds.show() 
+  def do_op(self, op_idx, before_tags, op_tag, after_tags, cds, overrides = {}):
+    expression2 = cds.current()
 
-  print("Input Expression: {0}".format(expression))
-  while len(expression) > 1:
-    op_idx = chain_model.apply(session, expression)
-    op = expression[op_idx]
+    tag_to_index = { op_tag: op_idx }
+    for idx, after_tag in enumerate(after_tags):
+      tag_to_index[after_tag] = op_idx + idx + 1
+    for idx, before_tag in enumerate(before_tags):
+      tag_to_index[before_tag] = op_idx - idx - 1
 
-    try: 
-      op_to_apply[op](op_idx, expression, cds) 
-      expression = [t[1] for t in cds.current()]
-    except:
-      break
+    result = {}
+    for tag in tag_to_index:
+      idx = tag_to_index[tag]
+      if idx in overrides:
+        result[tag] = overrides[idx](expression2[idx][1])
+      else:
+        result[tag] = expression2[idx][1] 
 
-  return [t[1] for t in cds.current()]
+    op_pos = expression2[op_idx][0]
+    joins = [ expression2[idx][0] for idx in tag_to_index.values() ]
+    next_level = get_next_level(joins)
+    cds.joins(joins, (next_level, op_pos[1]), result)
+    return result
 
-expression1 = evaluate("move the boat to the island")
+  def evaluate(self, string):
+    max_length = 10
+    max_depth = 6
+    session_cds = tf.Session()
+    cds = CDS(session_cds, max_length, max_depth)
+    session_cds.run(tf.global_variables_initializer())
+    expression = string.split()
+
+    cds.initialize(expression)
+    cds.show() 
+
+    print("Input Expression: {0}".format(expression))
+    while len(expression) > 1:
+      op_idx = chain_model.apply(session, expression)
+      op = expression[op_idx]
+
+      try: 
+        op_to_apply[op](self, op_idx, expression, cds) 
+        expression = [t[1] for t in cds.current()]
+      except:
+        break
+
+    return [t[1] for t in cds.current()]
+
+evaluator = Evaluator()
+expression1 = evaluator.evaluate("move the boat to the island")
 expected1 = [{'action': 'move_chess_piece', 'piece': {'thing': 'boat', 'determiner': 'the'}, 'square': {'thing': 'island', 'determiner': 'the'}}]
 assert expression1 == expected1
 
-expression2 = evaluate("move t1 to t2")
+expression2 = evaluator.evaluate("move t1 to t2")
 expected2 = [{'action': 'move_chess_piece', 'piece': 't1', 'square': 't2'}]
 assert expression2 == expected2
 
@@ -272,7 +275,7 @@ while True:
   if ex_string == "":
     break
 
-  expression = evaluate(ex_string)
+  expression = evaluator.evaluate(ex_string)
 
   for e in expression:
     if isinstance(e, dict):
