@@ -199,13 +199,6 @@ op_to_apply = {
   "constant": apply_done
 }
 
-if sys.version_info.major == 2:
-  def read_string(message):
-    return raw_input(message)
-else:
-  def read_string(message):
-    return input(message)
-
 session = tf.Session()
 session.run(tf.global_variables_initializer())
 
@@ -261,23 +254,25 @@ class Evaluator:
 
     return [t[1] for t in cds.current()]
 
-evaluator = Evaluator()
-expression1 = evaluator.evaluate("move the boat to the island")
-expected1 = [{'action': 'move_chess_piece', 'piece': {'thing': 'boat', 'determiner': 'the'}, 'square': {'thing': 'island', 'determiner': 'the'}}]
-assert expression1 == expected1
+class SampleEvaluator:
 
-expression2 = evaluator.evaluate("move t1 to t2")
-expected2 = [{'action': 'move_chess_piece', 'piece': 't1', 'square': 't2'}]
-assert expression2 == expected2
+if __name__ == "__main__":
 
-while True:
-  ex_string = read_string("Enter an sentence if you dare: ")
-  if ex_string == "":
-    break
+  if sys.version_info.major == 2:
+    def read_string(message):
+      return raw_input(message)
+  else:
+    def read_string(message):
+      return input(message)
 
-  expression = evaluator.evaluate(ex_string)
+  while True:
+    ex_string = read_string("Enter an sentence if you dare: ")
+    if ex_string == "":
+      break
 
-  for e in expression:
-    if isinstance(e, dict):
-      print("Output Expression: {0}".format(e))
+    expression = evaluator.evaluate(ex_string)
+
+    for e in expression:
+      if isinstance(e, dict):
+        print("Output Expression: {0}".format(e))
   
