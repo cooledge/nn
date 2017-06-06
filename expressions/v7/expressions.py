@@ -254,8 +254,6 @@ class Evaluator:
 
     return [t[1] for t in cds.current()]
 
-class SampleEvaluator:
-
 if __name__ == "__main__":
 
   if sys.version_info.major == 2:
