@@ -1,9 +1,9 @@
-# this version has the current state of the parse represented in a NN
-# using the CDS data structure. 
+  # this version has the current state of the parse represented in a NN
+  # using the CDS data structure. 
 
 '''
-can you run neural nets in reverse?
-m1 implies what for arg1 and arg2 arg1 and implies what for m
+  can you run neural nets in reverse?
+  m1 implies what for arg1 and arg2 arg1 and implies what for m
 output of a neural net is one node for each type -> then convert that to a one hot vector ala hierarchy
 
 m1 m2 m3   +    arg1.1 arg1.2   + arg2.1 arg2.2 arg2.3
@@ -113,98 +113,6 @@ class ParserModel:
 
     return session.run(self.model_op_idx, feed_dict = { self.model_inputs: inputs })
 
-priorities = [
-  ('preposition', 'article'),
-  ('infix', 'preposition'),
-  ('constant', 'infix'),
-  ('0', 'constant')
-]
-
-words = [
-  ('constant', 'constant'),
-  ('to', 'preposition'),
-  ('from', 'preposition'),
-  ('move', 'infix'),
-  ('bought', 'infix'),
-  ('a', 'article'),
-  ('the', 'article'),
-
-  # top off the loop
-  ('article', 'article'),
-  ('preposition', 'preposition'),
-  ('infix', 'infix')
-]
-
-one_hot_spec = ['constant', 'preposition', 'infix', 'article', '0']
-hierarchy_model = HierarchyModel(words, 'constant', one_hot_spec)
-
-parser_model = ParserModel(priorities, 'constant', one_hot_spec)
-
-def get_next_level(elements):
-  return max([element[0] for element in elements]) + 1
- 
-def apply_move_chess_piece(evaluator, op_idx, expression, cds):
-  op = expression[op_idx]
-
-  result = evaluator.do_op(op_idx, [], "action", ["piece", "square"], cds, 
-              {
-                op_idx: lambda e: "move_chess_piece",
-                op_idx+2: lambda to: to["thing"]
-              })
-
-  before = expression[:op_idx]
-  after = expression[op_idx+3:]
-  return before + [result] + after
-
-def apply_bought(evaluator, op_idx, expression, cds):
-  op = expression[op_idx]
-
-  result = evaluator.do_op(op_idx, ["buyer"], "action", ["thing"], cds, {op_idx: lambda e: "buy"})
-
-  before = expression[:op_idx-1]
-  after = expression[op_idx+2:]
-  return before + [result] + after
-
-def apply_preposition(evaluator, op_idx, expression, cds):
-  op = expression[op_idx]
-  result = evaluator.do_op(op_idx, [], "preposition", ["thing"], cds)
- 
-  before = expression[:op_idx]
-  after = expression[op_idx+2:]
-  r = expression[op_idx + 1]
-  result1 = before + [result] + after
-  return result1
-
-def apply_article(evaluator, op_idx, expression, cds):
-  op = expression[op_idx]
-  result = evaluator.do_op(op_idx, [], "determiner", ["thing"], cds)
-  
-  before = expression[:op_idx]
-  after = expression[op_idx+2:]
-  r = expression[op_idx + 1]
-  return before + [result] + after
-
-def apply_done(evaluator, op_idx, expression, cds):
-  raise "done"
-
-def increment_depth(tuple):
-  return (tuple[0]+1, tuple[1])
-
-op_to_apply = { 
-  "move": apply_move_chess_piece, 
-  "bought": apply_bought, 
-  "to": apply_preposition, 
-  "a": apply_article, 
-  "the": apply_article,
-  "constant": apply_done
-}
-
-session = tf.Session()
-session.run(tf.global_variables_initializer())
-
-chain_model = ChainModel(hierarchy_model, parser_model)
-chain_model.train(session)
-
 class Evaluator:
 
   def do_op(self, op_idx, before_tags, op_tag, after_tags, cds, overrides = {}):
@@ -247,12 +155,115 @@ class Evaluator:
       op = expression[op_idx]
 
       try: 
-        op_to_apply[op](self, op_idx, expression, cds) 
+        self.op_to_apply()[op](self, op_idx, expression, cds) 
         expression = [t[1] for t in cds.current()]
       except:
         break
 
     return [t[1] for t in cds.current()]
+
+priorities = [
+  ('preposition', 'article'),
+  ('infix', 'preposition'),
+  ('constant', 'infix'),
+  ('0', 'constant')
+]
+
+words = [
+  ('constant', 'constant'),
+  ('to', 'preposition'),
+  ('from', 'preposition'),
+  ('move', 'infix'),
+  ('bought', 'infix'),
+  ('a', 'article'),
+  ('the', 'article'),
+
+  # top off the loop
+  ('article', 'article'),
+  ('preposition', 'preposition'),
+  ('infix', 'infix')
+]
+
+one_hot_spec = ['constant', 'preposition', 'infix', 'article', '0']
+hierarchy_model = HierarchyModel(words, 'constant', one_hot_spec)
+
+parser_model = ParserModel(priorities, 'constant', one_hot_spec)
+
+def get_next_level(elements):
+  return max([element[0] for element in elements]) + 1
+ 
+
+def increment_depth(tuple):
+  return (tuple[0]+1, tuple[1])
+
+class SampleEvaluator(Evaluator):
+  @staticmethod
+  def apply_move_chess_piece(evaluator, op_idx, expression, cds):
+    op = expression[op_idx]
+
+    result = evaluator.do_op(op_idx, [], "action", ["piece", "square"], cds, 
+                {
+                  op_idx: lambda e: "move_chess_piece",
+                  op_idx+2: lambda to: to["thing"]
+                })
+
+    before = expression[:op_idx]
+    after = expression[op_idx+3:]
+    return before + [result] + after
+
+  @staticmethod
+  def apply_bought(evaluator, op_idx, expression, cds):
+    op = expression[op_idx]
+
+    result = evaluator.do_op(op_idx, ["buyer"], "action", ["thing"], cds, {op_idx: lambda e: "buy"})
+
+    before = expression[:op_idx-1]
+    after = expression[op_idx+2:]
+    return before + [result] + after
+
+  @staticmethod
+  def apply_preposition(evaluator, op_idx, expression, cds):
+    op = expression[op_idx]
+    result = evaluator.do_op(op_idx, [], "preposition", ["thing"], cds)
+   
+    before = expression[:op_idx]
+    after = expression[op_idx+2:]
+    r = expression[op_idx + 1]
+    result1 = before + [result] + after
+    return result1
+
+  @staticmethod
+  def apply_article(evaluator, op_idx, expression, cds):
+    op = expression[op_idx]
+    result = evaluator.do_op(op_idx, [], "determiner", ["thing"], cds)
+    
+    before = expression[:op_idx]
+    after = expression[op_idx+2:]
+    r = expression[op_idx + 1]
+    return before + [result] + after
+
+  @staticmethod
+  def apply_done(evaluator, op_idx, expression, cds):
+    raise "done"
+
+  def op_to_apply(self):
+    return {
+      "move": SampleEvaluator.apply_move_chess_piece, 
+      "bought": SampleEvaluator.apply_bought, 
+      "to": SampleEvaluator.apply_preposition, 
+      "a": SampleEvaluator.apply_article, 
+      "the": SampleEvaluator.apply_article,
+      "constant": SampleEvaluator.apply_done
+    }
+
+  def noop():
+    return true
+
+session = tf.Session()
+session.run(tf.global_variables_initializer())
+
+chain_model = ChainModel(hierarchy_model, parser_model)
+chain_model.train(session)
 
 if __name__ == "__main__":
 
@@ -263,6 +274,7 @@ if __name__ == "__main__":
     def read_string(message):
       return input(message)
 
+  evaluator = SampleEvaluator()
   while True:
     ex_string = read_string("Enter an sentence if you dare: ")
     if ex_string == "":
