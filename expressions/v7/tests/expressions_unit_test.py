@@ -2,13 +2,13 @@ import unittest
 import pdb
 import tensorflow as tf
 from cds import CDS
-from expressions import Evaluator
+from expressions import SampleEvaluator
 
 class TddTestExpressions(unittest.TestCase):
 
   def setUp(self):
     self.session = tf.Session()
-    self.evaluator = Evaluator()
+    self.evaluator = SampleEvaluator()
 
   def test_expressions1(self):
     expression1 = self.evaluator.evaluate("move the boat to the island")
