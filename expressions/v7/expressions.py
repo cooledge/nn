@@ -115,6 +115,9 @@ class ParserModel:
 
 class Evaluator:
 
+  def get_next_level(self, elements):
+    return max([element[0] for element in elements]) + 1
+
   def do_op(self, op_idx, before_tags, op_tag, after_tags, cds, overrides = {}):
     expression2 = cds.current()
 
@@ -134,7 +137,7 @@ class Evaluator:
 
     op_pos = expression2[op_idx][0]
     joins = [ expression2[idx][0] for idx in tag_to_index.values() ]
-    next_level = get_next_level(joins)
+    next_level = self.get_next_level(joins)
     cds.joins(joins, (next_level, op_pos[1]), result)
     return result
 
@@ -151,7 +154,7 @@ class Evaluator:
 
     print("Input Expression: {0}".format(expression))
     while len(expression) > 1:
-      op_idx = chain_model.apply(session, expression)
+      op_idx = self.chain_model.apply(self.session, expression)
       op = expression[op_idx]
 
       try: 
@@ -162,41 +165,42 @@ class Evaluator:
 
     return [t[1] for t in cds.current()]
 
-priorities = [
-  ('preposition', 'article'),
-  ('infix', 'preposition'),
-  ('constant', 'infix'),
-  ('0', 'constant')
-]
-
-words = [
-  ('constant', 'constant'),
-  ('to', 'preposition'),
-  ('from', 'preposition'),
-  ('move', 'infix'),
-  ('bought', 'infix'),
-  ('a', 'article'),
-  ('the', 'article'),
-
-  # top off the loop
-  ('article', 'article'),
-  ('preposition', 'preposition'),
-  ('infix', 'infix')
-]
-
-one_hot_spec = ['constant', 'preposition', 'infix', 'article', '0']
-hierarchy_model = HierarchyModel(words, 'constant', one_hot_spec)
-
-parser_model = ParserModel(priorities, 'constant', one_hot_spec)
-
-def get_next_level(elements):
-  return max([element[0] for element in elements]) + 1
- 
-
-def increment_depth(tuple):
-  return (tuple[0]+1, tuple[1])
-
 class SampleEvaluator(Evaluator):
+ 
+  priorities = [
+    ('preposition', 'article'),
+    ('infix', 'preposition'),
+    ('constant', 'infix'),
+    ('0', 'constant')
+  ]
+
+  words = [
+    ('constant', 'constant'),
+    ('to', 'preposition'),
+    ('from', 'preposition'),
+    ('move', 'infix'),
+    ('bought', 'infix'),
+    ('a', 'article'),
+    ('the', 'article'),
+
+    # top off the loop
+    ('article', 'article'),
+    ('preposition', 'preposition'),
+    ('infix', 'infix')
+  ]
+
+  def __init__(self):
+    one_hot_spec = ['constant', 'preposition', 'infix', 'article', '0']
+    hierarchy_model = HierarchyModel(self.words, 'constant', one_hot_spec)
+
+    parser_model = ParserModel(self.priorities, 'constant', one_hot_spec)
+
+    self.session = tf.Session()
+    self.session.run(tf.global_variables_initializer())
+
+    self.chain_model = ChainModel(hierarchy_model, parser_model)
+    self.chain_model.train(self.session)
+
   @staticmethod
   def apply_move_chess_piece(evaluator, op_idx, expression, cds):
     op = expression[op_idx]
@@ -255,15 +259,6 @@ class SampleEvaluator(Evaluator):
       "the": SampleEvaluator.apply_article,
       "constant": SampleEvaluator.apply_done
     }
-
-  def noop():
-    return true
-
-session = tf.Session()
-session.run(tf.global_variables_initializer())
-
-chain_model = ChainModel(hierarchy_model, parser_model)
-chain_model.train(session)
 
 if __name__ == "__main__":
 
