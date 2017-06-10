@@ -29,7 +29,7 @@ import numpy as np
 import sys
 import pdb
 from hierarchy import HierarchyModel
-from cds import CDS
+from parse_tree import ParseTree 
 from chain import ChainModel
 
 class ParserModel:
@@ -118,8 +118,8 @@ class Evaluator:
   def get_next_level(self, elements):
     return max([element[0] for element in elements]) + 1
 
-  def do_op(self, op_idx, before_tags, op_tag, after_tags, cds, overrides = {}):
-    expression2 = cds.current()
+  def do_op(self, op_idx, before_tags, op_tag, after_tags, parse_tree, overrides = {}):
+    expression2 = parse_tree.current()
 
     tag_to_index = { op_tag: op_idx }
     for idx, after_tag in enumerate(after_tags):
@@ -138,19 +138,19 @@ class Evaluator:
     op_pos = expression2[op_idx][0]
     joins = [ expression2[idx][0] for idx in tag_to_index.values() ]
     next_level = self.get_next_level(joins)
-    cds.joins(joins, (next_level, op_pos[1]), result)
+    parse_tree.joins(joins, (next_level, op_pos[1]), result)
     return result
 
   def evaluate(self, string):
     max_length = 10
     max_depth = 6
-    session_cds = tf.Session()
-    cds = CDS(session_cds, max_length, max_depth)
-    session_cds.run(tf.global_variables_initializer())
+    session_parse_tree = tf.Session()
+    parse_tree = ParseTree(session_parse_tree, max_length, max_depth)
+    session_parse_tree.run(tf.global_variables_initializer())
     expression = string.split()
 
-    cds.initialize(expression)
-    cds.show() 
+    parse_tree.initialize(expression)
+    parse_tree.show() 
 
     print("Input Expression: {0}".format(expression))
     while len(expression) > 1:
@@ -158,12 +158,12 @@ class Evaluator:
       op = expression[op_idx]
 
       try: 
-        self.op_to_apply()[op](self, op_idx, expression, cds) 
-        expression = [t[1] for t in cds.current()]
+        self.op_to_apply()[op](self, op_idx, expression, parse_tree) 
+        expression = [t[1] for t in parse_tree.current()]
       except:
         break
 
-    return [t[1] for t in cds.current()]
+    return [t[1] for t in parse_tree.current()]
 
 class SampleEvaluator(Evaluator):
  
@@ -202,10 +202,10 @@ class SampleEvaluator(Evaluator):
     self.chain_model.train(self.session)
 
   @staticmethod
-  def apply_move_chess_piece(evaluator, op_idx, expression, cds):
+  def apply_move_chess_piece(evaluator, op_idx, expression, parse_tree):
     op = expression[op_idx]
 
-    result = evaluator.do_op(op_idx, [], "action", ["piece", "square"], cds, 
+    result = evaluator.do_op(op_idx, [], "action", ["piece", "square"], parse_tree, 
                 {
                   op_idx: lambda e: "move_chess_piece",
                   op_idx+2: lambda to: to["thing"]
@@ -216,19 +216,19 @@ class SampleEvaluator(Evaluator):
     return before + [result] + after
 
   @staticmethod
-  def apply_bought(evaluator, op_idx, expression, cds):
+  def apply_bought(evaluator, op_idx, expression, parse_tree):
     op = expression[op_idx]
 
-    result = evaluator.do_op(op_idx, ["buyer"], "action", ["thing"], cds, {op_idx: lambda e: "buy"})
+    result = evaluator.do_op(op_idx, ["buyer"], "action", ["thing"], parse_tree, {op_idx: lambda e: "buy"})
 
     before = expression[:op_idx-1]
     after = expression[op_idx+2:]
     return before + [result] + after
 
   @staticmethod
-  def apply_preposition(evaluator, op_idx, expression, cds):
+  def apply_preposition(evaluator, op_idx, expression, parse_tree):
     op = expression[op_idx]
-    result = evaluator.do_op(op_idx, [], "preposition", ["thing"], cds)
+    result = evaluator.do_op(op_idx, [], "preposition", ["thing"], parse_tree)
    
     before = expression[:op_idx]
     after = expression[op_idx+2:]
@@ -237,9 +237,9 @@ class SampleEvaluator(Evaluator):
     return result1
 
   @staticmethod
-  def apply_article(evaluator, op_idx, expression, cds):
+  def apply_article(evaluator, op_idx, expression, parse_tree):
     op = expression[op_idx]
-    result = evaluator.do_op(op_idx, [], "determiner", ["thing"], cds)
+    result = evaluator.do_op(op_idx, [], "determiner", ["thing"], parse_tree)
     
     before = expression[:op_idx]
     after = expression[op_idx+2:]
@@ -247,7 +247,7 @@ class SampleEvaluator(Evaluator):
     return before + [result] + after
 
   @staticmethod
-  def apply_done(evaluator, op_idx, expression, cds):
+  def apply_done(evaluator, op_idx, expression, parse_tree):
     raise "done"
 
   def op_to_apply(self):

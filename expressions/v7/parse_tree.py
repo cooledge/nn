@@ -4,7 +4,7 @@ import sys
 import pdb
 from chain import ChainModel
 
-class CDS:
+class ParseTree:
 
   def __init__(self, session, length, depth):
     self.session = session
