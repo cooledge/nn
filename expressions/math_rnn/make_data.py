@@ -22,7 +22,7 @@ def select_output(input):
       priority = op_to_priority[op]
   return sel_op
 
-inputs = op_to_priority.keys()
+inputs = list(op_to_priority.keys())
 
 def add_inputs(tuples, inputs):
   for t in tuples:
