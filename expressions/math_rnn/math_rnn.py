@@ -12,6 +12,7 @@ batch_size = 10
 seq_len = 5
 lstm_size = 128
 number_of_layers = 1
+epochs = 20
 
 operators = "+-*/^"
 def char_to_id(char):
@@ -64,13 +65,13 @@ i = [ [[1,1,1], [1,1,1]], [[2,2,2], [2,2,2]], [[3,3,3], [3,3,3]] ]
 session.run(tf.concat(i, 1))
 """
 
-
 # fully connected layer to one hot vector of expected outputs
 W = tf.Variable(tf.random_normal([seq_len*lstm_size, number_of_operators]))
 b = tf.Variable(tf.zeros([number_of_operators]))
 
 model_logits = tf.matmul(model_rnn_outputs_seq, W) + b
-model_loss = tf.nn.softmax_cross_entropy_with_logits(labels=model_one_hot_outputs, logits=model_logits)
+model_probs = tf.nn.softmax(model_logits)
+model_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=model_one_hot_outputs, logits=model_logits))
 model_opt = tf.train.AdamOptimizer()
 model_train_op = model_opt.minimize(model_loss)
 
@@ -82,5 +83,30 @@ with open('output.txt') as file:
 
 inputs = [ chars_to_ids(chars) for chars in inputs ]
 outputs = [ [char_to_id(char)] for char in outputs ]
-pdb.set_trace()
 
+session = tf.Session()
+session.run(tf.global_variables_initializer())
+
+number_of_batches = int(len(inputs)/batch_size)
+for epoch in range(epochs):
+  print("epoch({0})".format(epoch))
+  for batch_no in range(number_of_batches):
+    start = batch_no * batch_size 
+    end = start + batch_size
+    loss, _ = session.run([model_loss, model_train_op], { model_inputs: inputs[start:end], model_outputs: outputs[start:end] })
+    print("\tloss({0})".format(loss))
+
+# check it
+
+right = 0
+wrong = 0
+for idx in range(number_of_batches*batch_size-batch_size):
+  start = idx
+  end = start + batch_size
+  selected = session.run(tf.argmax(model_probs[0]), { model_inputs: inputs[start:end] })
+  if selected == outputs[start]:
+    right += 1
+  else:
+    wrong += 1
+
+print("right({0}), wrong({1})".format(right, wrong))
