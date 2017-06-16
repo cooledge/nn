@@ -9,7 +9,7 @@ import pdb
 # output selected operator
 
 batch_size = 10
-seq_len = 5
+seq_len = 8
 lstm_size = 128
 number_of_layers = 1
 epochs = 20
@@ -60,7 +60,6 @@ model_rnn_outputs, model_rnn_state = tf.contrib.rnn.static_rnn(model_multi_cell,
 model_rnn_outputs_seq = tf.concat(model_rnn_outputs, 1)
 
 """
-
 i = [ [[1,1,1], [1,1,1]], [[2,2,2], [2,2,2]], [[3,3,3], [3,3,3]] ]
 session.run(tf.concat(i, 1))
 """
@@ -75,38 +74,48 @@ model_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=model
 model_opt = tf.train.AdamOptimizer()
 model_train_op = model_opt.minimize(model_loss)
 
-with open('input.txt') as file:
-  inputs = file.read().splitlines()
+def load_files(suffix):
+  with open("input_{0}.txt".format(suffix)) as file:
+    inputs_train = file.read().splitlines()
 
-with open('output.txt') as file:
-  outputs = file.read().splitlines()
+  with open("output_{0}.txt".format(suffix)) as file:
+    outputs_train = file.read().splitlines()
 
-inputs = [ chars_to_ids(chars) for chars in inputs ]
-outputs = [ [char_to_id(char)] for char in outputs ]
+  inputs_train = [ chars_to_ids(chars) for chars in inputs_train ]
+  outputs_train = [ [char_to_id(char)] for char in outputs_train ]
+
+  return [inputs_train, outputs_train]
+
+inputs_train, outputs_train = load_files("train")
 
 session = tf.Session()
 session.run(tf.global_variables_initializer())
 
-number_of_batches = int(len(inputs)/batch_size)
+number_of_batches = int(len(inputs_train)/batch_size)
 for epoch in range(epochs):
   print("epoch({0})".format(epoch))
   for batch_no in range(number_of_batches):
     start = batch_no * batch_size 
     end = start + batch_size
-    loss, _ = session.run([model_loss, model_train_op], { model_inputs: inputs[start:end], model_outputs: outputs[start:end] })
+    loss, _ = session.run([model_loss, model_train_op], { model_inputs: inputs_train[start:end], model_outputs: outputs_train[start:end] })
     print("\tloss({0})".format(loss))
 
 # check it
+
+inputs_test, outputs_test = load_files("test")
+
+number_of_batches = int(len(inputs_test)/batch_size)
 
 right = 0
 wrong = 0
 for idx in range(number_of_batches*batch_size-batch_size):
   start = idx
   end = start + batch_size
-  selected = session.run(tf.argmax(model_probs[0]), { model_inputs: inputs[start:end] })
-  if selected == outputs[start]:
+  selected = session.run(tf.argmax(model_probs[0]), { model_inputs: inputs_test[start:end] })
+  if selected == outputs_test[start]:
     right += 1
   else:
     wrong += 1
 
 print("right({0}), wrong({1})".format(right, wrong))
+

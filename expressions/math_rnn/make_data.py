@@ -5,9 +5,6 @@ import itertools
 
 operators = "+-*/^"
 
-input = open('input.txt', "w")
-output = open('output.txt', "w")
-
 op_to_priority = { '+': 1, '-': 1, '*': 2, '/': 3, '^':4 }
 
 ops = ""
@@ -22,7 +19,6 @@ def select_output(input):
       priority = op_to_priority[op]
   return sel_op
 
-inputs = list(op_to_priority.keys())
 
 def add_inputs(tuples, inputs):
   for t in tuples:
@@ -31,13 +27,22 @@ def add_inputs(tuples, inputs):
       ops += op
     inputs += [ops]
 
-add_inputs(itertools.permutations(op_to_priority.keys(), 2), inputs)
-add_inputs(itertools.permutations(op_to_priority.keys(), 3), inputs)
-add_inputs(itertools.permutations(op_to_priority.keys(), 4), inputs)
+def make_io(suffix, lengths):
+  input = open("input_{0}.txt".format(suffix), "w")
+  output = open("output_{0}.txt".format(suffix), "w")
 
-for op in inputs:
-  input.write("{0}\n".format(op))
-  output.write("{0}\n".format(select_output(op)))
+  inputs = list(op_to_priority.keys())
 
-output.close()
-input.close()
+  for length in lengths:
+    add_inputs(itertools.permutations(op_to_priority.keys(), length), inputs)
+
+  for op in inputs:
+    input.write("{0}\n".format(op))
+    output.write("{0}\n".format(select_output(op)))
+
+  output.close()
+  input.close()
+
+make_io("train", [2,3,4])
+pdb.set_trace()
+make_io("test", [5,6,7])
