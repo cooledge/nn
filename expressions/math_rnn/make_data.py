@@ -34,7 +34,7 @@ def make_io(suffix, lengths):
   inputs = list(op_to_priority.keys())
 
   for length in lengths:
-    add_inputs(itertools.permutations(op_to_priority.keys(), length), inputs)
+    add_inputs(itertools.product(op_to_priority.keys(), repeat=length), inputs)
 
   for op in inputs:
     input.write("{0}\n".format(op))
@@ -44,5 +44,4 @@ def make_io(suffix, lengths):
   input.close()
 
 make_io("train", [2,3,4])
-pdb.set_trace()
-make_io("test", [5,6,7])
+make_io("test", [5])
