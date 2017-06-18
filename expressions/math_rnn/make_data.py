@@ -43,5 +43,5 @@ def make_io(suffix, lengths):
   output.close()
   input.close()
 
-make_io("train", [2,3,4])
-make_io("test", [5])
+make_io("train", [2,3])
+make_io("test", [4])

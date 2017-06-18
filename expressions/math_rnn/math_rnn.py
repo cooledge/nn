@@ -108,14 +108,15 @@ number_of_batches = int(len(inputs_test)/batch_size)
 
 right = 0
 wrong = 0
-for idx in range(number_of_batches*batch_size-batch_size):
-  start = idx
+for batch_no in range(number_of_batches):
+  start = batch_no * batch_size
   end = start + batch_size
-  selected = session.run(tf.argmax(model_probs[0]), { model_inputs: inputs_test[start:end] })
-  if selected == outputs_test[start]:
-    right += 1
-  else:
-    wrong += 1
+  selected = session.run(tf.argmax(model_probs, axis=1), { model_inputs: inputs_test[start:end] })
+  for i in range(batch_size):
+    if selected[i] == outputs_test[start+i]:
+      right += 1
+    else:
+      wrong += 1
 
 print("right({0}), wrong({1})".format(right, wrong))
 
