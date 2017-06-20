@@ -1,4 +1,5 @@
 import tensorflow as tf
+import argparse
 import numpy as np
 import pdb
 
@@ -8,10 +9,15 @@ import pdb
 # inputs sequence of operators
 # output selected operator
 
+parser = argparse.ArgumentParser(description="Generate the training and test data")
+parser.add_argument("--lstm_size", default="128", type=str, help="Size of the LSTM")
+parser.add_argument("--lstm_layers", default="1", type=str, help="Number of layers of LSTM's")
+args = parser.parse_args()
+
 batch_size = 10
 seq_len = 8
-lstm_size = 128
-number_of_layers = 1
+lstm_size = int(args.lstm_size)
+number_of_layers = int(args.lstm_layers)
 epochs = 20
 
 operators = "+-*/^"
@@ -38,18 +44,6 @@ model_outputs = tf.placeholder(tf.int32, shape=(batch_size, 1))
 model_one_hot_inputs = [tf.squeeze(tf.one_hot(split, number_of_chars)) for split in tf.split(model_inputs, seq_len, axis=1)]
 model_one_hot_outputs = tf.one_hot(model_outputs, number_of_operators)
 
-"""
-# check one_one_inputs
-session = tf.Session()
-session.run(tf.global_variables_initializer())
-i = [[0, 1, 2, 3, 4]] * batch_size
-pdb.set_trace()
-ohi = session.run(tf.split(model_inputs, seq_len, axis=1), { model_inputs: i } )
-ohi = session.run(tf.one_hot([1,2,3,4,5], seq_len, axis=1))
-pdb.set_trace()
-ohi = session.run(model_one_hot_inputs, { model_inputs: i } )
-"""
-
 model_lstm = tf.contrib.rnn.BasicLSTMCell(lstm_size)
 model_multi_cell = tf.contrib.rnn.MultiRNNCell([model_lstm]*number_of_layers)
 model_initial_state = model_multi_cell.zero_state(batch_size, tf.float32)
@@ -58,11 +52,6 @@ model_rnn_outputs, model_rnn_state = tf.contrib.rnn.static_rnn(model_multi_cell,
 
 # (batch_size, seq_len*lstm_size)
 model_rnn_outputs_seq = tf.concat(model_rnn_outputs, 1)
-
-"""
-i = [ [[1,1,1], [1,1,1]], [[2,2,2], [2,2,2]], [[3,3,3], [3,3,3]] ]
-session.run(tf.concat(i, 1))
-"""
 
 # fully connected layer to one hot vector of expected outputs
 W = tf.Variable(tf.random_normal([seq_len*lstm_size, number_of_operators]))
