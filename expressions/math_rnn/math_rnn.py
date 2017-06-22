@@ -12,8 +12,10 @@ import pdb
 parser = argparse.ArgumentParser(description="Generate the training and test data")
 parser.add_argument("--lstm_size", default="128", type=str, help="Size of the LSTM")
 parser.add_argument("--lstm_layers", default="1", type=str, help="Number of layers of LSTM's")
+parser.add_argument("--l1_size", default="0", type=str, help="Number of layers of LSTM's")
 args = parser.parse_args()
 
+l1_size = int(args.l1_size)
 batch_size = 10
 seq_len = 8
 lstm_size = int(args.lstm_size)
@@ -53,11 +55,21 @@ model_rnn_outputs, model_rnn_state = tf.contrib.rnn.static_rnn(model_multi_cell,
 # (batch_size, seq_len*lstm_size)
 model_rnn_outputs_seq = tf.concat(model_rnn_outputs, 1)
 
+# try another layer with non-linearity
+if l1_size > 0:
+  W1 = tf.Variable(tf.random_normal([seq_len*lstm_size, l1_size]))
+  b1 = tf.Variable(tf.zeros([l1_size]))
+  model_logits = tf.matmul(tf.nn.relu(model_rnn_outputs_seq), W1) + b1
+else:
+  model_logits = model_rnn_outputs_seq
+  l1_size = seq_len*lstm_size
+
 # fully connected layer to one hot vector of expected outputs
-W = tf.Variable(tf.random_normal([seq_len*lstm_size, number_of_operators]))
+W = tf.Variable(tf.random_normal([l1_size, number_of_operators]))
 b = tf.Variable(tf.zeros([number_of_operators]))
 
-model_logits = tf.matmul(model_rnn_outputs_seq, W) + b
+model_logits = tf.matmul(model_logits, W) + b
+
 model_probs = tf.nn.softmax(model_logits)
 model_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=model_one_hot_outputs, logits=model_logits))
 model_opt = tf.train.AdamOptimizer()
