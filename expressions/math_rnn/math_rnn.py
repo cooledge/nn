@@ -13,8 +13,10 @@ parser = argparse.ArgumentParser(description="Generate the training and test dat
 parser.add_argument("--lstm_size", default="128", type=str, help="Size of the LSTM")
 parser.add_argument("--lstm_layers", default="1", type=str, help="Number of layers of LSTM's")
 parser.add_argument("--l1_size", default="0", type=str, help="Number of layers of LSTM's")
+parser.add_argument("--bidi", action='store_true')
 args = parser.parse_args()
 
+bidi = args.bidi
 l1_size = int(args.l1_size)
 batch_size = 10
 seq_len = 8
@@ -50,7 +52,10 @@ model_lstm = tf.contrib.rnn.BasicLSTMCell(lstm_size)
 model_multi_cell = tf.contrib.rnn.MultiRNNCell([model_lstm]*number_of_layers)
 model_initial_state = model_multi_cell.zero_state(batch_size, tf.float32)
 
-model_rnn_outputs, model_rnn_state = tf.contrib.rnn.static_rnn(model_multi_cell, model_one_hot_inputs, model_initial_state)
+if bidi:
+  model_rnn_outputs, model_rnn_state_fw, model_rnn_state_bw = tf.contrib.rnn.static_bidirectional_rnn(model_multi_cell, model_multi_cell, model_one_hot_inputs, model_initial_state, model_initial_state)
+else:
+  model_rnn_outputs, model_rnn_state = tf.contrib.rnn.static_rnn(model_multi_cell, model_one_hot_inputs, model_initial_state)
 
 # (batch_size, seq_len*lstm_size)
 model_rnn_outputs_seq = tf.concat(model_rnn_outputs, 1)
@@ -63,6 +68,9 @@ if l1_size > 0:
 else:
   model_logits = model_rnn_outputs_seq
   l1_size = seq_len*lstm_size
+
+if bidi:
+  l1_size *= 2
 
 # fully connected layer to one hot vector of expected outputs
 W = tf.Variable(tf.random_normal([l1_size, number_of_operators]))
@@ -106,6 +114,9 @@ for epoch in range(epochs):
 inputs_test, outputs_test = load_files("test")
 
 number_of_batches = int(len(inputs_test)/batch_size)
+
+if bidi:
+  print("Using bidi")
 
 right = 0
 wrong = 0
