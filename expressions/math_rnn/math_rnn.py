@@ -35,6 +35,15 @@ def chars_to_ids(chars):
   for idx, char in enumerate(chars):
     ids[idx] = char_to_id(char)
   return(ids)
+
+# inputs: (batch_size, seq_len)
+# returns: (batch_size, seq_len, number_of_chars)
+def inputs_to_one_hots(inputs):
+  one_hots = np.zeros((batch_size, seq_len, number_of_chars))
+  for b in range(batch_size):
+    for ch in range(seq_len):
+      one_hots[b][ch][char_to_id(inputs[b][ch])]
+
 def ids_to_chars(chars):
   return([id_to_char(id) for id in ids])
   
@@ -42,9 +51,14 @@ number_of_operators = len(operators)
 # 0 is nothing, 1.. are the operators
 number_of_chars = number_of_operators + 1
 
+# (batch_size, seq_len, number_of_operators)
 model_inputs = tf.placeholder(tf.int32, shape=(batch_size, seq_len))
 model_outputs = tf.placeholder(tf.int32, shape=(batch_size, 1))
 
+# seq_len: 8
+# number_of_operators: 6
+# model_inputs: (10,8)
+# len(8) -> (10,6)
 model_one_hot_inputs = [tf.squeeze(tf.one_hot(split, number_of_chars)) for split in tf.split(model_inputs, seq_len, axis=1)]
 model_one_hot_outputs = tf.one_hot(model_outputs, number_of_operators)
 
