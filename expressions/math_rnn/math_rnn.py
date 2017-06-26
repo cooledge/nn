@@ -42,7 +42,8 @@ def inputs_to_one_hots(inputs):
   one_hots = np.zeros((batch_size, seq_len, number_of_chars))
   for b in range(batch_size):
     for ch in range(seq_len):
-      one_hots[b][ch][char_to_id(inputs[b][ch])]
+      one_hots[b][ch][inputs[b][ch]] = 1
+  return one_hots
 
 def ids_to_chars(chars):
   return([id_to_char(id) for id in ids])
@@ -52,14 +53,21 @@ number_of_operators = len(operators)
 number_of_chars = number_of_operators + 1
 
 # (batch_size, seq_len, number_of_operators)
-model_inputs = tf.placeholder(tf.int32, shape=(batch_size, seq_len))
+model_inputs = tf.placeholder(tf.int32, shape=(batch_size, seq_len, number_of_chars))
 model_outputs = tf.placeholder(tf.int32, shape=(batch_size, 1))
 
 # seq_len: 8
 # number_of_operators: 6
 # model_inputs: (10,8)
 # len(8) -> (10,6)
-model_one_hot_inputs = [tf.squeeze(tf.one_hot(split, number_of_chars)) for split in tf.split(model_inputs, seq_len, axis=1)]
+
+'''
+  d = [ [1,2,3], [4,5,6] ]
+  session = tf.Session()
+  session.run(tf.global_variables_initializer())
+  session.run(tf.split(d, seq_len, axis=a))
+'''
+model_one_hot_inputs = [tf.squeeze(split) for split in tf.split(tf.cast(model_inputs, tf.float32), seq_len, axis=1)]
 model_one_hot_outputs = tf.one_hot(model_outputs, number_of_operators)
 
 model_lstm = tf.contrib.rnn.BasicLSTMCell(lstm_size)
@@ -120,7 +128,8 @@ for epoch in range(epochs):
   for batch_no in range(number_of_batches):
     start = batch_no * batch_size 
     end = start + batch_size
-    loss, _ = session.run([model_loss, model_train_op], { model_inputs: inputs_train[start:end], model_outputs: outputs_train[start:end] })
+    inputs = inputs_to_one_hots(inputs_train[start:end])
+    loss, _ = session.run([model_loss, model_train_op], { model_inputs: inputs, model_outputs: outputs_train[start:end] })
     print("\tloss({0})".format(loss))
 
 # check it
@@ -137,7 +146,7 @@ wrong = 0
 for batch_no in range(number_of_batches):
   start = batch_no * batch_size
   end = start + batch_size
-  selected = session.run(tf.argmax(model_probs, axis=1), { model_inputs: inputs_test[start:end] })
+  selected = session.run(tf.argmax(model_probs, axis=1), { model_inputs: inputs_to_one_hots(inputs_test[start:end]) })
   for i in range(batch_size):
     if selected[i] == outputs_test[start+i]:
       right += 1
