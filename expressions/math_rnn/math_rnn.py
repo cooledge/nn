@@ -18,6 +18,8 @@ args = parser.parse_args()
 
 # set the one hots as if the hierarchy code ran
 use_hierarchy = False
+hierarchy_set_all = False
+set_eos = True
 bidi = args.bidi
 l1_size = int(args.l1_size)
 batch_size = 10
@@ -50,7 +52,14 @@ def inputs_to_one_hots(inputs):
   for b in range(batch_size):
     for ch in range(seq_len):
       if use_hierarchy:
-        if not inputs[b][ch] is None:
+        if inputs[b][ch] is None:
+          if hierarchy_set_all:
+            one_hots[ch][b][0] = 1
+            one_hots[ch][b][1] = 1
+            one_hots[ch][b][2] = 1
+            one_hots[ch][b][3] = 1
+            one_hots[ch][b][4] = 1
+        else:
           one_hots[ch][b][inputs[b][ch]] = 1
           # +-
           if inputs[b][ch] < 2:
@@ -65,7 +74,10 @@ def inputs_to_one_hots(inputs):
             # NA
             1
       else:
-        if not inputs[b][ch] is None:
+        if inputs[b][ch] is None:
+          if set_eos:
+            one_hots[ch][b][5] = 1
+        else:
           one_hots[ch][b][inputs[b][ch]] = 1
   return one_hots  
 
