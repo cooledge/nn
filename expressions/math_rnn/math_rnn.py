@@ -16,6 +16,8 @@ parser.add_argument("--l1_size", default="0", type=str, help="Number of layers o
 parser.add_argument("--bidi", action='store_true')
 args = parser.parse_args()
 
+# set the one hots as if the hierarchy code ran
+use_hierarchy = False
 bidi = args.bidi
 l1_size = int(args.l1_size)
 batch_size = 10
@@ -31,7 +33,7 @@ def id_to_char(id):
   return operators[id]
 
 def chars_to_ids(chars):
-  ids = [0]*seq_len
+  ids = [None]*seq_len
   for idx, char in enumerate(chars):
     ids[idx] = char_to_id(char)
   return(ids)
@@ -47,7 +49,24 @@ def inputs_to_one_hots(inputs):
   one_hots = np.zeros((seq_len, batch_size, number_of_chars))
   for b in range(batch_size):
     for ch in range(seq_len):
-      one_hots[ch][b][inputs[b][ch]] = 1
+      if use_hierarchy:
+        if not inputs[b][ch] is None:
+          one_hots[ch][b][inputs[b][ch]] = 1
+          # +-
+          if inputs[b][ch] < 2:
+            one_hots[ch][b][2] = 1
+            one_hots[ch][b][3] = 1
+            one_hots[ch][b][4] = 1
+          # */
+          elif inputs[b][ch] < 4:
+            one_hots[ch][b][4] = 1
+          # ^
+          else:
+            # NA
+            1
+      else:
+        if not inputs[b][ch] is None:
+          one_hots[ch][b][inputs[b][ch]] = 1
   return one_hots  
 
 number_of_operators = len(operators)
@@ -71,6 +90,7 @@ else:
 
 # (batch_size, seq_len*lstm_size)
 model_rnn_outputs_seq = tf.concat(model_rnn_outputs, 1)
+
 
 # try another layer with non-linearity
 if l1_size > 0:
