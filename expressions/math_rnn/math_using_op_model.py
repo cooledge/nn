@@ -13,6 +13,15 @@ number_of_ops = len(operators)
 operators = "+-*/^"
 
 # hmmm, this did one run for train 1,2,3 test 4 where the results were perfect
+'''
+More things to try:
+
+  batch the training
+  train the pairwise way then check the loss
+  analyze with the training fails maybe there is a different algorithm
+  increase the content size
+'''
+
 
 def char_to_id(char):
   return operators.index(char)
