@@ -11,6 +11,9 @@ operators = "+-*/^"
 number_of_ops = len(operators)
 
 operators = "+-*/^"
+
+# hmmm, this did one run for train 1,2,3 test 4 where the results were perfect
+
 def char_to_id(char):
   return operators.index(char)
 def id_to_char(id):
@@ -23,6 +26,24 @@ def chars_to_ids(chars):
   return(ids)
 def ids_to_chars(chars):
   return([id_to_char(id) for id in ids])
+
+priorities = [
+  ('+', '*'),
+  ('+', '/'),
+  ('-', '*'),
+  ('-', '/'),
+  ('*', '^'),
+  ('/', '^'),
+]
+batch_size = len(priorities)
+
+inputs_train_pairwise = np.zeros((batch_size, number_of_ops))
+outputs_train_pairwise = np.zeros((batch_size, number_of_ops))
+batch_no = -1
+for k, v in priorities:
+  batch_no = batch_no + 1
+  outputs_train_pairwise[batch_no][char_to_id(k)] = 1.0
+  inputs_train_pairwise[batch_no][char_to_id(v)] = 1.0
 
 def load_files(suffix):
   with open("input_{0}.txt".format(suffix)) as file:
@@ -54,15 +75,16 @@ model_predict = tf.nn.softmax(model_logits)
 
 model_combined = tf.squeeze(tf.reshape(tf.reduce_sum(tf.split(model_predict, number_of_ops, axis=1), 1), (1, -1)))
 model_reduced = tf.nn.relu(model_inputs - model_combined)
+model_op_idx = tf.arg_max(tf.reduce_sum(model_reduced, 1), 0)
+
 model_loss = tf.losses.softmax_cross_entropy(model_outputs, tf.reduce_sum(model_reduced, 1))
 model_optimizer = tf.train.AdamOptimizer(0.01)
 model_train = model_optimizer.minimize(model_loss)
-model_op_idx = tf.arg_max(tf.reduce_sum(model_reduced, 1), 0)
 
 session = tf.Session()
 session.run(tf.global_variables_initializer())
 
-epochs = 50
+epochs = 100
 for epoch in range(epochs):
   for batch in range(len(inputs_train)):
     input = np.zeros([seq_len, number_of_ops])
