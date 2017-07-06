@@ -16,6 +16,8 @@ operators = "+-*/^"
 '''
 More things to try:
 
+  check if the right op is selected just the wrong position
+
   batch the training
   train the pairwise way then check the loss
   analyze with the training fails maybe there is a different algorithm
