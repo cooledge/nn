@@ -16,7 +16,7 @@ operators = "+-*/^"
 '''
 More things to try:
 
-  check if the right op is selected just the wrong position
+  DONE check if the right op is selected just the wrong position
 
   batch the training
   train the pairwise way then check the loss
@@ -58,20 +58,24 @@ for k, v in priorities:
 
 def load_files(suffix):
   with open("input_{0}.txt".format(suffix)) as file:
-    inputs_train = file.read().splitlines()
+    inputs = file.read().splitlines()
 
   with open("output_{0}.txt".format(suffix)) as file:
-    outputs_train = file.read().splitlines()
+    outputs = file.read().splitlines()
+
+  outputs_all = []
+  for i_input, v_input in enumerate(inputs):
+    outputs_all.append([i for i, x in enumerate(v_input) if x == outputs[i_input]])
 
   # map outputs to the index of the operator to process
-  outputs_train = [ inputs_train[i].index(char) for i, char in enumerate(outputs_train) ]
-  
-  inputs_train = [ chars_to_ids(chars) for chars in inputs_train ]
-  #outputs_train = [ [char_to_id(char)] for char in outputs_train ]
+  outputs = [ inputs[i].index(char) for i, char in enumerate(outputs) ]
+ 
+  inputs = [ chars_to_ids(chars) for chars in inputs ]
+  #outputs = [ [char_to_id(char)] for char in outputs ]
 
-  return [inputs_train, outputs_train]
+  return [inputs, outputs, outputs_all]
 
-inputs_train, outputs_train = load_files("train")
+inputs_train, outputs_train, outputs_all_train = load_files("train")
 
 # END LOADING THE OPERATORS FILE
 
@@ -95,7 +99,7 @@ model_train = model_optimizer.minimize(model_loss)
 session = tf.Session()
 session.run(tf.global_variables_initializer())
 
-epochs = 100
+epochs = 50
 for epoch in range(epochs):
   for batch in range(len(inputs_train)):
     input = np.zeros([seq_len, number_of_ops])
@@ -117,9 +121,10 @@ for epoch in range(epochs):
 
 # check it
 
-inputs_test, outputs_test = load_files("test")
+inputs_test, outputs_test, outputs_all_test = load_files("test")
 
 right = 0
+right_op_but_diff_position = 0
 wrong = 0
 for batch in range(len(inputs_test)):
   input = np.zeros([seq_len, number_of_ops])
@@ -132,7 +137,11 @@ for batch in range(len(inputs_test)):
   if op_idx == outputs_test[batch]:
     right += 1
   else:
-    wrong += 1
+    if op_idx in outputs_all_test[batch]:
+      right_op_but_diff_position += 1
+    else:
+      #print("op_idx({0}) {1} {2} {3}".format(op_idx, inputs_test[batch], outputs_test[batch], outputs_all_test[batch]))
+      wrong += 1
 
-print("right({0}) wrong({1})".format(right, wrong))
+print("right({0}) right_op_but_diff_position({1}) wrong({2})".format(right, right_op_but_diff_position, wrong))
 
