@@ -33,6 +33,9 @@ class HierarchyModel:
     except:
       return self.name_to_id[self.default]
 
+  def number_of_outputs(self):
+    return self.number_of_outputs
+
   def number_of_classes(self):
     return self.number_of_classes
 
@@ -174,6 +177,7 @@ if __name__ == "__main__":
     ("ladybird", "invertibrates"),
     ("mammal", "vertibrates"),
     ("birds", "vertibrates"),
+    ("penguin", "bird"),
     ("fish", "vertibrates"),
     ("reptiles", "vertibrates"),
     ("amphibians", "vertibrates"),
@@ -208,7 +212,7 @@ if __name__ == "__main__":
     output = hierarchy_model.infer(session, type)
 
     def display(title, output):
-      print(title)
+      print("{0} - ({1})".format(title, output))
       for i in range(len(output)):
         if output[i] > 0.50: 
           print("%s has prob %f" % (hierarchy_model.id_to_name[i], output[i]))
