@@ -154,7 +154,7 @@ class Evaluator:
 
     print("Input Expression: {0}".format(expression))
     while len(expression) > 1:
-      op_idx = self.chain_model.apply(self.session, expression)
+      op_idx, _ = self.chain_model.apply(self.session, expression)
       op = expression[op_idx]
 
       try: 

@@ -27,7 +27,6 @@ class ChainModel:
   # inputs is an array of ids. this corresponds to a sequence 
 
   def apply(self, session, inputs):
-    
     number_of_classes = self.input_model.number_of_classes
     one_hot_inputs = np.zeros((len(inputs), number_of_classes), np.float32)
     for i in range(len(inputs)):
@@ -35,11 +34,11 @@ class ChainModel:
 
     feed_dict = { self.inputs(): one_hot_inputs }
 
-    return session.run(self.outputs(), feed_dict)
+    return session.run([self.outputs(), self.input_model.outputs()], feed_dict)
 
   def train(self, session):
     self.input_model.train(session)
-    self.output_model.train(session)
-
     self.input_model.setup()
+
+    self.output_model.train(session)
     self.output_model.setup(self.input_model.outputs())

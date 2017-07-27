@@ -3,7 +3,7 @@ import numpy as np
 import pdb
 import sys
 from hierarchy import HierarchyModel
-from chain_model import ChainModel
+from chain import ChainModel
 
 # modelling birds can fly and penguins can't
 
@@ -44,47 +44,27 @@ hierarchy = [
   ("animal", "animal")  # loop for things with no higher class
 ]
 
-houtputs = ['bird', 'penguin', 'ostrich', 'bat', 'mammal', 'fish', 'reptile', 'amphibian', 'invertibrate', 'vertibrate', 'animal']
-
-hierarchy_model = HierarchyModel(hierarchy, "animal", houtputs)
-hierarchy_model.setup()
 
 # train a NN that maps from classes to fly or not fly node
 
-# not fly / fly
-number_of_outputs = 2
-model_inputs = tf.placeholder(tf.float32, shape=[None, hierarchy_model.number_of_outputs], name="inputs")
-model_outputs = tf.placeholder(tf.float32, shape=[None, number_of_outputs], name="outputs")
-model_W = tf.get_variable("fly_W", shape=(hierarchy_model.number_of_outputs, number_of_outputs))
-model_b = tf.get_variable("fly_b", shape=(number_of_outputs))
-model_logits = tf.matmul(model_inputs, model_W) + model_b
-model_predict = tf.nn.softmax(model_logits)
-model_loss = tf.losses.softmax_cross_entropy(model_outputs, model_logits)
-model_optimizer = tf.train.AdamOptimizer(0.10)
-model_train = model_optimizer.minimize(model_loss)
-
-session = tf.Session()
-session.run(tf.global_variables_initializer())
-
-hierarchy_model.train(session)
-
-class Classifier:
+class ClassifierModel:
 
   # hierarchy_model.number_of_outputs == number_of_inputs
-  def __init__(number_of_inputs):
+  def __init__(self, number_of_inputs):
     self.number_of_outputs = 2
     self.model_inputs = tf.placeholder(tf.float32, shape=[None, number_of_inputs], name="inputs")
-    self.model_outputs = tf.placeholder(tf.float32, shape=[None, number_of_outputs], name="outputs")
-    self.model_W = tf.get_variable("fly_W", shape=(number_of_inputs, number_of_outputs))
-    self.model_b = tf.get_variable("fly_b", shape=(number_of_outputs))
+    self.model_outputs = tf.placeholder(tf.float32, shape=[None, self.number_of_outputs], name="outputs")
+    self.model_W = tf.get_variable("fly_W", shape=(number_of_inputs, self.number_of_outputs))
+    self.model_b = tf.get_variable("fly_b", shape=(self.number_of_outputs))
     self.model_logits = tf.matmul(self.model_inputs, self.model_W) + self.model_b
-    self.model_predict = tf.nn.softmax(self.model_logits)
-    self.model_loss = tf.losses.softmax_cross_entropy(self.model_outputs, model_logits)
+    #self.model_predict = tf.nn.softmax(self.model_logits)
+    self.model_loss = tf.losses.softmax_cross_entropy(self.model_outputs, self.model_logits)
     self.model_optimizer = tf.train.AdamOptimizer(0.10)
     self.model_train = self.model_optimizer.minimize(self.model_loss)
 
   def outputs(self):
-    return self.model_outputs
+    #return self.model_outputs
+    return self.model_predict
 
   def train(self, session):
     bird_output = hierarchy_model.infer(session, "bird")
@@ -113,48 +93,38 @@ class Classifier:
 
   def setup(self, input_nodes):
     number_of_outputs = 2
-    model_inputs = tf.placeholder(tf.float32, shape=[None, hierarchy_model.number_of_outputs], name="inputs")
-    model_outputs = tf.placeholder(tf.float32, shape=[None, number_of_outputs], name="outputs")
-    model_W = tf.get_variable("fly_W", shape=(hierarchy_model.number_of_outputs, number_of_outputs))
-    model_b = tf.get_variable("fly_b", shape=(number_of_outputs))
-    model_logits = tf.matmul(model_inputs, model_W) + model_b
-    model_predict = tf.nn.softmax(model_logits)
-    model_loss = tf.losses.softmax_cross_entropy(model_outputs, model_logits)
-    model_optimizer = tf.train.AdamOptimizer(0.10)
-    model_train = model_optimizer.minimize(model_loss)
+    #model_inputs = tf.placeholder(tf.float32, shape=[None, hierarchy_model.number_of_outputs], name="inputs")
+    #model_outputs = tf.placeholder(tf.float32, shape=[None, number_of_outputs], name="outputs")
+    with tf.variable_scope(tf.get_variable_scope(), reuse=True):
+      model_W = tf.get_variable("fly_W", shape=(hierarchy_model.number_of_outputs, number_of_outputs))
+      model_b = tf.get_variable("fly_b", shape=(number_of_outputs))
+    #model_logits = tf.matmul(model_inputs, model_W) + model_b
+    model_logits = tf.matmul(input_nodes, model_W) + model_b
+    self.model_predict = tf.nn.softmax(model_logits)
 
-bird_output = hierarchy_model.infer(session, "bird")
-penguin_output = hierarchy_model.infer(session, "penguin")
-ostrich_output = hierarchy_model.infer(session, "ostrich")
-mammal_output = hierarchy_model.infer(session, "mammal")
-bat_output = hierarchy_model.infer(session, "bat")
-vertibrate_output = hierarchy_model.infer(session, "vertibrate")
-animal_output = hierarchy_model.infer(session, "animal")
+session = tf.Session()
 
-inputs = [ bird_output, bat_output, ostrich_output, penguin_output, mammal_output, vertibrate_output, animal_output ]
-inputs = [ input[0] for input in inputs ]
-outputs = [ [1,0] ] * len(inputs)
-outputs[0] = [0,1]
-outputs[1] = [0,1]
-epochs = 200
-for epoch in range(epochs):
-  # batch size one
-  if False:
-    for input, output in zip(inputs, outputs):
-      _, loss = session.run([model_train, model_loss], { model_inputs: input, model_outputs: output})
-      print("loss({0})".format(loss))
-  else:
-    _, loss = session.run([model_train, model_loss], { model_inputs: inputs, model_outputs: outputs})
-    print("loss({0})".format(loss))
+houtputs = ['bird', 'penguin', 'ostrich', 'bat', 'mammal', 'fish', 'reptile', 'amphibian', 'invertibrate', 'vertibrate', 'animal']
+
+hierarchy_model = HierarchyModel(hierarchy, "animal", houtputs)
+#hierarchy_model.setup()
+
+classifier_model = ClassifierModel(hierarchy_model.number_of_outputs)
+
+session.run(tf.global_variables_initializer())
+chain_model = ChainModel(hierarchy_model, classifier_model)
+chain_model.train(session)
 
 # hierarchical classifier
 
+'''
 print("bird: {0}".format(bird_output))
 print("penguin: {0}".format(penguin_output))
 print("ostrich: {0}".format(ostrich_output))
 print("bat: {0}".format(bat_output))
 print("vertibrate: {0}".format(vertibrate_output))
 print("animal: {0}".format(animal_output))
+'''
 
 print("Valid type are: ") 
 for type in hierarchy_model.classes():
@@ -167,7 +137,7 @@ while True:
   if not type in hierarchy_model.classes():
     break
 
-  output = hierarchy_model.infer(session, type)
+  predict, output = chain_model.apply(session, [type])
 
   def display(title, output):
     for i, output in enumerate(output):
@@ -175,7 +145,6 @@ while True:
         print("{0} has prob {1}".format(hierarchy_model.id_to_name[i], output))
     print("")
 
-  predict = session.run(model_predict, { model_inputs: output })
   print("predict: {0}".format(predict))
   if np.argmax(predict) == 1:
     print("FLY")
