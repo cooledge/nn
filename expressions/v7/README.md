@@ -1,1 +1,1 @@
-test
+penguins.py is an implementation of the classic AI problem of representing birds can fly but penguins cannot. Description is at http://gregmcclement.blogspot.ca/2017/07/birds-can-fly-penguins-cant.html
