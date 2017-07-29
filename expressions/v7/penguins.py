@@ -92,15 +92,16 @@ class ClassifierModel:
         print("loss({0})".format(loss))
 
   def setup(self, input_nodes):
-    number_of_outputs = 2
-    #model_inputs = tf.placeholder(tf.float32, shape=[None, hierarchy_model.number_of_outputs], name="inputs")
-    #model_outputs = tf.placeholder(tf.float32, shape=[None, number_of_outputs], name="outputs")
-    with tf.variable_scope(tf.get_variable_scope(), reuse=True):
-      model_W = tf.get_variable("fly_W", shape=(hierarchy_model.number_of_outputs, number_of_outputs))
-      model_b = tf.get_variable("fly_b", shape=(number_of_outputs))
-    #model_logits = tf.matmul(model_inputs, model_W) + model_b
-    model_logits = tf.matmul(input_nodes, model_W) + model_b
-    self.model_predict = tf.nn.softmax(model_logits)
+    with tf.name_scope('fly_not_fly') as scope:
+      number_of_outputs = 2
+      #model_inputs = tf.placeholder(tf.float32, shape=[None, hierarchy_model.number_of_outputs], name="inputs")
+      #model_outputs = tf.placeholder(tf.float32, shape=[None, number_of_outputs], name="outputs")
+      with tf.variable_scope(tf.get_variable_scope(), reuse=True):
+        model_W = tf.get_variable("fly_W", shape=(hierarchy_model.number_of_outputs, number_of_outputs))
+        model_b = tf.get_variable("fly_b", shape=(number_of_outputs))
+      #model_logits = tf.matmul(model_inputs, model_W) + model_b
+      model_logits = tf.matmul(input_nodes, model_W) + model_b
+      self.model_predict = tf.nn.softmax(model_logits)
 
 session = tf.Session()
 
@@ -114,6 +115,8 @@ classifier_model = ClassifierModel(hierarchy_model.number_of_outputs)
 session.run(tf.global_variables_initializer())
 chain_model = ChainModel(hierarchy_model, classifier_model)
 chain_model.train(session)
+
+#summary_writer = tf.summary.FileWriter('./logs', session.graph)
 
 # hierarchical classifier
 

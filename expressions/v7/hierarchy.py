@@ -40,7 +40,8 @@ class HierarchyModel:
     return self.number_of_classes
 
   def setup(self):
-    self.init_hmodel()
+    with tf.name_scope('hierarchy_model') as scope:
+      self.init_hmodel()
 
   # End Interface for chain
 
@@ -91,16 +92,17 @@ class HierarchyModel:
   def init_hmodel(self):
     scaler = 10.0
 
-    def layer(input):
-      return(tf.nn.softmax(tf.scalar_mul(scaler, tf.matmul(input, self.model_weights) + self.model_biases)))
+    def layer(input, id):
+      return(tf.nn.softmax(tf.scalar_mul(scaler, tf.matmul(input, self.model_weights) + self.model_biases), name=id))
 
-    l1 = layer(self.model_input)
-    l2 = layer(l1)
-    l3 = layer(l2)
-    l4 = layer(l3)
+    l1 = layer(self.model_input, "layer_1")
+    l2 = layer(l1, "layer_2")
+    l3 = layer(l2, "layer_3")
+    l4 = layer(l3, "layer_4")
    
     self.model_hierarchy_output_full = tf.clip_by_value(self.model_input + l1 + l2 + l3 + l4, 0.0, 1.0)
     self.model_hierarchy_output = tf.split(tf.clip_by_value(self.model_input + l1 + l2 + l3 + l4, 0.0, 1.0), [self.number_of_outputs, (self.number_of_classes-self.number_of_outputs)], axis=1)[0]
+    self.model_hierarchy_output = tf.identity(self.model_hierarchy_output, "hierarchy_output")
 
   #def model_hierarchy_output():
     #self.model_hierachy_output
