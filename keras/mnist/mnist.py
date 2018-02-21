@@ -23,3 +23,6 @@ model.add(Activation('softmax'))
 model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
 model.fit(x_train, y_train, epochs=100, batch_size=32)
 
+scores = model.evaluate(x_test, y_test)
+print("Large CNN error: %.2f%%" % (100-scores[1]*100))
+
