@@ -211,9 +211,11 @@ audio_processor.prepare_background_data()
 train_x, train_y = audio_processor.get_data(-1, 0, model_settings, 0.0, 0.0, 0, 'training', sess)
 train_y = to_categorical(train_y, model_settings['label_count'])
 
-use_model = 'rnn'
-#use_model = 'cnn'
+#use_model = 'rnn'
+use_model = 'cnn'
 #use_model = 'simple'
+
+print("Using model {0}".format(use_model))
 
 input_frequency_size = model_settings['dct_coefficient_count']
 input_time_size = model_settings['spectrogram_length']
@@ -239,18 +241,17 @@ def cnn_model():
   model.add(Conv2D(32, (3,3), input_shape=(input_time_size, input_frequency_size, 1)))
   model.add(Activation("relu"))
 
-  model.add(Conv2D(32, (3,3)))
+  model.add(Conv2D(32, (3,3), activation='relu'))
   model.add(MaxPooling2D(pool_size=(2,2)))
-  model.add(Dropout(0.25))
+  #model.add(Dropout(0.9))
 
   model.add(Conv2D(32, (3,3), activation='relu'))
-  model.add(Conv2D(32, (3,3), activation='relu'))
   model.add(MaxPooling2D(pool_size=(2,2)))
-  model.add(Dropout(0.25))
+  #model.add(Dropout(0.8))
 
   model.add(Flatten())
   model.add(Dense(256))
-  model.add(Dropout(0.5))
+  model.add(Dropout(0.8))
   model.add(Dense(model_settings['label_count']))
   model.add(Activation("softmax"))
 
