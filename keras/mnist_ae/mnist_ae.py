@@ -1,19 +1,19 @@
 from keras.layers import Input, Dense
-from keras.models import Model
+from keras.models import Model, Sequential
 import pdb
 
 encoding_dim = 32
 
-input_img = Input(shape=(784,))
-encoded = Dense(encoding_dim, activation='relu')(input_img)
-decoded = Dense(784, activation='sigmoid')(encoded)
-autoencoder = Model(input_img, decoded)
+pdb.set_trace()
+model = Sequential()
 
-encoder = Model(input_img, encoded)
+# encoder
+model.add(Dense(encoding_dim, activation='relu', input_shape=(784,)))
 
-encoded_input = Input(shape=(encoding_dim,))
-decoder_layer = autoencoder.layers[-1]
-decoder = Model(encoded_input, decoder_layer(encoded_input))
+# decoder
+model.add(Dense(784, activation='sigmoid'))
+
+autoencoder = model
 
 autoencoder.compile(optimizer='adadelta', loss='binary_crossentropy')
 
@@ -25,8 +25,8 @@ x_train = x_train.astype('float32') / 255.
 x_test = x_test.astype('float32') / 255.
 x_train = x_train.reshape((len(x_train), np.prod(x_train.shape[1:])))
 x_test = x_test.reshape((len(x_test), np.prod(x_test.shape[1:])))
-print x_train.shape
-print x_test.shape
+print(x_train.shape)
+print(x_test.shape)
 
 autoencoder.fit(x_train, x_train,
                 epochs=50,
@@ -36,8 +36,9 @@ autoencoder.fit(x_train, x_train,
 
 # encode and decode some digits
 # note that we take them from the *test* set
-encoded_imgs = encoder.predict(x_test)
-decoded_imgs = decoder.predict(encoded_imgs)
+#encoded_imgs = encoder.predict(x_test)
+#decoded_imgs = decoder.predict(encoded_imgs)
+decoded_imgs = autoencoder.predict(x_test)
 
 # use Matplotlib (don't ask)
 import matplotlib.pyplot as plt
