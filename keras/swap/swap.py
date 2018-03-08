@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import pdb
 import os.path
+from PIL import Image
 from PixelShuffler import PixelShuffler
 from keras.callbacks import ModelCheckpoint, Callback
 from keras.models import Model, Sequential
@@ -15,6 +16,23 @@ INPUT_DIM = 64
 INPUT_SIZE=(INPUT_DIM, INPUT_DIM, 3)
 ENCODER_DIM = 1024
 BATCH_SIZE = 64
+
+def load_image(filepath):
+  try:
+    image = Image.open(filepath).resize((INPUT_DIM, INPUT_DIM))
+    image = np.array(image)
+    return image / 255.
+  except IOError:
+    return None
+  
+def load_images2(dir):
+  files = os.listdir(dir)
+  images = []
+  for file in files:
+    image = load_image(dir+"/"+file)
+    if image is not None:
+      np.array(images.append(image))
+  return np.array(images)
 
 def load_images(dir):
   train_datagen = ImageDataGenerator(
@@ -66,7 +84,7 @@ def AutoEncoder_FC():
 
   return model
 
-def AutoEncoder():
+def AutoEncoder1():
   model = Sequential()
 
   # Encoder
@@ -78,7 +96,6 @@ def AutoEncoder():
   model.add(MaxPooling2D(2,2, padding='same'))
  
   model.add(Flatten())
-  pdb.set_trace()
   model.add(Dense(ENCODER_DIM))
   model.add(Dense(4*4*1024))
   model.add(Reshape((4,4,1024)))
@@ -94,6 +111,50 @@ def AutoEncoder():
   model.add(Conv2D(3, (5,5), activation='sigmoid', padding='same'))
 
   return model
+
+def copy_model(model):
+  copy = Sequential()
+  for layer in model.layers:
+    copy.add(layer)
+  return copy
+
+def Encoder():
+  model = Sequential()
+
+  # Encoder
+  model.add(Conv2D(128, (5,5), activation='relu', padding='same', input_shape=INPUT_SIZE))
+  model.add(MaxPooling2D(2,2, padding='same'))
+  model.add(Conv2D(256, (5,5), activation='relu', padding='same'))
+  model.add(MaxPooling2D(2,2, padding='same'))
+  model.add(Conv2D(512, (5,5), activation='relu', padding='same'))
+  model.add(MaxPooling2D(2,2, padding='same'))
+ 
+  model.add(Flatten())
+  model.add(Dense(ENCODER_DIM))
+  model.add(Dense(4*4*1024))
+  model.add(Reshape((4,4,1024)))
+  model.add(UpSampling2D((2,2)))
+  
+  return model
+
+def Decoder(model):
+  # Decoder
+
+  model.add(Conv2D(512, (5,5), activation='relu', padding='same'))
+  model.add(UpSampling2D((2,2)))
+  model.add(Conv2D(256, (5,5), activation='relu', padding='same'))
+  model.add(UpSampling2D((2,2)))
+  model.add(Conv2D(128, (5,5), activation='relu', padding='same'))
+  model.add(UpSampling2D((2,2)))
+  model.add(Conv2D(3, (5,5), activation='sigmoid', padding='same'))
+
+  return model
+
+def AutoEncoder():
+  encoder = Encoder()
+  autoencoder_A = Decoder(encoder)
+  autoencoder_B = Decoder(copy_model(encoder))
+  return autoencoder_A, autoencoder_B
 
 def conv(model, filters):
   model.add(Conv2D(filters, kernel_size=5, strides=2, padding='same'))
@@ -131,14 +192,16 @@ def AutoEncoder1():
 
   return model
 
-model = AutoEncoder()
+model_a, model_b = AutoEncoder()
 
 #model.compile(optimizer='adadelta', loss='binary_crossentropy')
 #model.compile(optimizer='adadelta', loss='mean_absolute_error')
 optimizer = Adam(lr=5e-5, beta_1=0.5, beta_2=0.999)
-model.compile(optimizer=optimizer, loss='mean_absolute_error')
+model_a.compile(optimizer=optimizer, loss='mean_absolute_error')
+model_b.compile(optimizer=optimizer, loss='mean_absolute_error')
 
-train_generator, validation_generator = load_images("./photo")
+trump_images = load_images2("./photo/trump")
+cage_images = load_images2("./photo/cage")
 
 SAVE_FILE = 'models2/weights.h5f5'
 
@@ -150,7 +213,7 @@ n = 4
 plt.figure(figsize=(n,4))
 
 def show_graph():
-  decoded_images = model.predict_generator(validation_generator)
+  decoded_images = model_a.predict(cage_images[:10])
 
   trump = [
     './photo/trump/1122709150.jpg',
@@ -165,7 +228,7 @@ def show_graph():
     'photo/cage/102670060.jpg',
   ]
 
-  def load_singles(filenames):
+  def load_singles(model, filenames):
     raw = []
     decoded = []
     for fn in filenames:
@@ -177,8 +240,8 @@ def show_graph():
       decoded.append(model.predict(pix)[0])
     return [raw, decoded]
 
-  raw_cage, decoded_cage = load_singles(cage)
-  raw_trump, decoded_trump = load_singles(trump)
+  raw_cage, decoded_cage = load_singles(model_a, cage)
+  raw_trump, decoded_trump = load_singles(model_a, trump)
 
   def no_axis(ax):
     ax.get_xaxis().set_visible(False)
@@ -218,11 +281,22 @@ if do_saves:
 else:
     callbacks = [ShowSamples()]
 
-model.fit_generator(train_generator, 
+model_a.fit(cage_images, cage_images,
   steps_per_epoch=2000 // BATCH_SIZE,
-  epochs=100000,
+  epochs=1,
+  #callbacks=callbacks,
+  #callbacks=[cp],
+  #validation_data=validation_generator,
+  #validation_steps=800 // BATCH_SIZE
+  )
+
+model_b.fit(trump_images, temp_images,
+  steps_per_epoch=2000 // BATCH_SIZE,
+  epochs=1,
   callbacks=callbacks,
   #callbacks=[cp],
-  validation_data=validation_generator,
-  validation_steps=800 // BATCH_SIZE)
+  #validation_data=validation_generator,
+  #validation_steps=800 // BATCH_SIZE
+  )
 
+show_graph()
