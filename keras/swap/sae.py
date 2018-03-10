@@ -6,7 +6,7 @@ from PIL import Image
 from PixelShuffler import PixelShuffler
 from keras.callbacks import ModelCheckpoint, Callback
 from keras.models import Model, Sequential
-from keras.layers import Input, Dense, Flatten, Reshape, MaxPooling2D, Conv2D, UpSampling2D, Lambda
+from keras.layers import Input, Dense, Flatten, Reshape, MaxPooling2D, Conv2D, UpSampling2D
 from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.convolutional import Conv2D
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
@@ -73,39 +73,48 @@ def tf_add_conv(inputs, filters):
 def AutoEncoder():
   model = Sequential()
 
+  layer = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
+
   # Encoder
   model.add(Conv2D(128, (5,5), activation='relu', padding='same', input_shape=INPUT_SIZE))
   model.add(MaxPooling2D(2,2, padding='same'))
+  layer = tf_add_conv(layer, 128)
   model.add(Conv2D(256, (5,5), activation='relu', padding='same'))
   model.add(MaxPooling2D(2,2, padding='same'))
+  layer = tf_add_conv(layer, 256)
   model.add(Conv2D(512, (5,5), activation='relu', padding='same'))
   model.add(MaxPooling2D(2,2, padding='same'))
+  layer = tf_add_conv(layer, 512)
  
   model.add(Flatten())
+  layer = tf.layers.flatten(layer)
   model.add(Dense(ENCODER_DIM))
-
-  '''
-  def fc_layer(inputs):
-    w = tf.Variable(tf.truncated_normal((ENCODER_DIM, 4*4*1024), -1, 1))
-    b = tf.Variable(tf.zeros((4*4*1024)))
-    return tf.matmul(inputs, w) + b
-  model.add(Lambda(fc_layer))
-  '''
-  pdb.set_trace()
+  layer = tf.layers.dense(layer, ENCODER_DIM)
   model.add(Dense(4*4*1024))
-
+  layer = tf.layers.dense(layer, 4*4*1024)
   model.add(Reshape((4,4,1024)))
+  layer = tf.reshape(layer, [-1,4,4,1024])
   model.add(UpSampling2D((2,2)))
+  layer = tf.image.resize_images(layer, size=(8,8), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+  def upsample(inputs, filters, out_size):
+    layer = tf.layers.conv2d_transpose(inputs, filters, (5,5), padding='same')
+    return tf.image.resize_images(layer, size=(out_size,out_size), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
   
+  pdb.set_trace()
   model.add(Conv2D(512, (5,5), activation='relu', padding='same'))
   model.add(UpSampling2D((2,2)))
+  layer = upsample(layer, 512, 16)
   model.add(Conv2D(256, (5,5), activation='relu', padding='same'))
   model.add(UpSampling2D((2,2)))
+  layer = upsample(layer, 512, 32)
   model.add(Conv2D(128, (5,5), activation='relu', padding='same'))
   model.add(UpSampling2D((2,2)))
+  layer = upsample(layer, 512, 64)
   model.add(Conv2D(3, (5,5), activation='sigmoid', padding='same'))
+  layer = tf.layers.conv2d_transpose(layer, 3, (5,5), activation=tf.sigmoid, padding='same')
 
-  return model
+  return model, layer
 
 def conv(model, filters):
   model.add(Conv2D(filters, kernel_size=5, strides=2, padding='same'))
@@ -119,7 +128,9 @@ def upscale(model, filters):
   # 8,8,512
   model.add(PixelShuffler())
 
-model_a, model_b = AutoEncoder()
+model, layer = AutoEncoder()
+model_a = model
+model_b = model
 
 #model.compile(optimizer='adadelta', loss='binary_crossentropy')
 #model.compile(optimizer='adadelta', loss='mean_absolute_error')
