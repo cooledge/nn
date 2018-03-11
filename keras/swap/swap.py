@@ -1,12 +1,14 @@
 import tensorflow as tf
 import numpy as np
 import pdb
+import sys
 import os.path
+import random
 from PIL import Image
 from PixelShuffler import PixelShuffler
 from keras.callbacks import ModelCheckpoint, Callback
 from keras.models import Model, Sequential
-from keras.layers import Input, Dense, Flatten, Reshape, MaxPooling2D, Conv2D, UpSampling2D
+from keras.layers import Input, Dense, Flatten, Reshape, MaxPooling2D, Conv2D, UpSampling2D, Lambda
 from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.convolutional import Conv2D
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
@@ -131,14 +133,23 @@ def Encoder():
  
   model.add(Flatten())
   model.add(Dense(ENCODER_DIM))
-  model.add(Dense(4*4*1024))
-  model.add(Reshape((4,4,1024)))
-  model.add(UpSampling2D((2,2)))
   
   return model
 
 def Decoder(model):
   # Decoder
+  pdb.set_trace() 
+  w = tf.Variable(tf.truncated_normal((ENCODER_DIM, 4*4*1024), -1, 1))
+  #w = tf.Variable(tf.zeros((ENCODER_DIM, 4*4*1024)))
+  b = tf.Variable(tf.zeros((4*4*1024)))
+  def fc_layer(inputs):
+    return tf.matmul(inputs, w) + b
+  #model.add(Lambda(fc_layer))
+  model = Model(inputs=model.output, outputs=Lambda(fc_layer))
+  #model.add(Dense(4*4*1024))
+
+  model.add(Reshape((4,4,1024)))
+  model.add(UpSampling2D((2,2)))
 
   model.add(Conv2D(512, (5,5), activation='relu', padding='same'))
   model.add(UpSampling2D((2,2)))
@@ -152,45 +163,57 @@ def Decoder(model):
 
 def AutoEncoder():
   encoder = Encoder()
+  encoder_copy = copy_model(encoder)
   autoencoder_A = Decoder(encoder)
-  autoencoder_B = Decoder(copy_model(encoder))
+  autoencoder_B = Decoder(encoder_copy)
   return autoencoder_A, autoencoder_B
 
-def conv(model, filters):
-  model.add(Conv2D(filters, kernel_size=5, strides=2, padding='same'))
-  model.add(LeakyReLU(0.1))
+def conv(filters):
+  def block(x):
+    x = Conv2D(filters, kernel_size=5, strides=2, padding='same')(x)
+    x = LeakyReLU(0.1)(x)
+    return x
+  return block
 
-def upscale(model, filters):
-  # 4,4,1024
-  model.add(Conv2D(filters * 4, kernel_size=3, padding='same'))
-  # 4,4,2048
-  model.add(LeakyReLU(0.1))
-  # 8,8,512
-  model.add(PixelShuffler())
+def upscale(filters):
+  def block(x):
+    x = Conv2D(filters * 4, kernel_size=3, padding='same')(x)
+    x = LeakyReLU(0.1)(x)
+    x = PixelShuffler()(x)
+    return x
+  return block
 
-def AutoEncoder1():
-  model = Sequential()
+def OEncoder():
+  input_ = Input(shape=INPUT_SIZE)
+  x = input_
+  x = conv(128)(x)
+  x = conv(256)(x)
+  x = conv(512)(x)
+  x = conv(1024)(x)
+  x = Dense(ENCODER_DIM)(Flatten()(x))
+  x = Dense(4 * 4 * 1024)(x)
+  x = Reshape((4, 4, 1024))(x)
+  x = upscale(512)(x)
+  return Model(input_, x)
 
-  # Encoder
-  model.add(Conv2D(128, (5,5), strides=2, padding='same', input_shape=INPUT_SIZE))
-  model.add(LeakyReLU(0.1))
-  conv(model, 256)
-  conv(model, 512)
-  conv(model, 1024)
-  model.add(Flatten())
-  model.add(Dense(ENCODER_DIM))
-  model.add(Dense(4*4*1024))
-  model.add(Reshape((4,4,1024)))
-  upscale(model, 512)
-  # should be 8,8,512
+def ODecoder():
+  input_ = Input(shape=(8, 8, 512))
+  x = input_
+  x = upscale(256)(x)
+  x = upscale(128)(x)
+  x = upscale(64)(x)
+  x = Conv2D(3, kernel_size=5, padding='same', activation='sigmoid')(x)
+  return Model(input_, x)
 
-  # Decoder
-  upscale(model, 256)
-  upscale(model, 128)
-  upscale(model, 64)
-  model.add(Conv2D(3, kernel_size=5, padding='same', activation='sigmoid'))
+def OAutoEncoder():
+  encoder = OEncoder()
+  decoder_A = ODecoder()
+  decoder_B = ODecoder()
 
-  return model
+  x = Input(shape=INPUT_SIZE)
+  ae_A = Model(x, decoder_A(encoder(x)))
+  ae_B = Model(x, decoder_B(encoder(x)))
+  return [ae_A, ae_B]
 
 model_a, model_b = AutoEncoder()
 
@@ -200,8 +223,8 @@ optimizer = Adam(lr=5e-5, beta_1=0.5, beta_2=0.999)
 model_a.compile(optimizer=optimizer, loss='mean_absolute_error')
 model_b.compile(optimizer=optimizer, loss='mean_absolute_error')
 
-trump_images = load_images2("./photo/trump")
-cage_images = load_images2("./photo/cage")
+trump_images = load_images2("./photo/joe_video")
+cage_images = load_images2("./photo/joey_video")
 
 SAVE_FILE = 'models2/weights.h5f5'
 
@@ -209,60 +232,52 @@ import matplotlib.pyplot as plt
 plt.ion() 
 plt.show()
 
-n = 4
-plt.figure(figsize=(n,4))
+n_rows = 6
+n_cols = 4
+plt.figure(figsize=(n_rows,n_cols))
+n_images = 4
+
+random.shuffle(cage_images)
+random.shuffle(trump_images)
 
 def show_graph():
-  decoded_images = model_a.predict(cage_images[:10])
+  trump = trump_images[0:4]
+  cage = cage_images[0:4]
 
-  trump = [
-    './photo/trump/1122709150.jpg',
-    './photo/trump/1155971140.jpg',
-    './photo/trump/1155971350.jpg',
-    './photo/trump/1228920080.jpg']
-
-  cage = [
-    'photo/cage/102667226.jpg', 
-    'photo/cage/102668242.jpg', 
-    'photo/cage/102669741.jpg', 
-    'photo/cage/102670060.jpg',
-  ]
-
-  def load_singles(model, filenames):
-    raw = []
-    decoded = []
-    for fn in filenames:
-      img = load_img(fn)
-      img = img.resize((INPUT_DIM, INPUT_DIM))
-      pix = np.array([np.array(img)])
-      pix = pix / 255.0
-      raw.append(pix[0])
-      decoded.append(model.predict(pix)[0])
-    return [raw, decoded]
-
-  raw_cage, decoded_cage = load_singles(model_a, cage)
-  raw_trump, decoded_trump = load_singles(model_a, trump)
+  decoded_cage = model_a.predict(cage)
+  decoded_trump = model_b.predict(trump)
+  decoded_trump_as_cage = model_a.predict(trump)
+  decoded_cage_as_trump = model_b.predict(cage)
 
   def no_axis(ax):
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
 
-  for i in range(n):
-    ax = plt.subplot(4,4,i+1)
-    plt.imshow(decoded_images[i]) 
+  for i in range(n_images):
+    ax = plt.subplot(n_rows,n_cols,i+1)
+    plt.imshow(cage[i]) 
     no_axis(ax)
 
-    ax = plt.subplot(4,4,4+i+1)
+    ax = plt.subplot(n_rows,n_cols,4+i+1)
     plt.imshow(decoded_cage[i]) 
     no_axis(ax)
 
-    ax = plt.subplot(4,4,8+i+1)
-    plt.imshow(raw_trump[i]) 
+    ax = plt.subplot(n_rows,n_cols,8+i+1)
+    plt.imshow(decoded_cage_as_trump[i]) 
     no_axis(ax)
 
-    ax = plt.subplot(4,4,12+i+1)
+    ax = plt.subplot(n_rows,n_cols,12+i+1)
+    plt.imshow(trump[i]) 
+    no_axis(ax)
+
+    ax = plt.subplot(n_rows,n_cols,16+i+1)
     plt.imshow(decoded_trump[i]) 
     no_axis(ax)
+
+    ax = plt.subplot(n_rows,n_cols,20+i+1)
+    plt.imshow(decoded_trump_as_cage[i]) 
+    no_axis(ax)
+
 
   plt.pause(0.001)
 
@@ -281,22 +296,60 @@ if do_saves:
 else:
     callbacks = [ShowSamples()]
 
-model_a.fit(cage_images, cage_images,
-  steps_per_epoch=2000 // BATCH_SIZE,
-  epochs=1,
-  #callbacks=callbacks,
-  #callbacks=[cp],
-  #validation_data=validation_generator,
-  #validation_steps=800 // BATCH_SIZE
-  )
+if False:
+  epochs = 100000
+  for epoch in range(epochs): 
+    print('Epoch {0}'.format(epoch))
+    model_a.fit(cage_images, cage_images,
+      steps_per_epoch=2000 // BATCH_SIZE,
+      epochs=1,
+      #callbacks=callbacks,
+      #callbacks=[cp],
+      #validation_data=validation_generator,
+      #validation_steps=800 // BATCH_SIZE
+      )
 
-model_b.fit(trump_images, temp_images,
-  steps_per_epoch=2000 // BATCH_SIZE,
-  epochs=1,
-  callbacks=callbacks,
-  #callbacks=[cp],
-  #validation_data=validation_generator,
-  #validation_steps=800 // BATCH_SIZE
-  )
+    model_b.fit(trump_images, trump_images,
+      steps_per_epoch=2000 // BATCH_SIZE,
+      epochs=1,
+      #callbacks=callbacks,
+      #callbacks=[cp],
+      #validation_data=validation_generator,
+      #validation_steps=800 // BATCH_SIZE
+      )
 
-show_graph()
+    show_graph()
+else:
+  epochs = 100000
+
+
+  for epoch in range(epochs): 
+    print('Epoch {0}'.format(epoch))
+
+    random.shuffle(cage_images)
+    random.shuffle(trump_images)
+    n_batches = min(len(cage_images), len(trump_images)) // BATCH_SIZE
+
+    n_steps = 1000 // BATCH_SIZE
+
+    for step in range(n_steps):
+      for batch_no in range(n_batches):
+        batch_start = batch_no * BATCH_SIZE
+
+        def train_one_step(images, model):
+          batch = images[batch_start:batch_start+BATCH_SIZE]
+          return model.train_on_batch(batch, batch)
+
+        if batch_no % 2 == 0:
+          loss_a = train_one_step(cage_images, model_a)
+          loss_b = train_one_step(trump_images, model_b)
+        else:
+          loss_b = train_one_step(trump_images, model_b)
+          loss_a = train_one_step(cage_images, model_a)
+
+        sys.stdout.write("step: {0} loss_a: {1} loss_b: {2}\r".format(step, loss_a, loss_b))
+        sys.stdout.flush()
+        show_graph()
+
+    print("\n")
+      

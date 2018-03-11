@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import pdb
 import os.path
+import random
 from PIL import Image
 from PixelShuffler import PixelShuffler
 from keras.callbacks import ModelCheckpoint, Callback
@@ -73,7 +74,8 @@ def tf_add_conv(inputs, filters):
 def AutoEncoder():
   model = Sequential()
 
-  layer = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
+  model_input = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
+  layer = model_input
 
   # Encoder
   model.add(Conv2D(128, (5,5), activation='relu', padding='same', input_shape=INPUT_SIZE))
@@ -98,10 +100,9 @@ def AutoEncoder():
   layer = tf.image.resize_images(layer, size=(8,8), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
   def upsample(inputs, filters, out_size):
-    layer = tf.layers.conv2d_transpose(inputs, filters, (5,5), padding='same')
+    layer = tf.layers.conv2d_transpose(inputs, filters, (5,5), padding='same', activation=tf.nn.relu)
     return tf.image.resize_images(layer, size=(out_size,out_size), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
   
-  pdb.set_trace()
   model.add(Conv2D(512, (5,5), activation='relu', padding='same'))
   model.add(UpSampling2D((2,2)))
   layer = upsample(layer, 512, 16)
@@ -114,21 +115,9 @@ def AutoEncoder():
   model.add(Conv2D(3, (5,5), activation='sigmoid', padding='same'))
   layer = tf.layers.conv2d_transpose(layer, 3, (5,5), activation=tf.sigmoid, padding='same')
 
-  return model, layer
+  return model, layer, model_input
 
-def conv(model, filters):
-  model.add(Conv2D(filters, kernel_size=5, strides=2, padding='same'))
-  model.add(LeakyReLU(0.1))
-
-def upscale(model, filters):
-  # 4,4,1024
-  model.add(Conv2D(filters * 4, kernel_size=3, padding='same'))
-  # 4,4,2048
-  model.add(LeakyReLU(0.1))
-  # 8,8,512
-  model.add(PixelShuffler())
-
-model, layer = AutoEncoder()
+model, layer, model_input = AutoEncoder()
 model_a = model
 model_b = model
 
@@ -150,36 +139,14 @@ plt.show()
 n = 4
 plt.figure(figsize=(n,4))
 
-def show_graph():
-  decoded_images = model_a.predict(cage_images[:10])
+def show_graph(sess):
+  def predict(model, images):
+    return sess.run(layer, { model_input: images })
 
-  trump = [
-    './photo/trump/1122709150.jpg',
-    './photo/trump/1155971140.jpg',
-    './photo/trump/1155971350.jpg',
-    './photo/trump/1228920080.jpg']
-
-  cage = [
-    'photo/cage/102667226.jpg', 
-    'photo/cage/102668242.jpg', 
-    'photo/cage/102669741.jpg', 
-    'photo/cage/102670060.jpg',
-  ]
-
-  def load_singles(model, filenames):
-    raw = []
-    decoded = []
-    for fn in filenames:
-      img = load_img(fn)
-      img = img.resize((INPUT_DIM, INPUT_DIM))
-      pix = np.array([np.array(img)])
-      pix = pix / 255.0
-      raw.append(pix[0])
-      decoded.append(model.predict(pix)[0])
-    return [raw, decoded]
-
-  raw_cage, decoded_cage = load_singles(model_a, cage)
-  raw_trump, decoded_trump = load_singles(model_a, trump)
+  raw_cage = cage_images[0:4]
+  decoded_cage = predict(model_a, cage_images[0:4])
+  raw_trump= trump_images[0:4]
+  decoded_trump = predict(model_a, trump_images[0:4])
 
   def no_axis(ax):
     ax.get_xaxis().set_visible(False)
@@ -187,7 +154,7 @@ def show_graph():
 
   for i in range(n):
     ax = plt.subplot(4,4,i+1)
-    plt.imshow(decoded_images[i]) 
+    plt.imshow(raw_cage[i]) 
     no_axis(ax)
 
     ax = plt.subplot(4,4,4+i+1)
@@ -219,22 +186,36 @@ if do_saves:
 else:
     callbacks = [ShowSamples()]
 
-model_a.fit(cage_images, cage_images,
-  steps_per_epoch=2000 // BATCH_SIZE,
-  epochs=1,
-  #callbacks=callbacks,
-  #callbacks=[cp],
-  #validation_data=validation_generator,
-  #validation_steps=800 // BATCH_SIZE
-  )
+use_keras = False
+if use_keras:
+  model_a.fit(cage_images, cage_images,
+    steps_per_epoch=1000 // BATCH_SIZE,
+    epochs=1000,
+    callbacks=callbacks,
+    #validation_data=validation_generator,
+    #validation_steps=800 // BATCH_SIZE
+    )
+else:
 
-model_b.fit(trump_images, temp_images,
-  steps_per_epoch=2000 // BATCH_SIZE,
-  epochs=1,
-  callbacks=callbacks,
-  #callbacks=[cp],
-  #validation_data=validation_generator,
-  #validation_steps=800 // BATCH_SIZE
-  )
+  print("TF Version")
+  #model_loss = tf.reduce_mean(tf.losses.absolute_difference(model_input, layer))
+  model_loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_input), tf.layers.flatten(layer)))
+  optimizer = Adam(lr=5e-5, beta_1=0.5, beta_2=0.999)
+  model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+  model_train_op = model_optimizer.minimize(model_loss)
 
-show_graph()
+  images = cage_images
+
+  epochs = 1000
+  steps = 50
+  batches = len(images) // BATCH_SIZE
+  sess = tf.Session()
+  sess.run(tf.global_variables_initializer())
+  for epoch in range(epochs):
+    print("\nEpoch {0}".format(epoch))
+    random.shuffle(images)
+    for step in range(steps):
+      for batch in range(batches):
+        loss, _ = sess.run([model_loss, model_train_op], { model_input: images[batch*BATCH_SIZE:(batch+1)*BATCH_SIZE] })
+      print("Step: {0} loss: {1}\r".format(step, loss))
+      show_graph(sess)
