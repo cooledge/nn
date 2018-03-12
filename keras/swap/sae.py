@@ -64,71 +64,69 @@ def copy_model(model):
     copy.add(layer)
   return copy
 
-#def selector_layer(selectors, features):
-
 def tf_add_conv(inputs, filters):
   layer = tf.layers.conv2d(inputs=inputs, filters=filters, kernel_size=[5,5], padding='same', activation=tf.nn.relu)
   layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
   return layer
 
+def interleave_layer(signals, selectors):
+  model_split_a = tf.split(selectors, selectors.shape[1], axis=1)
+  model_split_b = tf.split(signals, signals.shape[1], axis=1)
+
+  model_interleaved = []
+  for column in model_split_b:
+    model_interleaved.append(column)
+    model_interleaved.extend(model_split_a)
+
+  model_concat = tf.concat(model_interleaved, 1)
+                        
+  model_concat = tf.reshape(model_concat, [-1, len(model_interleaved), 1])
+  model_output = tf.layers.conv1d(inputs=model_concat, filters=1, kernel_size=3, strides=3, padding='same', activation=tf.nn.relu)
+  model_output = tf.layers.flatten(model_output)
+  return model_output
+
 def AutoEncoder():
   model = Sequential()
 
-  model_input = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
+  model_selector_input = tf.placeholder(tf.float32, shape=[None, 2], name="selectors_input")
+
+  model_input = tf.placeholder(tf.float32, shape=[None, 64, 64, 3], name="signal_input")
   layer = model_input
 
   # Encoder
-  model.add(Conv2D(128, (5,5), activation='relu', padding='same', input_shape=INPUT_SIZE))
-  model.add(MaxPooling2D(2,2, padding='same'))
   layer = tf_add_conv(layer, 128)
-  model.add(Conv2D(256, (5,5), activation='relu', padding='same'))
-  model.add(MaxPooling2D(2,2, padding='same'))
   layer = tf_add_conv(layer, 256)
-  model.add(Conv2D(512, (5,5), activation='relu', padding='same'))
-  model.add(MaxPooling2D(2,2, padding='same'))
   layer = tf_add_conv(layer, 512)
  
-  model.add(Flatten())
   layer = tf.layers.flatten(layer)
-  model.add(Dense(ENCODER_DIM))
   layer = tf.layers.dense(layer, ENCODER_DIM)
-  model.add(Dense(4*4*1024))
+  layer = interleave_layer(layer, model_selector_input)
   layer = tf.layers.dense(layer, 4*4*1024)
-  model.add(Reshape((4,4,1024)))
   layer = tf.reshape(layer, [-1,4,4,1024])
-  model.add(UpSampling2D((2,2)))
   layer = tf.image.resize_images(layer, size=(8,8), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
   def upsample(inputs, filters, out_size):
     layer = tf.layers.conv2d_transpose(inputs, filters, (5,5), padding='same', activation=tf.nn.relu)
     return tf.image.resize_images(layer, size=(out_size,out_size), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
   
-  model.add(Conv2D(512, (5,5), activation='relu', padding='same'))
-  model.add(UpSampling2D((2,2)))
   layer = upsample(layer, 512, 16)
-  model.add(Conv2D(256, (5,5), activation='relu', padding='same'))
-  model.add(UpSampling2D((2,2)))
   layer = upsample(layer, 512, 32)
-  model.add(Conv2D(128, (5,5), activation='relu', padding='same'))
-  model.add(UpSampling2D((2,2)))
   layer = upsample(layer, 512, 64)
-  model.add(Conv2D(3, (5,5), activation='sigmoid', padding='same'))
   layer = tf.layers.conv2d_transpose(layer, 3, (5,5), activation=tf.sigmoid, padding='same')
 
-  return model, layer, model_input
+  return layer, model_input, model_selector_input
 
-model, layer, model_input = AutoEncoder()
-model_a = model
-model_b = model
-
-#model.compile(optimizer='adadelta', loss='binary_crossentropy')
-#model.compile(optimizer='adadelta', loss='mean_absolute_error')
-optimizer = Adam(lr=5e-5, beta_1=0.5, beta_2=0.999)
-model_a.compile(optimizer=optimizer, loss='mean_absolute_error')
-model_b.compile(optimizer=optimizer, loss='mean_absolute_error')
+layer, model_input, model_selector_input = AutoEncoder()
 
 trump_images = load_images2("./photo/trump")
 cage_images = load_images2("./photo/cage")
+
+def to_selectors(one_hot, images):
+  return np.array([one_hot for _ in images])
+
+# 0 bit is cage, 1 bit is trump
+cage_selectors = to_selectors([1,0], cage_images)
+trump_selectors = to_selectors([0,1], trump_images)
 
 SAVE_FILE = 'models2/weights.h5f5'
 
@@ -140,34 +138,32 @@ n = 4
 plt.figure(figsize=(n,4))
 
 def show_graph(sess):
-  def predict(model, images):
-    return sess.run(layer, { model_input: images })
+  def predict(selector, images):
+    placeholders ={ 
+        model_input: images, 
+        model_selector_input: to_selectors(selector, images) 
+        }
+    return sess.run(layer, placeholders)
 
   raw_cage = cage_images[0:4]
-  decoded_cage = predict(model_a, cage_images[0:4])
+  decoded_cage = predict([1,0], cage_images[0:4])
   raw_trump= trump_images[0:4]
-  decoded_trump = predict(model_a, trump_images[0:4])
+  decoded_trump = predict([0,1], trump_images[0:4])
 
   def no_axis(ax):
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
 
+  def plot_image(col, image):
+    ax = plt.subplot(4,4,(4*col)+i+1)
+    plt.imshow(image) 
+    no_axis(ax)
+
   for i in range(n):
-    ax = plt.subplot(4,4,i+1)
-    plt.imshow(raw_cage[i]) 
-    no_axis(ax)
-
-    ax = plt.subplot(4,4,4+i+1)
-    plt.imshow(decoded_cage[i]) 
-    no_axis(ax)
-
-    ax = plt.subplot(4,4,8+i+1)
-    plt.imshow(raw_trump[i]) 
-    no_axis(ax)
-
-    ax = plt.subplot(4,4,12+i+1)
-    plt.imshow(decoded_trump[i]) 
-    no_axis(ax)
+    plot_image(0, raw_cage[i])
+    plot_image(1, decoded_cage[i])
+    plot_image(2, raw_trump[i])
+    plot_image(3, decoded_trump[i])
 
   plt.pause(0.001)
 
@@ -186,36 +182,37 @@ if do_saves:
 else:
     callbacks = [ShowSamples()]
 
-use_keras = False
-if use_keras:
-  model_a.fit(cage_images, cage_images,
-    steps_per_epoch=1000 // BATCH_SIZE,
-    epochs=1000,
-    callbacks=callbacks,
-    #validation_data=validation_generator,
-    #validation_steps=800 // BATCH_SIZE
-    )
-else:
+model_loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_input), tf.layers.flatten(layer)))
+optimizer = Adam(lr=5e-5, beta_1=0.5, beta_2=0.999)
+model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+model_train_op = model_optimizer.minimize(model_loss)
 
-  print("TF Version")
-  #model_loss = tf.reduce_mean(tf.losses.absolute_difference(model_input, layer))
-  model_loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_input), tf.layers.flatten(layer)))
-  optimizer = Adam(lr=5e-5, beta_1=0.5, beta_2=0.999)
-  model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
-  model_train_op = model_optimizer.minimize(model_loss)
+images = np.concatenate((cage_images, trump_images))
+selectors = np.concatenate((cage_selectors, trump_selectors))
+#images = cage_images
+#selectors = cage_selectors
+indexes = [i for i in range(len(images))]
 
-  images = cage_images
+def get_batch(indexes, start, end, x):
+  value = [x[indexes[i]] for i in range(start, end)]
+  return value
 
-  epochs = 1000
-  steps = 50
-  batches = len(images) // BATCH_SIZE
-  sess = tf.Session()
-  sess.run(tf.global_variables_initializer())
-  for epoch in range(epochs):
-    print("\nEpoch {0}".format(epoch))
-    random.shuffle(images)
-    for step in range(steps):
-      for batch in range(batches):
-        loss, _ = sess.run([model_loss, model_train_op], { model_input: images[batch*BATCH_SIZE:(batch+1)*BATCH_SIZE] })
-      print("Step: {0} loss: {1}\r".format(step, loss))
-      show_graph(sess)
+epochs = 10000
+steps = 50
+batches = len(images) // BATCH_SIZE
+sess = tf.Session()
+sess.run(tf.global_variables_initializer())
+for epoch in range(epochs):
+  print("\nEpoch {0}".format(epoch))
+  random.shuffle(indexes)
+  for step in range(steps):
+    for batch in range(batches):
+      start = batch*BATCH_SIZE
+      end = (batch+1)*BATCH_SIZE
+      placeholders = {
+        model_input: get_batch(indexes, start, end, images),
+        model_selector_input: get_batch(indexes, start, end, selectors)
+      }
+      loss, _ = sess.run([model_loss, model_train_op], placeholders)
+    print("Step: {0} loss: {1}\r".format(step, loss))
+    show_graph(sess)
