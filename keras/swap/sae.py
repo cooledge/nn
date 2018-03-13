@@ -17,6 +17,8 @@ INPUT_DIM = 64
 INPUT_SIZE=(INPUT_DIM, INPUT_DIM, 3)
 ENCODER_DIM = 1024
 BATCH_SIZE = 64
+SAVE_DIR = 'models'
+SAVE_FILE = 'models/swap'
 
 def load_image(filepath):
   try:
@@ -128,7 +130,6 @@ def to_selectors(one_hot, images):
 cage_selectors = to_selectors([1,0], cage_images)
 trump_selectors = to_selectors([0,1], trump_images)
 
-SAVE_FILE = 'models2/weights.h5f5'
 
 import matplotlib.pyplot as plt
 plt.ion() 
@@ -167,20 +168,8 @@ def show_graph(sess):
 
   plt.pause(0.001)
 
-do_saves = False
 
-if do_saves and os.path.isfile(SAVE_FILE):
-  model.load_weights(SAVE_FILE)
-
-cp = ModelCheckpoint(SAVE_FILE)
-class ShowSamples(Callback):
-  def on_epoch_end(self, epoch, log={}):
-    show_graph()
-
-if do_saves:
-    callbacks = [cp, ShowSamples()]
-else:
-    callbacks = [ShowSamples()]
+saver = tf.train.Saver()
 
 model_loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_input), tf.layers.flatten(layer)))
 optimizer = Adam(lr=5e-5, beta_1=0.5, beta_2=0.999)
@@ -201,7 +190,12 @@ epochs = 10000
 steps = 50
 batches = len(images) // BATCH_SIZE
 sess = tf.Session()
+
 sess.run(tf.global_variables_initializer())
+saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
+if saved_model_path:
+  saver.restore(sess, saved_model_path)
+
 for epoch in range(epochs):
   print("\nEpoch {0}".format(epoch))
   random.shuffle(indexes)
@@ -216,3 +210,4 @@ for epoch in range(epochs):
       loss, _ = sess.run([model_loss, model_train_op], placeholders)
     print("Step: {0} loss: {1}\r".format(step, loss))
     show_graph(sess)
+    saver.save(sess, SAVE_FILE)
