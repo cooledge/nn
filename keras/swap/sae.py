@@ -83,7 +83,9 @@ def interleave_layer(signals, selectors):
   model_concat = tf.concat(model_interleaved, 1)
                         
   model_concat = tf.reshape(model_concat, [-1, len(model_interleaved), 1])
-  model_output = tf.layers.conv1d(inputs=model_concat, filters=1, kernel_size=3, strides=3, padding='same', activation=tf.nn.relu)
+  #model_output = tf.layers.conv1d(inputs=model_concat, filters=1, kernel_size=3, strides=3, padding='same', activation=tf.nn.relu)
+  #model_output = tf.layers.conv1d(inputs=model_concat, filters=1, kernel_size=3, strides=3, padding='same', activation=tf.nn.sigmoid)
+  model_output = tf.layers.conv1d(inputs=model_concat, filters=1, kernel_size=3, strides=3, padding='same')
   model_output = tf.layers.flatten(model_output)
   return model_output
 
@@ -130,13 +132,14 @@ def to_selectors(one_hot, images):
 cage_selectors = to_selectors([1,0], cage_images)
 trump_selectors = to_selectors([0,1], trump_images)
 
-
 import matplotlib.pyplot as plt
 plt.ion() 
 plt.show()
 
-n = 4
-plt.figure(figsize=(n,4))
+n_rows = 6
+n_cols = 4
+plt.figure(figsize=(n_rows,n_cols))
+n_images = 4
 
 def show_graph(sess):
   def predict(selector, images):
@@ -148,23 +151,28 @@ def show_graph(sess):
 
   raw_cage = cage_images[0:4]
   decoded_cage = predict([1,0], cage_images[0:4])
+  decoded_cage_as_trump = predict([0,1], cage_images[0:4])
+
   raw_trump= trump_images[0:4]
   decoded_trump = predict([0,1], trump_images[0:4])
+  decoded_trump_as_cage = predict([1,0], trump_images[0:4])
 
   def no_axis(ax):
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
 
   def plot_image(col, image):
-    ax = plt.subplot(4,4,(4*col)+i+1)
+    ax = plt.subplot(n_rows,n_cols,(4*col)+i+1)
     plt.imshow(image) 
     no_axis(ax)
 
-  for i in range(n):
+  for i in range(n_images):
     plot_image(0, raw_cage[i])
     plot_image(1, decoded_cage[i])
-    plot_image(2, raw_trump[i])
-    plot_image(3, decoded_trump[i])
+    plot_image(2, decoded_cage_as_trump[i])
+    plot_image(3, raw_trump[i])
+    plot_image(4, decoded_trump[i])
+    plot_image(5, decoded_trump_as_cage[i])
 
   plt.pause(0.001)
 
