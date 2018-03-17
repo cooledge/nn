@@ -1,5 +1,7 @@
 import tensorflow as tf
 import numpy as np
+import cv2
+import time
 import pdb
 import os.path
 import random
@@ -13,12 +15,71 @@ from keras.layers.convolutional import Conv2D
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 from keras.optimizers import Adam
 
-INPUT_DIM = 64
+'''
+   increase encoding layer size -> no diff
+   add more selector layers between later layers -> got worse
+   distor input images -> iffy
+   increase the batch size again -> got worse
+   train in batches of just trump and cage
+   try black and white
+
+   change the font
+   men to women
+   add a smile
+'''
+
+INPUT_DIM = 128
 INPUT_SIZE=(INPUT_DIM, INPUT_DIM, 3)
 ENCODER_DIM = 1024
 BATCH_SIZE = 64
 SAVE_DIR = 'models'
 SAVE_FILE = 'models/swap'
+
+'''
+def warp_image(image):
+  #image = cv2.resize(image, (256,256))
+  image = random_transform( image, **self.random_transform_args )
+  warped_img, target_img = self.random_warp( image, coverage )
+
+  return warped_img, target_img
+'''
+
+def random_transform(image, rotation_range=10, zoom_range=0.05, shift_range=0.05, random_flip=0.4):
+  h, w = image.shape[0:2]
+  rotation = np.random.uniform(-rotation_range, rotation_range)
+  scale = np.random.uniform(1 - zoom_range, 1 + zoom_range)
+  tx = np.random.uniform(-shift_range, shift_range) * w
+  ty = np.random.uniform(-shift_range, shift_range) * h
+  mat = cv2.getRotationMatrix2D((w // 2, h // 2), rotation, scale)
+  mat[:, 2] += (tx, ty)
+  result = cv2.warpAffine(image, mat, (w, h), borderMode=cv2.BORDER_REPLICATE)
+  if np.random.random() < random_flip:
+    result = result[:, ::-1]
+  return result
+
+'''
+# get pair of random warped images from aligned face image
+def random_warp(image, coverage=160):
+  assert image.shape == (256, 256, 3)
+  range_ = np.linspace(128 - coverage//2, 128 + coverage//2, 5)
+  mapx = np.broadcast_to(range_, (5, 5))
+  mapy = mapx.T
+
+  mapx = mapx + np.random.normal(size=(5, 5), scale=5)
+  mapy = mapy + np.random.normal(size=(5, 5), scale=5)
+
+  interp_mapx = cv2.resize(mapx, (80, 80))[8:72, 8:72].astype('float32')
+  interp_mapy = cv2.resize(mapy, (80, 80))[8:72, 8:72].astype('float32')
+
+  warped_image = cv2.remap(image, interp_mapx, interp_mapy, cv2.INTER_LINEAR)
+
+  src_points = np.stack([mapx.ravel(), mapy.ravel()], axis=-1)
+  dst_points = np.mgrid[0:65:16, 0:65:16].T.reshape(-1, 2)
+  mat = umeyama(src_points, dst_points, True)[0:2]
+
+  target_image = cv2.warpAffine(image, mat, (64, 64))
+  return warped_image, target_image
+''' 
 
 def load_image(filepath):
   try:
@@ -71,7 +132,7 @@ def tf_add_conv(inputs, filters):
   layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
   return layer
 
-def interleave_layer(signals, selectors):
+def interleave_flat_layer(signals, selectors):
   model_split_a = tf.split(selectors, selectors.shape[1], axis=1)
   model_split_b = tf.split(signals, signals.shape[1], axis=1)
 
@@ -89,6 +150,19 @@ def interleave_layer(signals, selectors):
   model_output = tf.layers.flatten(model_output)
   return model_output
 
+def interleave_layer(signals, selectors):
+  flat_signals = tf.layers.flatten(signals)
+  selector_layer = interleave_flat_layer(flat_signals, selectors)
+  print("Flat size is {0}".format(flat_signals.shape))
+  def fixup(dim):
+    if dim is None:
+      return -1
+    else:
+      return dim
+  shape = [fixup(dim) for dim in signals.shape.as_list()]
+  shaped_signals = tf.reshape(selector_layer, shape)
+  return shaped_signals
+
 def AutoEncoder():
   model = Sequential()
 
@@ -104,18 +178,25 @@ def AutoEncoder():
  
   layer = tf.layers.flatten(layer)
   layer = tf.layers.dense(layer, ENCODER_DIM)
-  layer = interleave_layer(layer, model_selector_input)
+  layer = interleave_flat_layer(layer, model_selector_input)
   layer = tf.layers.dense(layer, 4*4*1024)
+  print("Layer 0 size would be {0}".format(tf.layers.flatten(layer).shape[1]))  
+  layer = interleave_flat_layer(layer, model_selector_input)
   layer = tf.reshape(layer, [-1,4,4,1024])
   layer = tf.image.resize_images(layer, size=(8,8), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
   def upsample(inputs, filters, out_size):
     layer = tf.layers.conv2d_transpose(inputs, filters, (5,5), padding='same', activation=tf.nn.relu)
     return tf.image.resize_images(layer, size=(out_size,out_size), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
-  
+
+  print("Layer 1 size would be {0}".format(tf.layers.flatten(layer).shape[1]))  
+  #layer = interleave_layer(layer, model_selector_input)
   layer = upsample(layer, 512, 16)
+  print("Layer 2 size would be {0}".format(tf.layers.flatten(layer).shape[1]))  
   layer = upsample(layer, 512, 32)
+  print("Layer 3 size would be {0}".format(tf.layers.flatten(layer).shape[1]))  
   layer = upsample(layer, 512, 64)
+  print("Layer 4 size would be {0}".format(tf.layers.flatten(layer).shape[1]))  
   layer = tf.layers.conv2d_transpose(layer, 3, (5,5), activation=tf.sigmoid, padding='same')
 
   return layer, model_input, model_selector_input
@@ -204,15 +285,18 @@ saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
 if saved_model_path:
   saver.restore(sess, saved_model_path)
 
+last_time = time.time()
 for epoch in range(epochs):
-  print("\nEpoch {0}".format(epoch))
+  print("\nEpoch {0} seconds {1}".format(epoch, time.time()-last_time))
+  last_time = time.time()
   random.shuffle(indexes)
+  timages = [random_transform(image) for image in images]
   for step in range(steps):
     for batch in range(batches):
       start = batch*BATCH_SIZE
       end = (batch+1)*BATCH_SIZE
       placeholders = {
-        model_input: get_batch(indexes, start, end, images),
+        model_input: get_batch(indexes, start, end, timages),
         model_selector_input: get_batch(indexes, start, end, selectors)
       }
       loss, _ = sess.run([model_loss, model_train_op], placeholders)
