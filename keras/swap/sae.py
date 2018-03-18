@@ -28,10 +28,10 @@ from keras.optimizers import Adam
    add a smile
 '''
 
-INPUT_DIM = 128
+INPUT_DIM = 64
 INPUT_SIZE=(INPUT_DIM, INPUT_DIM, 3)
 ENCODER_DIM = 1024
-BATCH_SIZE = 64
+BATCH_SIZE = 256
 SAVE_DIR = 'models'
 SAVE_FILE = 'models/swap'
 
@@ -265,11 +265,18 @@ optimizer = Adam(lr=5e-5, beta_1=0.5, beta_2=0.999)
 model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op = model_optimizer.minimize(model_loss)
 
-images = np.concatenate((cage_images, trump_images))
-selectors = np.concatenate((cage_selectors, trump_selectors))
+combine_images = False
+
+if combine_images:
+  images = np.concatenate((cage_images, trump_images))
+  selectors = np.concatenate((cage_selectors, trump_selectors))
+  indexes = [i for i in range(len(images))]
+else:
+  cage_indexes = [i for i in range(len(cage_images))]
+  trump_indexes = [i for i in range(len(trump_images))]
+
 #images = cage_images
 #selectors = cage_selectors
-indexes = [i for i in range(len(images))]
 
 def get_batch(indexes, start, end, x):
   value = [x[indexes[i]] for i in range(start, end)]
@@ -277,7 +284,11 @@ def get_batch(indexes, start, end, x):
 
 epochs = 10000
 steps = 50
-batches = len(images) // BATCH_SIZE
+if combine_images:
+  batches = len(images) // BATCH_SIZE
+else:
+  batches = min(len(trump_images), len(cage_images)) // BATCH_SIZE
+
 sess = tf.Session()
 
 sess.run(tf.global_variables_initializer())
@@ -286,20 +297,48 @@ if saved_model_path:
   saver.restore(sess, saved_model_path)
 
 last_time = time.time()
-for epoch in range(epochs):
-  print("\nEpoch {0} seconds {1}".format(epoch, time.time()-last_time))
-  last_time = time.time()
-  random.shuffle(indexes)
-  timages = [random_transform(image) for image in images]
-  for step in range(steps):
-    for batch in range(batches):
-      start = batch*BATCH_SIZE
-      end = (batch+1)*BATCH_SIZE
-      placeholders = {
-        model_input: get_batch(indexes, start, end, timages),
-        model_selector_input: get_batch(indexes, start, end, selectors)
-      }
-      loss, _ = sess.run([model_loss, model_train_op], placeholders)
-    print("Step: {0} loss: {1}\r".format(step, loss))
-    show_graph(sess)
-    saver.save(sess, SAVE_FILE)
+if combine_images:
+  for epoch in range(epochs):
+    print("\nEpoch {0} seconds {1}".format(epoch, time.time()-last_time))
+    last_time = time.time()
+    random.shuffle(indexes)
+    timages = [random_transform(image) for image in images]
+    for step in range(steps):
+      for batch in range(batches):
+        start = batch*BATCH_SIZE
+        end = (batch+1)*BATCH_SIZE
+        placeholders = {
+          model_input: get_batch(indexes, start, end, timages),
+          model_selector_input: get_batch(indexes, start, end, selectors)
+        }
+        loss, _ = sess.run([model_loss, model_train_op], placeholders)
+      print("Step: {0} loss: {1}\r".format(step, loss))
+      show_graph(sess)
+      saver.save(sess, SAVE_FILE)
+else:
+  for epoch in range(epochs):
+    print("\nEpoch {0} seconds {1}".format(epoch, time.time()-last_time))
+    last_time = time.time()
+    random.shuffle(cage_indexes)
+    random.shuffle(trump_indexes)
+    tcage_images = [random_transform(image) for image in cage_images]
+    ttrump_images = [random_transform(image) for image in trump_images]
+    for step in range(steps):
+      for batch in range(batches):
+        start = batch*BATCH_SIZE
+        end = (batch+1)*BATCH_SIZE
+
+        placeholders = {
+          model_input: get_batch(cage_indexes, start, end, tcage_images),
+          model_selector_input: get_batch(cage_indexes, start, end, cage_selectors)
+        }
+        loss, _ = sess.run([model_loss, model_train_op], placeholders)
+
+        placeholders = {
+          model_input: get_batch(trump_indexes, start, end, ttrump_images),
+          model_selector_input: get_batch(trump_indexes, start, end, trump_selectors)
+        }
+        loss, _ = sess.run([model_loss, model_train_op], placeholders)
+      print("Step: {0} loss: {1}\r".format(step, loss))
+      show_graph(sess)
+      saver.save(sess, SAVE_FILE)
