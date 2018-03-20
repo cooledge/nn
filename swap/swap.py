@@ -58,61 +58,6 @@ def load_images(dir):
 
   return train_generator, validation_generator
 
-def AutoEncoder_FC():
-  model = Sequential()
-
-  model.add(Flatten(input_shape=INPUT_SIZE))
-  model.add(Dense(32, activation='relu'))
-  model.add(Dense(np.prod(INPUT_SIZE), activation='sigmoid'))
-  model.add(Reshape(INPUT_SIZE))
-
-  return model
-
-def AutoEncoder_FC():
-  model = Sequential()
-
-  # Encoder
-  model.add(Flatten(input_shape=INPUT_SIZE))
-  model.add(Dense(128, activation='relu'))
-  model.add(Dense(64, activation='relu'))
-  model.add(Dense(32, activation='relu'))
-
-  # Decoder
-  model.add(Dense(64, activation='relu'))
-  model.add(Dense(128, activation='relu'))
-  model.add(Dense(np.prod(INPUT_SIZE), activation='sigmoid'))
-  model.add(Reshape(INPUT_SIZE))
-
-  return model
-
-def AutoEncoder1():
-  model = Sequential()
-
-  # Encoder
-  model.add(Conv2D(128, (5,5), activation='relu', padding='same', input_shape=INPUT_SIZE))
-  model.add(MaxPooling2D(2,2, padding='same'))
-  model.add(Conv2D(256, (5,5), activation='relu', padding='same'))
-  model.add(MaxPooling2D(2,2, padding='same'))
-  model.add(Conv2D(512, (5,5), activation='relu', padding='same'))
-  model.add(MaxPooling2D(2,2, padding='same'))
- 
-  model.add(Flatten())
-  model.add(Dense(ENCODER_DIM))
-  model.add(Dense(4*4*1024))
-  model.add(Reshape((4,4,1024)))
-  model.add(UpSampling2D((2,2)))
-
-  # Decoder
-  model.add(Conv2D(512, (5,5), activation='relu', padding='same'))
-  model.add(UpSampling2D((2,2)))
-  model.add(Conv2D(256, (5,5), activation='relu', padding='same'))
-  model.add(UpSampling2D((2,2)))
-  model.add(Conv2D(128, (5,5), activation='relu', padding='same'))
-  model.add(UpSampling2D((2,2)))
-  model.add(Conv2D(3, (5,5), activation='sigmoid', padding='same'))
-
-  return model
-
 def copy_model(model):
   copy = Sequential()
   for layer in model.layers:
@@ -122,7 +67,6 @@ def copy_model(model):
 def Encoder():
   model = Sequential()
 
-  # Encoder
   model.add(Conv2D(128, (5,5), activation='relu', padding='same', input_shape=INPUT_SIZE))
   model.add(MaxPooling2D(2,2, padding='same'))
   model.add(Conv2D(256, (5,5), activation='relu', padding='same'))
@@ -136,19 +80,7 @@ def Encoder():
   return model
 
 def Decoder(model):
-  # Decoder
-  '''
-  pdb.set_trace() 
-  w = tf.Variable(tf.truncated_normal((ENCODER_DIM, 4*4*1024), -1, 1))
-  #w = tf.Variable(tf.zeros((ENCODER_DIM, 4*4*1024)))
-  b = tf.Variable(tf.zeros((4*4*1024)))
-  def fc_layer(inputs):
-    return tf.matmul(inputs, w) + b
-  #model.add(Lambda(fc_layer))
-  model = Model(inputs=model.output, outputs=Lambda(fc_layer))
-  '''
   model.add(Dense(4*4*1024))
-
   model.add(Reshape((4,4,1024)))
   model.add(UpSampling2D((2,2)))
 
@@ -183,38 +115,6 @@ def upscale(filters):
     x = PixelShuffler()(x)
     return x
   return block
-
-def OEncoder():
-  input_ = Input(shape=INPUT_SIZE)
-  x = input_
-  x = conv(128)(x)
-  x = conv(256)(x)
-  x = conv(512)(x)
-  x = conv(1024)(x)
-  x = Dense(ENCODER_DIM)(Flatten()(x))
-  x = Dense(4 * 4 * 1024)(x)
-  x = Reshape((4, 4, 1024))(x)
-  x = upscale(512)(x)
-  return Model(input_, x)
-
-def ODecoder():
-  input_ = Input(shape=(8, 8, 512))
-  x = input_
-  x = upscale(256)(x)
-  x = upscale(128)(x)
-  x = upscale(64)(x)
-  x = Conv2D(3, kernel_size=5, padding='same', activation='sigmoid')(x)
-  return Model(input_, x)
-
-def OAutoEncoder():
-  encoder = OEncoder()
-  decoder_A = ODecoder()
-  decoder_B = ODecoder()
-
-  x = Input(shape=INPUT_SIZE)
-  ae_A = Model(x, decoder_A(encoder(x)))
-  ae_B = Model(x, decoder_B(encoder(x)))
-  return [ae_A, ae_B]
 
 model_a, model_b = AutoEncoder()
 
