@@ -199,8 +199,11 @@ model_train_op_B = model_optimizer_B.minimize(model_loss_B)
 
 combine_images = False
 
-images = cage_images
-indexes = [i for i in range(len(images))]
+images_A = cage_images
+indexes_A = [i for i in range(len(images_A))]
+
+images_B = cage_images
+indexes_B = [i for i in range(len(images_B))]
 
 def get_batch(indexes, start, end, x):
   value = [x[indexes[i]] for i in range(start, end)]
@@ -208,7 +211,7 @@ def get_batch(indexes, start, end, x):
 
 epochs = 10000
 steps = 50
-batches = len(images) // BATCH_SIZE
+batches = min(len(images_A), len(images_B)) // BATCH_SIZE
 
 sess = tf.Session()
 
@@ -224,20 +227,22 @@ pdb.set_trace()
 for epoch in range(epochs):
   print("\nEpoch {0} seconds {1}".format(epoch, time.time()-last_time))
   last_time = time.time()
-  random.shuffle(indexes)
-  timages = [random_transform(image) for image in images]
+  random.shuffle(indexes_A)
+  random.shuffle(indexes_B)
+  timages_A = [random_transform(image) for image in images_A]
+  timages_B = [random_transform(image) for image in images_B]
   for step in range(steps):
     for batch in range(batches):
       start = batch*BATCH_SIZE
       end = (batch+1)*BATCH_SIZE
 
       placeholders = {
-        model_input: get_batch(indexes, start, end, timages),
+        model_input: get_batch(indexes_A, start, end, timages_A),
       }
       loss_A, _ = sess.run([model_loss_A, model_train_op_A], placeholders)
 
       placeholders = {
-        model_input: get_batch(indexes, start, end, timages),
+        model_input: get_batch(indexes_B, start, end, timages_B),
       }
       loss_B, _ = sess.run([model_loss_B, model_train_op_B], placeholders)
     print("Step: {0} loss_a: {1} loss_b: {2}\r".format(step, loss_A, loss_B))
