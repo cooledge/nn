@@ -6,13 +6,6 @@ import pdb
 import os.path
 import random
 from PIL import Image
-from keras.callbacks import ModelCheckpoint, Callback
-from keras.models import Model, Sequential
-from keras.layers import Input, Dense, Flatten, Reshape, MaxPooling2D, Conv2D, UpSampling2D
-from keras.layers.advanced_activations import LeakyReLU
-from keras.layers.convolutional import Conv2D
-from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
-from keras.optimizers import Adam
 
 INPUT_DIM = 64
 INPUT_SIZE=(INPUT_DIM, INPUT_DIM, 3)
@@ -118,14 +111,7 @@ def tf_add_conv(inputs, filters):
   layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
   return layer
 
-def AutoEncoder():
-  model = Sequential()
-
-  model_selector_input = tf.placeholder(tf.float32, shape=[None, 2], name="selectors_input")
-
-  model_input = tf.placeholder(tf.float32, shape=[None, 64, 64, 3], name="signal_input")
-  layer = model_input
-
+def Encoder(layer):
   # Encoder
   layer = tf_add_conv(layer, 128)
   layer = tf_add_conv(layer, 256)
@@ -136,7 +122,9 @@ def AutoEncoder():
   layer = tf.layers.dense(layer, 4*4*1024)
   layer = tf.reshape(layer, [-1,4,4,1024])
   layer = tf.image.resize_images(layer, size=(8,8), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+  return layer
 
+def Decoder(layer):
   def upsample(inputs, filters, out_size):
     layer = tf.layers.conv2d_transpose(inputs, filters, (5,5), padding='same', activation=tf.nn.relu)
     return tf.image.resize_images(layer, size=(out_size,out_size), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
@@ -146,15 +134,19 @@ def AutoEncoder():
   layer = upsample(layer, 512, 64)
   layer = tf.layers.conv2d_transpose(layer, 3, (5,5), activation=tf.sigmoid, padding='same')
 
-  return layer, model_input, model_selector_input
+  return layer
 
-layer, model_input, model_selector_input = AutoEncoder()
+def AutoEncoder():
+  model_input = tf.placeholder(tf.float32, shape=[None, 64, 64, 3], name="signal_input")
+  encoder = Encoder(model_input)
+  decoder_A = Decoder(encoder)
+  decoder_B = Decoder(encoder)
+  return decoder_A, decoder_B, model_input
+
+autoencoder_A, autoencoder_B, model_input = AutoEncoder()
 
 trump_images = load_images2("./photo/trump")
 cage_images = load_images2("./photo/cage")
-
-def to_selectors(one_hot, images):
-  return np.array([one_hot for _ in images])
 
 import matplotlib.pyplot as plt
 plt.ion() 
@@ -166,17 +158,17 @@ plt.figure(figsize=(n_rows,n_cols))
 n_images = 4
 
 def show_graph(sess):
-  def predict(images):
+  def predict(images, autoencoder):
     placeholders ={ 
         model_input: images
         }
-    return sess.run(layer, placeholders)
+    return sess.run(autoencoder, placeholders)
 
   raw_cage = cage_images[0:4]
-  decoded_cage = predict(cage_images[0:4])
+  decoded_cage = predict(cage_images[0:4], autoencoder_A)
 
   raw_trump= trump_images[0:4]
-  decoded_trump = predict(trump_images[0:4])
+  decoded_trump = predict(trump_images[0:4], autoencoder_B)
 
   def no_axis(ax):
     ax.get_xaxis().set_visible(False)
@@ -195,20 +187,20 @@ def show_graph(sess):
 
   plt.pause(0.001)
 
-
 saver = tf.train.Saver()
 
-model_loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_input), tf.layers.flatten(layer)))
-optimizer = Adam(lr=5e-5, beta_1=0.5, beta_2=0.999)
-model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
-model_train_op = model_optimizer.minimize(model_loss)
+model_loss_A = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_input), tf.layers.flatten(autoencoder_A)))
+model_optimizer_A = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+model_train_op_A = model_optimizer_A.minimize(model_loss_A)
+
+model_loss_B = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_input), tf.layers.flatten(autoencoder_B)))
+model_optimizer_B = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+model_train_op_B = model_optimizer_B.minimize(model_loss_B)
 
 combine_images = False
 
 images = cage_images
 indexes = [i for i in range(len(images))]
-#images = cage_images
-#selectors = cage_selectors
 
 def get_batch(indexes, start, end, x):
   value = [x[indexes[i]] for i in range(start, end)]
@@ -222,10 +214,13 @@ sess = tf.Session()
 
 sess.run(tf.global_variables_initializer())
 saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
-if saved_model_path:
+if False and saved_model_path:
   saver.restore(sess, saved_model_path)
 
+show_graph(sess)
+
 last_time = time.time()
+pdb.set_trace()
 for epoch in range(epochs):
   print("\nEpoch {0} seconds {1}".format(epoch, time.time()-last_time))
   last_time = time.time()
@@ -235,10 +230,16 @@ for epoch in range(epochs):
     for batch in range(batches):
       start = batch*BATCH_SIZE
       end = (batch+1)*BATCH_SIZE
+
       placeholders = {
         model_input: get_batch(indexes, start, end, timages),
       }
-      loss, _ = sess.run([model_loss, model_train_op], placeholders)
-    print("Step: {0} loss: {1}\r".format(step, loss))
+      loss_A, _ = sess.run([model_loss_A, model_train_op_A], placeholders)
+
+      placeholders = {
+        model_input: get_batch(indexes, start, end, timages),
+      }
+      loss_B, _ = sess.run([model_loss_B, model_train_op_B], placeholders)
+    print("Step: {0} loss_a: {1} loss_b: {2}\r".format(step, loss_A, loss_B))
     show_graph(sess)
     saver.save(sess, SAVE_FILE)
