@@ -152,7 +152,7 @@ import matplotlib.pyplot as plt
 plt.ion() 
 plt.show()
 
-n_rows = 4
+n_rows = 6
 n_cols = 4
 plt.figure(figsize=(n_rows,n_cols))
 n_images = 4
@@ -166,9 +166,11 @@ def show_graph(sess):
 
   raw_cage = cage_images[0:4]
   decoded_cage = predict(cage_images[0:4], autoencoder_A)
+  decoded_cage_as_trump = predict(cage_images[0:4], autoencoder_B)
 
   raw_trump= trump_images[0:4]
   decoded_trump = predict(trump_images[0:4], autoencoder_B)
+  decoded_trump_as_cage = predict(trump_images[0:4], autoencoder_A)
 
   def no_axis(ax):
     ax.get_xaxis().set_visible(False)
@@ -182,8 +184,10 @@ def show_graph(sess):
   for i in range(n_images):
     plot_image(0, raw_cage[i])
     plot_image(1, decoded_cage[i])
-    plot_image(2, raw_trump[i])
-    plot_image(3, decoded_trump[i])
+    plot_image(2, decoded_cage_as_trump[i])
+    plot_image(3, raw_trump[i])
+    plot_image(4, decoded_trump[i])
+    plot_image(5, decoded_trump_as_cage[i])
 
   plt.pause(0.001)
 
