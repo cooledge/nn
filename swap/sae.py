@@ -68,7 +68,7 @@ def load_image(filepath):
   except IOError:
     return None
   
-def load_images2(dir):
+def load_images(dir):
   files = os.listdir(dir)
   images = []
   for file in files:
@@ -76,29 +76,6 @@ def load_images2(dir):
     if image is not None:
       np.array(images.append(image))
   return np.array(images)
-
-def load_images(dir):
-  train_datagen = ImageDataGenerator(
-    rescale=1./255,
-    #shear_range=0.2,
-    #zoom_range=0.2,
-    horizontal_flip=True)
-
-  test_datagen = ImageDataGenerator(rescale=1./255)
-    
-  train_generator = train_datagen.flow_from_directory(
-        dir+"/train", 
-        target_size=(INPUT_DIM,INPUT_DIM), 
-        batch_size=BATCH_SIZE, 
-        class_mode='input')
-
-  validation_generator = train_datagen.flow_from_directory(
-        dir+"/validation", 
-        target_size=(INPUT_DIM,INPUT_DIM), 
-        batch_size=BATCH_SIZE, 
-        class_mode='input')
-
-  return train_generator, validation_generator
 
 def copy_model(model):
   copy = Sequential()
@@ -146,8 +123,8 @@ def AutoEncoder():
 
 autoencoder_A, autoencoder_B, model_input = AutoEncoder()
 
-trump_images = load_images2("./photo/trump")
-cage_images = load_images2("./photo/cage")
+trump_images = load_images("./photo/trump")
+cage_images = load_images("./photo/cage")
 
 import matplotlib.pyplot as plt
 plt.ion() 
