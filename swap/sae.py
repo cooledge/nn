@@ -184,7 +184,7 @@ combine_images = False
 images_A = cage_images
 indexes_A = [i for i in range(len(images_A))]
 
-images_B = cage_images
+images_B = trump_images
 indexes_B = [i for i in range(len(images_B))]
 
 def get_batch(indexes, start, end, x):
