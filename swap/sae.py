@@ -119,12 +119,13 @@ def Encoder(layer):
  
   layer = tf.layers.flatten(layer)
   layer = tf.layers.dense(layer, ENCODER_DIM)
-  layer = tf.layers.dense(layer, 4*4*1024)
-  layer = tf.reshape(layer, [-1,4,4,1024])
-  layer = tf.image.resize_images(layer, size=(8,8), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
   return layer
 
 def Decoder(layer):
+  layer = tf.layers.dense(layer, 4*4*1024)
+  layer = tf.reshape(layer, [-1,4,4,1024])
+  layer = tf.image.resize_images(layer, size=(8,8), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
   def upsample(inputs, filters, out_size):
     layer = tf.layers.conv2d_transpose(inputs, filters, (5,5), padding='same', activation=tf.nn.relu)
     return tf.image.resize_images(layer, size=(out_size,out_size), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
