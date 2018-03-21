@@ -228,4 +228,6 @@ for epoch in range(epochs):
       show_graph()
 
   print("\n")
-    
+   
+# split file into images
+# joins images back into file    
