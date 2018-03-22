@@ -10,7 +10,7 @@ from PIL import Image
 INPUT_DIM = 64
 INPUT_SIZE=(INPUT_DIM, INPUT_DIM, 3)
 ENCODER_DIM = 1024
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 SAVE_DIR = 'models'
 SAVE_FILE = 'models/swap'
 
@@ -114,15 +114,18 @@ def Decoder(layer):
 
   return layer
 
+def Categorizer(layer):
+  return tf.layers.dense(layer, 2)
+
 def AutoEncoder():
   model_input = tf.placeholder(tf.float32, shape=[None, 64, 64, 3], name="signal_input")
   encoder = Encoder(model_input)
   decoder_A = Decoder(encoder)
   decoder_B = Decoder(encoder)
-  return decoder_A, decoder_B, model_input
+  categorizer = Categorizer(encoder)
+  return decoder_A, decoder_B, model_input, categorizer
 
-autoencoder_A, autoencoder_B, model_input = AutoEncoder()
-
+autoencoder_A, autoencoder_B, model_input, model_categorizer = AutoEncoder()
 trump_images = load_images("./photo/trump")
 cage_images = load_images("./photo/cage")
 
@@ -171,21 +174,28 @@ def show_graph(sess):
 
 saver = tf.train.Saver()
 
+model_prob_cat = tf.nn.softmax(model_categorizer)
+model_output_cat = tf.placeholder(tf.float32, shape=[None, 2], name="model_output_cat")
+model_loss_cat = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=model_output_cat, logits=model_categorizer))
+
 model_loss_A = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_input), tf.layers.flatten(autoencoder_A)))
 model_optimizer_A = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
-model_train_op_A = model_optimizer_A.minimize(model_loss_A)
+model_train_op_A = model_optimizer_A.minimize(model_loss_A+model_loss_cat)
 
 model_loss_B = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_input), tf.layers.flatten(autoencoder_B)))
 model_optimizer_B = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
-model_train_op_B = model_optimizer_B.minimize(model_loss_B)
+model_train_op_B = model_optimizer_B.minimize(model_loss_B+model_loss_cat)
+
 
 combine_images = False
 
 images_A = cage_images
 indexes_A = [i for i in range(len(images_A))]
+onehot_A = [[1,0] for _ in range(BATCH_SIZE)]
 
 images_B = trump_images
 indexes_B = [i for i in range(len(images_B))]
+onehot_B = [[0,1] for _ in range(BATCH_SIZE)]
 
 def get_batch(indexes, start, end, x):
   value = [x[indexes[i]] for i in range(start, end)]
@@ -220,11 +230,13 @@ for epoch in range(epochs):
 
       placeholders = {
         model_input: get_batch(indexes_A, start, end, timages_A),
+        model_output_cat: onehot_A
       }
       loss_A, _ = sess.run([model_loss_A, model_train_op_A], placeholders)
 
       placeholders = {
         model_input: get_batch(indexes_B, start, end, timages_B),
+        model_output_cat: onehot_B
       }
       loss_B, _ = sess.run([model_loss_B, model_train_op_B], placeholders)
     print("Step: {0} loss_a: {1} loss_b: {2}\r".format(step, loss_A, loss_B))
