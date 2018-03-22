@@ -171,7 +171,7 @@ def show_graph(sess):
   def plot_image(col, image, cat):
     ax = plt.subplot(n_rows,n_cols,(4*col)+i+1)
     plt.imshow(image) 
-    ax.text(70, 50, cat, fontsize=15)
+    ax.text(70, 50, cat, fontsize=15, backgroundcolor='w')
     no_axis(ax)
 
   for i in range(n_images):
