@@ -129,6 +129,7 @@ autoencoder_A, autoencoder_B, model_input, model_categorizer = AutoEncoder()
 trump_images = load_images("./photo/trump")
 cage_images = load_images("./photo/cage")
 
+import matplotlib
 import matplotlib.pyplot as plt
 plt.ion() 
 plt.show()
@@ -145,30 +146,41 @@ def show_graph(sess):
         }
     return sess.run(autoencoder, placeholders)
 
+  def predict_cat(images):
+    placeholders ={ 
+        model_input: images
+    }
+    one_hots = sess.run(model_prob_cat, placeholders)
+    preds = np.argmax(one_hots, axis=1)
+    return [ ['CAGE', 'TRUMP'][pred] for pred in preds ]
+
   raw_cage = cage_images[0:4]
   decoded_cage = predict(cage_images[0:4], autoencoder_A)
   decoded_cage_as_trump = predict(cage_images[0:4], autoencoder_B)
+  cage_predict = predict_cat(cage_images[0:4])
 
   raw_trump= trump_images[0:4]
   decoded_trump = predict(trump_images[0:4], autoencoder_B)
   decoded_trump_as_cage = predict(trump_images[0:4], autoencoder_A)
+  trump_predict = predict_cat(trump_images[0:4])
 
   def no_axis(ax):
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
 
-  def plot_image(col, image):
+  def plot_image(col, image, cat):
     ax = plt.subplot(n_rows,n_cols,(4*col)+i+1)
     plt.imshow(image) 
+    ax.text(70, 50, cat, fontsize=15)
     no_axis(ax)
 
   for i in range(n_images):
-    plot_image(0, raw_cage[i])
-    plot_image(1, decoded_cage[i])
-    plot_image(2, decoded_cage_as_trump[i])
-    plot_image(3, raw_trump[i])
-    plot_image(4, decoded_trump[i])
-    plot_image(5, decoded_trump_as_cage[i])
+    plot_image(0, raw_cage[i], cage_predict[i])
+    plot_image(1, decoded_cage[i], cage_predict[i])
+    plot_image(2, decoded_cage_as_trump[i], cage_predict[i])
+    plot_image(3, raw_trump[i], trump_predict[i])
+    plot_image(4, decoded_trump[i], trump_predict[i])
+    plot_image(5, decoded_trump_as_cage[i], trump_predict[i])
 
   plt.pause(0.001)
 
@@ -185,7 +197,6 @@ model_train_op_A = model_optimizer_A.minimize(model_loss_A+model_loss_cat)
 model_loss_B = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_input), tf.layers.flatten(autoencoder_B)))
 model_optimizer_B = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op_B = model_optimizer_B.minimize(model_loss_B+model_loss_cat)
-
 
 combine_images = False
 
@@ -215,7 +226,6 @@ if False and saved_model_path:
 show_graph(sess)
 
 last_time = time.time()
-pdb.set_trace()
 for epoch in range(epochs):
   print("\nEpoch {0} seconds {1}".format(epoch, time.time()-last_time))
   last_time = time.time()
