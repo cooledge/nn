@@ -242,7 +242,7 @@ for epoch in range(epochs):
       end = (batch+1)*BATCH_SIZE
 
       placeholders = {
-        model_output_cat: onehot_A
+        model_input: get_batch(indexes_A, start, end, timages_A),
       }
       loss_A, _ = sess.run([model_loss_A, model_train_op_A], placeholders)
 
@@ -253,7 +253,7 @@ for epoch in range(epochs):
       loss_cat_A, _ = sess.run([model_loss_cat, model_train_op_cat], placeholders)
 
       placeholders = {
-        model_output_cat: onehot_B
+        model_input: get_batch(indexes_B, start, end, timages_B),
       }
       loss_B, _ = sess.run([model_loss_B, model_train_op_B], placeholders)
 
