@@ -5,6 +5,7 @@ import time
 import pdb
 import os.path
 import random
+from umeyama import umeyama
 from PIL import Image
 
 INPUT_DIM = 64
@@ -14,14 +15,21 @@ BATCH_SIZE = 32
 SAVE_DIR = 'models'
 SAVE_FILE = 'models/swap'
 
-'''
-def warp_image(image):
-  #image = cv2.resize(image, (256,256))
-  image = random_transform( image, **self.random_transform_args )
-  warped_img, target_img = self.random_warp( image, coverage )
+def warp_images(images):
+  warped_images = []
+  target_images = []
+  for image in images:
+    wi, ti = warp_image(image)
+    warped_images.append(wi)
+    target_images.append(ti)
 
+  return warped_images, target_images
+
+def warp_image(image, coverage=160):
+  image = cv2.resize(image, (256,256))
+  image = random_transform( image )
+  warped_img, target_img = random_warp( image, coverage )
   return warped_img, target_img
-'''
 
 def random_transform(image, rotation_range=10, zoom_range=0.05, shift_range=0.05, random_flip=0.4):
   h, w = image.shape[0:2]
@@ -36,7 +44,6 @@ def random_transform(image, rotation_range=10, zoom_range=0.05, shift_range=0.05
     result = result[:, ::-1]
   return result
 
-'''
 # get pair of random warped images from aligned face image
 def random_warp(image, coverage=160):
   assert image.shape == (256, 256, 3)
@@ -58,7 +65,6 @@ def random_warp(image, coverage=160):
 
   target_image = cv2.warpAffine(image, mat, (64, 64))
   return warped_image, target_image
-''' 
 
 def load_image(filepath):
   try:
@@ -119,13 +125,14 @@ def Categorizer(layer):
 
 def AutoEncoder():
   model_input = tf.placeholder(tf.float32, shape=[None, 64, 64, 3], name="signal_input")
+  model_output = tf.placeholder(tf.float32, shape=[None, 64, 64, 3], name="signal_output")
   encoder = Encoder(model_input)
   decoder_A = Decoder(encoder)
   decoder_B = Decoder(encoder)
   categorizer = Categorizer(encoder)
-  return decoder_A, decoder_B, model_input, categorizer
+  return decoder_A, decoder_B, model_input, model_output, categorizer
 
-autoencoder_A, autoencoder_B, model_input, model_categorizer = AutoEncoder()
+autoencoder_A, autoencoder_B, model_input, model_output, model_categorizer = AutoEncoder()
 trump_images = load_images("./photo/trump")
 cage_images = load_images("./photo/cage")
 
@@ -140,7 +147,7 @@ plt.figure(figsize=(n_rows,n_cols))
 n_images = 4
 
 def show_graph(sess):
-  def predict(images, autoencoder):
+  def predict(images, indexes, autoencoder):
     placeholders ={ 
         model_input: images
         }
@@ -154,15 +161,17 @@ def show_graph(sess):
     preds = np.argmax(one_hots, axis=1)
     return [ ['CAGE', 'TRUMP'][pred] for pred in preds ]
 
-  raw_cage = cage_images[0:4]
-  decoded_cage = predict(cage_images[0:4], autoencoder_A)
-  decoded_cage_as_trump = predict(cage_images[0:4], autoencoder_B)
-  cage_predict = predict_cat(cage_images[0:4])
+  A_images = [warp_image(cage_images[indexes_A[i]])[1] for i in range(len(cage_images))]
+  raw_cage = A_images[0:4]
+  decoded_cage = predict(A_images[0:4], indexes_A, autoencoder_A)
+  decoded_cage_as_trump = predict(A_images[0:4], indexes_A, autoencoder_B)
+  cage_predict = predict_cat(A_images[0:4])
 
-  raw_trump= trump_images[0:4]
-  decoded_trump = predict(trump_images[0:4], autoencoder_B)
-  decoded_trump_as_cage = predict(trump_images[0:4], autoencoder_A)
-  trump_predict = predict_cat(trump_images[0:4])
+  B_images = [warp_image(trump_images[indexes_B[i]])[1] for i in range(len(trump_images))]
+  raw_trump= B_images[0:4]
+  decoded_trump = predict(B_images[0:4], indexes_B, autoencoder_B)
+  decoded_trump_as_cage = predict(B_images[0:4], indexes_B, autoencoder_A)
+  trump_predict = predict_cat(B_images[0:4])
 
   def no_axis(ax):
     ax.get_xaxis().set_visible(False)
@@ -192,11 +201,11 @@ model_loss_cat = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=m
 model_optimizer_cat = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op_cat = model_optimizer_cat.minimize(model_loss_cat)
 
-model_loss_A = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_input), tf.layers.flatten(autoencoder_A)))
+model_loss_A = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_output), tf.layers.flatten(autoencoder_A)))
 model_optimizer_A = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op_A = model_optimizer_A.minimize(model_loss_A)
 
-model_loss_B = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_input), tf.layers.flatten(autoencoder_B)))
+model_loss_B = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_output), tf.layers.flatten(autoencoder_B)))
 model_optimizer_B = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op_B = model_optimizer_B.minimize(model_loss_B)
 
@@ -240,27 +249,36 @@ for epoch in range(epochs):
       start = batch*BATCH_SIZE
       end = (batch+1)*BATCH_SIZE
 
+      batch_A = get_batch(indexes_A, start, end, images_A)
+      inputs_A, outputs_A = warp_images(batch_A)
       placeholders = {
-        model_input: get_batch(indexes_A, start, end, timages_A),
+        model_input: inputs_A,
+        model_output: outputs_A,
+        model_output_cat: onehot_A
       }
-      loss_A, _ = sess.run([model_loss_A, model_train_op_A], placeholders)
-
+      loss_A, loss_cat_A, _, _ = sess.run([model_loss_A, model_loss_cat, model_train_op_A, model_train_op_cat], placeholders)
+      '''
       placeholders = {
         model_input: get_batch(indexes_A, start, end, timages_A),
         model_output_cat: onehot_A
       }
       loss_cat_A, _ = sess.run([model_loss_cat, model_train_op_cat], placeholders)
-
+      '''
+      batch_B = get_batch(indexes_B, start, end, timages_B)
+      inputs_B, outputs_B  = warp_images(batch_B)
       placeholders = {
-        model_input: get_batch(indexes_B, start, end, timages_B),
+        model_input: inputs_B, 
+        model_output: outputs_B,
+        model_output_cat: onehot_B
       }
-      loss_B, _ = sess.run([model_loss_B, model_train_op_B], placeholders)
-
+      loss_B, loss_cat_B, _, _ = sess.run([model_loss_B, model_loss_cat, model_train_op_B, model_train_op_cat], placeholders)
+      '''
       placeholders = {
         model_input: get_batch(indexes_B, start, end, timages_B),
         model_output_cat: onehot_B
       }
       loss_cat_B, _ = sess.run([model_loss_cat, model_train_op_cat], placeholders)
+      '''
 
     print("Step: {0} loss_a: {1}/{2} loss_b: {3}/{4}\r".format(step, loss_A, loss_cat_A, loss_B, loss_cat_B))
     show_graph(sess)
