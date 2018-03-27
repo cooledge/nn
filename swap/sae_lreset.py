@@ -104,25 +104,27 @@ def Encoder(layer):
   layer = tf.layers.dense(layer, ENCODER_DIM)
   return layer
 
-def Decoder(layer, reset_layers):
+def Decoder(layer, version, reset_layers):
   layer = tf.layers.dense(layer, 4*4*1024)
   layer = tf.reshape(layer, [-1,4,4,1024])
   layer = tf.image.resize_images(layer, size=(8,8), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
-  def upsample(inputs, filters, out_size):
-    layer = tf.layers.conv2d_transpose(inputs, filters, (5,5), padding='same', activation=tf.nn.relu)
+  gr = tf.get_default_graph()
+
+  def upsample(inputs, filters, out_size, layer_no):
+    name = "dconv_layer_{0}.{1}".format(version, layer_no)
+
+    layer = tf.layers.conv2d_transpose(inputs, filters, (5,5), padding='same', name=name, activation=tf.nn.relu)
+
+    kernel = gr.get_tensor_by_name('{0}/kernel:0'.format(name))
+    bias = gr.get_tensor_by_name('{0}/bias:0'.format(name))
+    reset_layers.append([kernel, bias])
+
     return tf.image.resize_images(layer, size=(out_size,out_size), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
-  reset_layers.append(layer)
-
-  layer = upsample(layer, 512, 16)
-  reset_layers.append(layer)
-
-  layer = upsample(layer, 512, 32)
-  reset_layers.append(layer)
-
-  layer = upsample(layer, 512, 64)
-  reset_layers.append(layer)
+  layer = upsample(layer, 512, 16, 1)
+  layer = upsample(layer, 512, 32, 2)
+  layer = upsample(layer, 512, 64, 3)
 
   layer = tf.layers.conv2d_transpose(layer, 3, (5,5), activation=tf.sigmoid, padding='same')
 
@@ -136,9 +138,9 @@ def AutoEncoder():
   model_output = tf.placeholder(tf.float32, shape=[None, 64, 64, 3], name="signal_output")
   reset_layers_A = []
   encoder = Encoder(model_input)
-  decoder_A = Decoder(encoder, reset_layers_A)
+  decoder_A = Decoder(encoder, "A", reset_layers_A)
   reset_layers_B = []
-  decoder_B = Decoder(encoder, reset_layers_B)
+  decoder_B = Decoder(encoder, "B", reset_layers_B)
   categorizer = Categorizer(encoder)
   return decoder_A, decoder_B, model_input, model_output, categorizer, reset_layers_A, reset_layers_B
 
@@ -240,11 +242,29 @@ batches = min(len(images_A), len(images_B)) // BATCH_SIZE
 sess = tf.Session()
 
 sess.run(tf.global_variables_initializer())
+
+saved_layers_A = sess.run(reset_layers_A)
+saved_layers_B = sess.run(reset_layers_B)
+def reset_layers(resets, saves, keep_n):
+  for i in range(len(resets)):
+    if i >= keep_n:
+      reset = resets[i]
+      save = saves[i]
+      for j in range(2):
+        sess.run(tf.assign(reset[i], save[i]))
+ 
+pdb.set_trace()
+reset_layers(reset_layers_A, saved_layers_A, 0)
+   
 saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
 if False and saved_model_path:
   saver.restore(sess, saved_model_path)
 
 show_graph(sess)
+
+pdb.set_trace()
+save_layers(reset_layers_A)
+reset_layers(reset_layers_A, 2)
 
 last_time = time.time()
 for epoch in range(epochs):
