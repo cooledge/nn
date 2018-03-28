@@ -251,10 +251,11 @@ def reset_layers(resets, saves, keep_n):
       reset = resets[i]
       save = saves[i]
       for j in range(2):
-        sess.run(tf.assign(reset[i], save[i]))
+        sess.run(tf.assign(reset[j], save[j]))
  
-pdb.set_trace()
-reset_layers(reset_layers_A, saved_layers_A, 0)
+#pdb.set_trace()
+#reset_layers(reset_layers_A, saved_layers_A, 0)
+#pdb.set_trace()
    
 saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
 if False and saved_model_path:
@@ -273,20 +274,11 @@ for epoch in range(epochs):
   random.shuffle(indexes_A)
   random.shuffle(indexes_B)
 
-  if epoch == 0:
-    init_layers_A = []
-    for layer in reset_layers_A:
-      init_layers_A.append(sess.run(layer))  
-
-    init_layers_B = []
-    for layer in reset_layers_B:
-      init_layers_B.append(sess.run(layer))  
-  elif epoch > 1:
+  if epoch > 1:
     pdb.set_trace()
-    for i in range(len(reset_layers_A)):
-      sess.run(reset_layers_A[i].assign(init_layers_A[i]))
-    for i in range(len(reset_layers_B)):
-      sess.run(reset_layers_B[i].assign(init_layers_B[i]))
+    print("Reseting layer {0}".format(reset_layer))
+    reset_layers(reset_layers_A, saved_layers_A, reset_layer)
+    reset_layer += 1
 
   for step in range(steps):
     for batch in range(batches):
