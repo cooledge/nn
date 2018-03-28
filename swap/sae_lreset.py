@@ -263,10 +263,6 @@ if False and saved_model_path:
 
 show_graph(sess)
 
-pdb.set_trace()
-save_layers(reset_layers_A)
-reset_layers(reset_layers_A, 2)
-
 last_time = time.time()
 for epoch in range(epochs):
   print("\nEpoch {0} seconds {1}".format(epoch, time.time()-last_time))
