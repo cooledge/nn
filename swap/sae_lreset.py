@@ -264,17 +264,19 @@ if False and saved_model_path:
 show_graph(sess)
 
 last_time = time.time()
+reset_at_layer = 0
 for epoch in range(epochs):
   print("\nEpoch {0} seconds {1}".format(epoch, time.time()-last_time))
   last_time = time.time()
   random.shuffle(indexes_A)
   random.shuffle(indexes_B)
 
-  if epoch > 1:
+  if (epoch % 9) == 1:
     pdb.set_trace()
-    print("Reseting layer {0}".format(reset_layer))
-    reset_layers(reset_layers_A, saved_layers_A, reset_layer)
-    reset_layer += 1
+    print("Reseting layer {0}".format(reset_at_layer))
+    reset_layers(reset_layers_A, saved_layers_A, reset_at_layer)
+    reset_layers(reset_layers_B, saved_layers_B, reset_at_layer)
+    reset_at_layer += 1
 
   for step in range(steps):
     for batch in range(batches):
