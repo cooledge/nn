@@ -4,8 +4,10 @@ import cv2
 import time
 import math
 import pdb
+import time
 import os.path
 import random
+import argparse
 from umeyama import umeyama
 from PIL import Image
 
@@ -15,6 +17,15 @@ ENCODER_DIM = 1024
 BATCH_SIZE = 32
 SAVE_DIR = 'models'
 SAVE_FILE = 'models/swap'
+DATA_DIR = 'photo/data'
+
+parser = argparse.ArgumentParser(description="Rotate image to up and down")
+parser.add_argument("--get_data", action='store_true')
+parser.add_argument("--train", action='store_true')
+parser.add_argument("--live", action='store_true')
+args = parser.parse_args()
+data_dir = DATA_DIR
+prefix = 'vid'
 
 def si(image):
   cv2.imshow("", image)
@@ -168,7 +179,6 @@ def AutoEncoder():
   return decoder, categorizer, model_input, model_output
 
 model_autoencoder, model_categorizer, model_input, model_output = AutoEncoder()
-trump_images = load_images("./photo/trump")
 cage_images = load_images("./photo/cage")
 
 import matplotlib
@@ -218,60 +228,86 @@ def show_graph(sess):
 
   plt.pause(0.001)
 
-saver = tf.train.Saver()
+if args.get_data:
 
-model_prob_cat = tf.nn.softmax(model_categorizer)
-model_output_cat = tf.placeholder(tf.float32, shape=[None, number_of_rotates()], name="model_output_cat")
-model_loss_cat = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=model_output_cat, logits=model_categorizer))
-model_optimizer_cat = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
-model_train_op_cat = model_optimizer_cat.minimize(model_loss_cat)
+  cap = cv2.VideoCapture(0)
 
-model_loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_output), tf.layers.flatten(model_autoencoder)))
-model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
-model_train_op = model_optimizer.minimize(model_loss)
+  timestr = time.strftime("%Y%m%d-%H%M%S")
 
-images = cage_images
-indexes = [i for i in range(len(images))]
+  counter = 0
+  while(cap.isOpened()):
+    print("counter {0}\r".format(counter), end="")
+    counter += 1
+    ret, frame = cap.read()
 
-def get_batch(indexes, start, end, x):
-  value = [x[indexes[i]] for i in range(start, end)]
-  return value
+    if ret==True:
+      filename = "{0}/{1}{2}{3}.jpg".format(data_dir, prefix, timestr, counter)
+      cv2.imwrite(filename, frame)
+      cv2.imshow('frame',frame)
+      if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+    else:
+      break
 
-epochs = 10000
-steps = 50
-batches = len(images) // BATCH_SIZE
+  cap.release()
+  out.release()
+  cv2.destroyAllWindows()
 
-sess = tf.Session()
+if args.train:
+  saver = tf.train.Saver()
 
-sess.run(tf.global_variables_initializer())
-saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
-if False and saved_model_path:
-  saver.restore(sess, saved_model_path)
+  model_prob_cat = tf.nn.softmax(model_categorizer)
+  model_output_cat = tf.placeholder(tf.float32, shape=[None, number_of_rotates()], name="model_output_cat")
+  model_loss_cat = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=model_output_cat, logits=model_categorizer))
+  model_optimizer_cat = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+  model_train_op_cat = model_optimizer_cat.minimize(model_loss_cat)
 
-#show_graph(sess)
+  model_loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_output), tf.layers.flatten(model_autoencoder)))
+  model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+  model_train_op = model_optimizer.minimize(model_loss)
 
-last_time = time.time()
-for epoch in range(epochs):
-  print("\nEpoch {0} seconds {1}".format(epoch, time.time()-last_time))
+  images = cage_images
+  indexes = [i for i in range(len(images))]
+
+  def get_batch(indexes, start, end, x):
+    value = [x[indexes[i]] for i in range(start, end)]
+    return value
+
+  epochs = 10000
+  steps = 50
+  batches = len(images) // BATCH_SIZE
+
+  sess = tf.Session()
+
+  sess.run(tf.global_variables_initializer())
+  saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
+  if False and saved_model_path:
+    saver.restore(sess, saved_model_path)
+
+  #show_graph(sess)
+
   last_time = time.time()
-  random.shuffle(indexes)
-  timages = [random_transform(image) for image in images]
-  for step in range(steps):
-    for batch in range(batches):
-      start = batch*BATCH_SIZE
-      end = (batch+1)*BATCH_SIZE
+  for epoch in range(epochs):
+    print("\nEpoch {0} seconds {1}".format(epoch, time.time()-last_time))
+    last_time = time.time()
+    random.shuffle(indexes)
+    timages = [random_transform(image) for image in images]
+    for step in range(steps):
+      for batch in range(batches):
+        start = batch*BATCH_SIZE
+        end = (batch+1)*BATCH_SIZE
 
-      batch = get_batch(indexes, start, end, images)
-      inputs, outputs, rotations = warp_images(batch)
-      one_hots = [rotate_to_one_hot(degrees) for degrees in rotations]
-      placeholders = {
-        model_input: inputs,
-        model_output: outputs,
-        model_output_cat: one_hots
-      }
-      # model_loss_cat, model_train_op_cat
-      loss, loss_cat, _, _ = sess.run([model_loss, model_loss_cat, model_train_op, model_train_op_cat], placeholders)
+        batch = get_batch(indexes, start, end, images)
+        inputs, outputs, rotations = warp_images(batch)
+        one_hots = [rotate_to_one_hot(degrees) for degrees in rotations]
+        placeholders = {
+          model_input: inputs,
+          model_output: outputs,
+          model_output_cat: one_hots
+        }
+        # model_loss_cat, model_train_op_cat
+        loss, loss_cat, _, _ = sess.run([model_loss, model_loss_cat, model_train_op, model_train_op_cat], placeholders)
 
-    print("Step: {0} loss_a: {1}/{2}\r".format(step, loss, loss_cat))
-    show_graph(sess)
-    saver.save(sess, SAVE_FILE)
+      print("Step: {0} loss_a: {1}/{2}\r".format(step, loss, loss_cat))
+      show_graph(sess)
+      saver.save(sess, SAVE_FILE)
