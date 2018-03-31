@@ -236,7 +236,8 @@ if args.get_data:
 
   counter = 0
   while(cap.isOpened()):
-    print("counter {0}\r".format(counter), end="")
+    #print("counter {0}\r".format(counter), end="")
+    print("counter {0}\r".format(counter))
     counter += 1
     ret, frame = cap.read()
 
