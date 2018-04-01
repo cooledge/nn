@@ -22,6 +22,7 @@ DATA_DIR = 'photo/data'
 parser = argparse.ArgumentParser(description="Rotate image to up and down")
 parser.add_argument("--get_data", action='store_true')
 parser.add_argument("--train", action='store_true')
+parser.add_argument("--rtrain", action='store_true')
 parser.add_argument("--live", action='store_true')
 args = parser.parse_args()
 data_dir = DATA_DIR
@@ -45,7 +46,7 @@ def warp_images(images):
 
 def warp_image(image, coverage=160):
   image = cv2.resize(image, (256,256))
-  transformed_image, rotation, flip = random_transform( image )
+  transformed_image, rotation, flip = random_transform( image, flip=0.0 )
   image, _, _ = random_transform( image, rotation=0, flip=flip )
   warped_img, target_img, img = random_warp( transformed_image, image, coverage )
   return warped_img, img, rotation
@@ -181,16 +182,6 @@ def AutoEncoder():
 model_autoencoder, model_categorizer, model_input, model_output = AutoEncoder()
 cage_images = load_images("./photo/data")
 
-import matplotlib
-import matplotlib.pyplot as plt
-plt.ion() 
-plt.show()
-
-n_rows = 6
-n_cols = 4
-plt.figure(figsize=(n_rows,n_cols))
-n_images = 4
-
 def show_graph(sess):
   def predict(images, autoencoder):
     placeholders ={ model_input: images }
@@ -228,6 +219,23 @@ def show_graph(sess):
 
   plt.pause(0.001)
 
+saver = tf.train.Saver()
+
+model_prob_cat = tf.nn.softmax(model_categorizer)
+model_output_cat = tf.placeholder(tf.float32, shape=[None, number_of_rotates()], name="model_output_cat")
+model_loss_cat = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=model_output_cat, logits=model_categorizer))
+model_optimizer_cat = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+model_train_op_cat = model_optimizer_cat.minimize(model_loss_cat)
+
+model_loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_output), tf.layers.flatten(model_autoencoder)))
+model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+model_train_op = model_optimizer.minimize(model_loss)
+
+if args.rtrain:
+
+  command = "rsh -Y dev@ugpu 'cd ~/code/nn/unrotate; rm ~/code/nn/unrotate/models/*; source ~/tf3/bin/activate; python unrotate.py --train'"
+  os.system(command)
+
 if args.get_data:
 
   cap = cv2.VideoCapture(0)
@@ -235,9 +243,9 @@ if args.get_data:
   timestr = time.strftime("%Y%m%d-%H%M%S")
 
   counter = 0
+  print("Press Q to stop")
   while(cap.isOpened()):
-    #print("counter {0}\r".format(counter), end="")
-    print("counter {0}\r".format(counter))
+    #print("counter {0}\r".format(counter))
     counter += 1
     ret, frame = cap.read()
 
@@ -251,21 +259,23 @@ if args.get_data:
       break
 
   cap.release()
-  out.release()
   cv2.destroyAllWindows()
 
+  filespec = "{0}/{1}{2}*.jpg".format(data_dir, prefix, timestr, counter)
+  command = "scp {0} dev@ugpu:~/code/nn/unrotate/{1}".format(filespec, data_dir)
+  os.system(command)
+
 if args.train:
-  saver = tf.train.Saver()
 
-  model_prob_cat = tf.nn.softmax(model_categorizer)
-  model_output_cat = tf.placeholder(tf.float32, shape=[None, number_of_rotates()], name="model_output_cat")
-  model_loss_cat = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=model_output_cat, logits=model_categorizer))
-  model_optimizer_cat = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
-  model_train_op_cat = model_optimizer_cat.minimize(model_loss_cat)
+  import matplotlib
+  import matplotlib.pyplot as plt
+  plt.ion() 
+  plt.show()
 
-  model_loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_output), tf.layers.flatten(model_autoencoder)))
-  model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
-  model_train_op = model_optimizer.minimize(model_loss)
+  n_rows = 6
+  n_cols = 4
+  plt.figure(figsize=(n_rows,n_cols))
+  n_images = 4
 
   images = cage_images
   indexes = [i for i in range(len(images))]
@@ -312,3 +322,53 @@ if args.train:
       print("Step: {0} loss_a: {1}/{2}\r".format(step, loss, loss_cat))
       show_graph(sess)
       saver.save(sess, SAVE_FILE)
+
+if args.live:
+
+  cap = cv2.VideoCapture(0)
+
+  sess = tf.Session()
+  sess.run(tf.global_variables_initializer())
+  saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
+  if saved_model_path:
+    saver.restore(sess, saved_model_path)
+
+  def predict_cat(image):
+    _, image, _ = warp_image(image, coverage=160)
+    placeholders = { model_input: [image] }
+    one_hots = sess.run(model_prob_cat, placeholders)
+    return [one_hot_to_rotate(one_hot) for one_hot in one_hots][0]
+
+  while(cap.isOpened()):
+    ret, frame = cap.read()
+
+    if ret==True:
+      degrees = predict_cat(frame)
+    
+      def other_point(angle, length, from_point):
+        angle = float(angle)
+        length = float(length)
+        angle = -(angle - 90)
+        if angle < 0:
+          angle += 360
+        w =  int(round(from_point[0] + length * math.cos(angle * math.pi / 180.0)))
+        h =  int(round(from_point[1] - length * math.sin(angle * math.pi / 180.0)))
+        return (w,h)
+  
+      h, w, _ = frame.shape
+      c = (w//2, h//2)
+      o = other_point(degrees, 200, c)
+      
+      cv2.line(frame, c, o, (255, 0, 0), 10)
+      
+      print("degrees({0})".format(degrees))
+      cv2.imshow('frame',frame)
+      if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+    else:
+      break
+
+  cap.release()
+  out.release()
+  cv2.destroyAllWindows()
+
