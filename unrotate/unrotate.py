@@ -179,7 +179,7 @@ def AutoEncoder():
   return decoder, categorizer, model_input, model_output
 
 model_autoencoder, model_categorizer, model_input, model_output = AutoEncoder()
-cage_images = load_images("./photo/cage")
+cage_images = load_images("./photo/data")
 
 import matplotlib
 import matplotlib.pyplot as plt
