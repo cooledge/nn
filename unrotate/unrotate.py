@@ -5,6 +5,7 @@ import time
 import math
 import pdb
 import time
+import urllib
 import os.path
 import random
 import argparse
@@ -21,6 +22,7 @@ DATA_DIR = 'photo/data'
 
 parser = argparse.ArgumentParser(description="Rotate image to up and down")
 parser.add_argument("--get_data", action='store_true')
+parser.add_argument("--phone", action='store_true')
 parser.add_argument("--train", action='store_true')
 parser.add_argument("--rtrain", action='store_true')
 parser.add_argument("--live", action='store_true')
@@ -236,18 +238,56 @@ if args.rtrain:
   command = "rsh -Y dev@ugpu 'cd ~/code/nn/unrotate; rm ~/code/nn/unrotate/models/*; source ~/tf3/bin/activate; python unrotate.py --train'"
   os.system(command)
 
+class TestDataLocal:
+
+  def __init__(self):
+    self.cap = cv2.VideoCapture(0)
+
+  def isOpened(self):
+    return self.cap.isOpened()
+
+  def get_frame(self):
+    return self.cap.read()
+
+  def release(self):
+    self.cap.release
+    self.cap = None
+
+class TestDataPhone:
+
+  URL = 'http://192.168.1.124:8080/shot.jpg'
+
+  def __init__(self):
+    self.cap = cv2.VideoCapture(0)
+
+  def isOpened(self):
+    return True
+
+  def get_frame(self):
+    # Use urllib to get the image and convert into a cv2 usable format
+    imgResp=urllib.urlopen(TestDataPhone.URL)
+    imgNp=np.array(bytearray(imgResp.read()),dtype=np.uint8)
+    img=cv2.imdecode(imgNp,-1)
+    return True, img
+
+  def release(self):
+    True
+
 if args.get_data:
 
-  cap = cv2.VideoCapture(0)
+  if args.phone:
+    td = TestDataPhone()
+  else:
+    td = TestDataLocal()
 
   timestr = time.strftime("%Y%m%d-%H%M%S")
 
   counter = 0
   print("Press Q to stop")
-  while(cap.isOpened()):
-    #print("counter {0}\r".format(counter))
+  while(td.isOpened()):
     counter += 1
-    ret, frame = cap.read()
+    print("Counter {0}".format(counter))
+    ret, frame = td.get_frame()
 
     if ret==True:
       filename = "{0}/{1}{2}{3}.jpg".format(data_dir, prefix, timestr, counter)
@@ -258,7 +298,7 @@ if args.get_data:
     else:
       break
 
-  cap.release()
+  td.release()
   cv2.destroyAllWindows()
 
   filespec = "{0}/{1}{2}*.jpg".format(data_dir, prefix, timestr, counter)
@@ -324,6 +364,9 @@ if args.train:
       saver.save(sess, SAVE_FILE)
 
 if args.live:
+
+  command = 'scp dev@ugpu:~/code/nn/unrotate/models/* ~/models'
+  os.system(command)
 
   cap = cv2.VideoCapture(0)
 
