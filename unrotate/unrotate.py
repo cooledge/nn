@@ -48,12 +48,13 @@ def warp_images(images):
 
 def warp_image(image, coverage=160):
   image = cv2.resize(image, (256,256))
-  transformed_image, rotation, flip = random_transform( image, flip=0.0 )
-  image, _, _ = random_transform( image, rotation=0, flip=flip )
+  transformed_image, rotation = random_transform( image )
+  image, _ = random_transform( image, rotation=0 )
   warped_img, target_img, img = random_warp( transformed_image, image, coverage )
   return warped_img, img, rotation
 
-def random_transform(image, rotation_range=90, rotation=None, zoom_range=0.00, shift_range=0.00, random_flip=0.5, flip=None):
+# rotation angle is clockwise with 12 o'clock as zero
+def random_transform(image, rotation_range=90, rotation=None, zoom_range=0.00, shift_range=0.00):
   h, w = image.shape[0:2]
   if rotation is None:
     rotation = np.random.uniform(-rotation_range, rotation_range)
@@ -62,14 +63,11 @@ def random_transform(image, rotation_range=90, rotation=None, zoom_range=0.00, s
   scale = np.random.uniform(1 - zoom_range, 1 + zoom_range)
   tx = np.random.uniform(-shift_range, shift_range) * w
   ty = np.random.uniform(-shift_range, shift_range) * h
-  mat = cv2.getRotationMatrix2D((w // 2, h // 2), rotation, scale)
+  mat = cv2.getRotationMatrix2D((w // 2, h // 2), -rotation, scale)
   mat[:, 2] += (tx, ty)
   result = cv2.warpAffine(image, mat, (w, h), borderMode=cv2.BORDER_REPLICATE)
 
-  if flip or np.random.random() < random_flip:
-    result = result[:, ::-1]
-    flip = True
-  return result, rotation, flip
+  return result, rotation
 
 # get pair of random warped images from aligned face image
 def random_warp(transformed_image, image, coverage=160):
