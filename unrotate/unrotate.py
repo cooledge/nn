@@ -331,7 +331,7 @@ if args.train:
 
   sess.run(tf.global_variables_initializer())
   saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
-  if False and saved_model_path:
+  if saved_model_path:
     saver.restore(sess, saved_model_path)
 
   #show_graph(sess)
