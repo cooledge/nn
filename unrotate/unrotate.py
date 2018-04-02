@@ -23,6 +23,7 @@ DATA_DIR = 'photo/data'
 parser = argparse.ArgumentParser(description="Rotate image to up and down")
 parser.add_argument("--get_data", action='store_true')
 parser.add_argument("--phone", action='store_true')
+parser.add_argument("--copy_models", action='store_true')
 parser.add_argument("--train", action='store_true')
 parser.add_argument("--rtrain", action='store_true')
 parser.add_argument("--live", action='store_true')
@@ -355,18 +356,26 @@ if args.train:
           model_output_cat: one_hots
         }
         # model_loss_cat, model_train_op_cat
-        loss, loss_cat, _, _ = sess.run([model_loss, model_loss_cat, model_train_op, model_train_op_cat], placeholders)
+        #loss, loss_cat, _, _ = sess.run([model_loss, model_loss_cat, model_train_op, model_train_op_cat], placeholders)
+        loss_cat, _ = sess.run([model_loss_cat, model_train_op_cat], placeholders)
 
-      print("Step: {0} loss_a: {1}/{2}\r".format(step, loss, loss_cat))
+      #print("Step: {0} loss_a: {1}/{2}\r".format(step, loss, loss_cat))
+      print("Step: {0} loss_cat: {1}\r".format(step, loss_cat))
       show_graph(sess)
       saver.save(sess, SAVE_FILE)
 
 if args.live:
 
-  command = 'scp dev@ugpu:~/code/nn/unrotate/models/* ~/models'
-  os.system(command)
+  if args.phone:
+    td = TestDataPhone()
+  else:
+    td = TestDataLocal()
 
-  cap = cv2.VideoCapture(0)
+  if args.copy_models:
+    command = 'scp dev@ugpu:~/code/nn/unrotate/models/* ~/models'
+    os.system(command)
+
+  #cap = cv2.VideoCapture(0)
 
   sess = tf.Session()
   sess.run(tf.global_variables_initializer())
@@ -380,8 +389,10 @@ if args.live:
     one_hots = sess.run(model_prob_cat, placeholders)
     return [one_hot_to_rotate(one_hot) for one_hot in one_hots][0]
 
-  while(cap.isOpened()):
-    ret, frame = cap.read()
+  #while(cap.isOpened()):
+  while(td.isOpened()):
+    #ret, frame = cap.read()
+    ret, frame = td.get_frame()
 
     if ret==True:
       degrees = predict_cat(frame)
@@ -409,7 +420,8 @@ if args.live:
     else:
       break
 
-  cap.release()
+  #cap.release()
+  td.release()
   out.release()
   cv2.destroyAllWindows()
 
