@@ -170,6 +170,7 @@ def one_hot_to_rotate(one_hot):
   return one_hot_index_to_rotate(np.argmax(one_hot))
 
 def Categorizer(layer):
+  layer = tf.nn.relu(layer)
   return tf.layers.dense(layer, number_of_rotates())
 
 def AutoEncoder():
