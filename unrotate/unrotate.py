@@ -357,11 +357,11 @@ if args.train:
           model_output_cat: one_hots
         }
         # model_loss_cat, model_train_op_cat
-        #loss, loss_cat, _, _ = sess.run([model_loss, model_loss_cat, model_train_op, model_train_op_cat], placeholders)
-        loss_cat, _ = sess.run([model_loss_cat, model_train_op_cat], placeholders)
+        loss, loss_cat, _, _ = sess.run([model_loss, model_loss_cat, model_train_op, model_train_op_cat], placeholders)
+        #loss_cat, _ = sess.run([model_loss_cat, model_train_op_cat], placeholders)
 
-      #print("Step: {0} loss_a: {1}/{2}\r".format(step, loss, loss_cat))
-      print("Step: {0} loss_cat: {1}\r".format(step, loss_cat))
+      print("Step: {0} loss_a: {1}/{2}\r".format(step, loss, loss_cat))
+      #print("Step: {0} loss_cat: {1}\r".format(step, loss_cat))
       show_graph(sess)
       saver.save(sess, SAVE_FILE)
 
@@ -376,8 +376,6 @@ if args.live:
     command = 'scp dev@ugpu:~/code/nn/unrotate/models/* ~/models'
     os.system(command)
 
-  #cap = cv2.VideoCapture(0)
-
   sess = tf.Session()
   sess.run(tf.global_variables_initializer())
   saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
@@ -390,9 +388,7 @@ if args.live:
     one_hots = sess.run(model_prob_cat, placeholders)
     return [one_hot_to_rotate(one_hot) for one_hot in one_hots][0]
 
-  #while(cap.isOpened()):
   while(td.isOpened()):
-    #ret, frame = cap.read()
     ret, frame = td.get_frame()
 
     if ret==True:
@@ -421,7 +417,6 @@ if args.live:
     else:
       break
 
-  #cap.release()
   td.release()
   out.release()
   cv2.destroyAllWindows()
