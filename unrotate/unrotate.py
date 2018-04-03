@@ -35,6 +35,9 @@ def si(image):
   cv2.imshow("", image)
   cv2.waitKey(1000)
 
+def batch_from_image(image, batch_size):
+  warp_images([image]*batch_size)
+
 def warp_images(images):
   warped_images = []
   target_images = []
@@ -344,12 +347,16 @@ if args.train:
     random.shuffle(indexes)
     timages = [random_transform(image) for image in images]
     for step in range(steps):
-      for batch in range(batches):
-        start = batch*BATCH_SIZE
-        end = (batch+1)*BATCH_SIZE
+      for index in range(indexes):
+      #for batch in range(batches):
+        if False:
+          start = batch*BATCH_SIZE
+          end = (batch+1)*BATCH_SIZE
+          batch = get_batch(indexes, start, end, images)
+          inputs, outputs, rotations = warp_images(batch)
+        else:
+          inputs, outputs, rotations = batch_from_image(images[index])
 
-        batch = get_batch(indexes, start, end, images)
-        inputs, outputs, rotations = warp_images(batch)
         one_hots = [rotate_to_one_hot(degrees) for degrees in rotations]
         placeholders = {
           model_input: inputs,
