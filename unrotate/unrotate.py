@@ -36,7 +36,7 @@ def si(image):
   cv2.waitKey(1000)
 
 def batch_from_image(image, batch_size):
-  warp_images([image]*batch_size)
+  return warp_images([image]*batch_size)
 
 def warp_images(images):
   warped_images = []
@@ -229,7 +229,11 @@ saver = tf.train.Saver()
 model_prob_cat = tf.nn.softmax(model_categorizer)
 model_output_cat = tf.placeholder(tf.float32, shape=[None, number_of_rotates()], name="model_output_cat")
 model_loss_cat = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=model_output_cat, logits=model_categorizer))
-model_optimizer_cat = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+#model_optimizer_cat = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+#model_optimizer_cat = tf.train.AdamOptimizer(learning_rate=5e-6, beta1=0.5, beta2=0.999)
+# loss around 4.1
+#model_optimizer_cat = tf.train.GradientDescentOptimizer(learning_rate=0.0001)
+model_optimizer_cat = tf.train.GradientDescentOptimizer(learning_rate=0.001)
 model_train_op_cat = model_optimizer_cat.minimize(model_loss_cat)
 
 model_loss = tf.reduce_mean(tf.keras.losses.mean_absolute_error(tf.layers.flatten(model_output), tf.layers.flatten(model_autoencoder)))
@@ -335,7 +339,7 @@ if args.train:
 
   sess.run(tf.global_variables_initializer())
   saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
-  if saved_model_path:
+  if False and saved_model_path:
     saver.restore(sess, saved_model_path)
 
   #show_graph(sess)
@@ -347,7 +351,7 @@ if args.train:
     random.shuffle(indexes)
     timages = [random_transform(image) for image in images]
     for step in range(steps):
-      for index in range(indexes):
+      for index in indexes:
       #for batch in range(batches):
         if False:
           start = batch*BATCH_SIZE
@@ -355,7 +359,7 @@ if args.train:
           batch = get_batch(indexes, start, end, images)
           inputs, outputs, rotations = warp_images(batch)
         else:
-          inputs, outputs, rotations = batch_from_image(images[index])
+          inputs, outputs, rotations = batch_from_image(images[index], BATCH_SIZE)
 
         one_hots = [rotate_to_one_hot(degrees) for degrees in rotations]
         placeholders = {
@@ -364,11 +368,11 @@ if args.train:
           model_output_cat: one_hots
         }
         # model_loss_cat, model_train_op_cat
-        loss, loss_cat, _, _ = sess.run([model_loss, model_loss_cat, model_train_op, model_train_op_cat], placeholders)
-        #loss_cat, _ = sess.run([model_loss_cat, model_train_op_cat], placeholders)
+        #loss, loss_cat, _, _ = sess.run([model_loss, model_loss_cat, model_train_op, model_train_op_cat], placeholders)
+        loss_cat, _ = sess.run([model_loss_cat, model_train_op_cat], placeholders)
 
-      print("Step: {0} loss_a: {1}/{2}\r".format(step, loss, loss_cat))
-      #print("Step: {0} loss_cat: {1}\r".format(step, loss_cat))
+      #print("Step: {0} loss_a: {1}/{2}\r".format(step, loss, loss_cat))
+      print("Step: {0} loss_cat: {1}\r".format(step, loss_cat))
       show_graph(sess)
       saver.save(sess, SAVE_FILE)
 
