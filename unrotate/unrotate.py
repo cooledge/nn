@@ -343,6 +343,31 @@ if args.train:
     saver.restore(sess, saved_model_path)
 
   #show_graph(sess)
+  def run_tests(indexes):
+    batch = get_batch(indexes, 0, BATCH_SIZE, images)
+    inputs, outputs, rotations = warp_images(batch)
+
+    placeholders = {
+      model_input: outputs,
+    }
+    output_cat  = sess.run(model_output_cat, placeholders)
+
+    right = 0
+    total_diff = 0
+    for y, y_h in zip(rotations, [np.argmax(sm) for sm in output_cat]):
+      if y == y_h:
+        right += 1
+      diff = np.abs(y-y_h) 
+      if diff > 180:
+        diff = 360-diff
+      total_diff += 1
+
+    average_diff = total_diff / BATCH_SIZE
+    
+    print("{0} right of {1}, Average diff {2}".format(right, BATCH_SIZE, average_diff))
+    
+
+  print("make the loss function be np.argmax(sm)-label, what about circular")
 
   last_time = time.time()
   for epoch in range(epochs):
