@@ -229,6 +229,8 @@ saver = tf.train.Saver()
 model_prob_cat = tf.nn.softmax(model_categorizer)
 model_output_cat = tf.placeholder(tf.float32, shape=[None, number_of_rotates()], name="model_output_cat")
 model_loss_cat = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=model_output_cat, logits=model_categorizer))
+tf.abs(tf.abs(tf.abs(tf.abs(tf.argmax(model_output_cat, axis=1) - tf.argmax(model_categorizer, axis=1))-180)-180))
+# wdiff = np.abs(np.abs(np.abs(argmax(y)-argmax(y_h))-180)-180)
 #model_optimizer_cat = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 #model_optimizer_cat = tf.train.AdamOptimizer(learning_rate=5e-6, beta1=0.5, beta2=0.999)
 # loss around 4.1
@@ -339,7 +341,7 @@ if args.train:
 
   sess.run(tf.global_variables_initializer())
   saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
-  if False and saved_model_path:
+  if saved_model_path:
     saver.restore(sess, saved_model_path)
 
   #show_graph(sess)
@@ -350,7 +352,7 @@ if args.train:
     placeholders = {
       model_input: outputs,
     }
-    output_cat  = sess.run(model_output_cat, placeholders)
+    output_cat  = sess.run(model_prob_cat, placeholders)
 
     right = 0
     total_diff = 0
@@ -360,7 +362,7 @@ if args.train:
       diff = np.abs(y-y_h) 
       if diff > 180:
         diff = 360-diff
-      total_diff += 1
+      total_diff += diff
 
     average_diff = total_diff / BATCH_SIZE
     
@@ -372,6 +374,7 @@ if args.train:
   last_time = time.time()
   for epoch in range(epochs):
     print("\nEpoch {0} seconds {1}".format(epoch, time.time()-last_time))
+    run_tests(indexes)
     last_time = time.time()
     random.shuffle(indexes)
     timages = [random_transform(image) for image in images]
@@ -397,9 +400,10 @@ if args.train:
         loss_cat, _ = sess.run([model_loss_cat, model_train_op_cat], placeholders)
 
       #print("Step: {0} loss_a: {1}/{2}\r".format(step, loss, loss_cat))
-      print("Step: {0} loss_cat: {1}\r".format(step, loss_cat))
+      #print("Step: {0} loss_cat: {1}\r".format(step, loss_cat))
       show_graph(sess)
-      saver.save(sess, SAVE_FILE)
+
+    saver.save(sess, SAVE_FILE)
 
 if args.live:
 
