@@ -121,9 +121,32 @@ def copy_model(model):
     copy.add(layer)
   return copy
 
-def tf_add_conv(inputs, filters):
-  layer = tf.layers.conv2d(inputs=inputs, filters=filters, kernel_size=[5,5], padding='same', activation=tf.nn.relu)
+def tf_add_conv(inputs, filters, kernel_size=[5,5], include_pool=True):
+  layer = tf.layers.conv2d(inputs=inputs, filters=filters, kernel_size=kernel_size, padding='same', activation=tf.nn.relu)
+  if include_pool:
+    layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
+  return layer
+
+def RotNet(layer):
+  layer = tf_add_conv(layer, 64, include_pool=False)
+  layer = tf_add_conv(layer, 64, include_pool=False)
   layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
+  layer = tf.nn.dropout(layer, keep_prob=0.25)
+  layer = tf.layers.flatten(layer)
+  layer = tf.layers.dense(layer, 128, activation=tf.nn.relu)
+  layer = tf.nn.dropout(layer, keep_prob=0.25)
+  layer = tf.layers.dense(layer, number_of_rotates())
+  return layer
+  
+# best was error 38
+def Encoder1(layer):
+  # Encoder
+  layer = tf_add_conv(layer, 128)
+  layer = tf_add_conv(layer, 256)
+  layer = tf_add_conv(layer, 512)
+ 
+  layer = tf.layers.flatten(layer)
+  layer = tf.layers.dense(layer, ENCODER_DIM)
   return layer
 
 def Encoder(layer):
@@ -131,6 +154,7 @@ def Encoder(layer):
   layer = tf_add_conv(layer, 128)
   layer = tf_add_conv(layer, 256)
   layer = tf_add_conv(layer, 512)
+  layer = tf_add_conv(layer, 1024)
  
   layer = tf.layers.flatten(layer)
   layer = tf.layers.dense(layer, ENCODER_DIM)
@@ -182,9 +206,11 @@ def AutoEncoder():
   encoder = Encoder(model_input)
   decoder = Decoder(encoder)
   categorizer = Categorizer(encoder)
-  return decoder, categorizer, model_input, model_output
+  rot_net = RotNet(model_input)
+  return decoder, categorizer, model_input, model_output, rot_net
 
-model_autoencoder, model_categorizer, model_input, model_output = AutoEncoder()
+model_autoencoder, model_categorizer, model_input, model_output, rot_net = AutoEncoder()
+model_categorizer = rot_net
 cage_images = load_images("./photo/data")
 
 def show_graph(sess):
@@ -341,13 +367,14 @@ if args.train:
 
   sess.run(tf.global_variables_initializer())
   saved_model_path = tf.train.latest_checkpoint(SAVE_DIR)
-  if saved_model_path:
+  if False and saved_model_path:
     saver.restore(sess, saved_model_path)
 
   #show_graph(sess)
   def run_tests(indexes):
     batch = get_batch(indexes, 0, BATCH_SIZE, images)
     inputs, outputs, rotations = warp_images(batch)
+    #inputs, outputs, rotations = batch_from_image(images[0], BATCH_SIZE)
 
     placeholders = {
       model_input: outputs,
@@ -357,7 +384,7 @@ if args.train:
     right = 0
     total_diff = 0
     for y, y_h in zip(rotations, [np.argmax(sm) for sm in output_cat]):
-      if y == y_h:
+      if  y-5 <= y_h <= y+5:
         right += 1
       diff = np.abs(y-y_h) 
       if diff > 180:
@@ -379,15 +406,16 @@ if args.train:
     random.shuffle(indexes)
     timages = [random_transform(image) for image in images]
     for step in range(steps):
-      for index in indexes:
-      #for batch in range(batches):
-        if False:
+      #for index in indexes:
+      for batch in range(batches):
+        if True:
           start = batch*BATCH_SIZE
           end = (batch+1)*BATCH_SIZE
           batch = get_batch(indexes, start, end, images)
           inputs, outputs, rotations = warp_images(batch)
         else:
           inputs, outputs, rotations = batch_from_image(images[index], BATCH_SIZE)
+          #inputs, outputs, rotations = batch_from_image(images[0], BATCH_SIZE)
 
         one_hots = [rotate_to_one_hot(degrees) for degrees in rotations]
         placeholders = {
