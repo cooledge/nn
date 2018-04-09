@@ -82,7 +82,6 @@ layer = tf.layers.dense(layer, nb_classes)
 
 model_prob_cat = tf.nn.softmax(layer)
 model_output = tf.placeholder(tf.int32, shape=[None], name="model_output")
-pdb.set_trace()
 model_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=model_output, logits=layer))
 model_optimizer = tf.train.AdamOptimizer(learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-08)
 model_train_op = model_optimizer.minimize(model_loss)
@@ -93,11 +92,12 @@ nb_epoch = 50
 
 session = tf.Session()
 session.run(tf.global_variables_initializer())
-session.run(tf.local_variables_initializer())
+#session.run(tf.local_variables_initializer())
 
 for epoch in range(50):
   n_batches = nb_train_samples // batch_size
   X_train_rotated, rotated_angles = rotate_images(X_train)
+
   for batch_no in range(n_batches):
     start = batch_no * batch_size
     end = start + batch_size
@@ -105,8 +105,12 @@ for epoch in range(50):
     batch_output = rotated_angles[start:end]
     batch_output_cat = to_categorical(rotated_angles[start:end], 360)
 
+    gradients1, loss1 = session.run([model_loss, model_optimizer.compute_gradients(model_loss)], { model_input: batch_input, model_output: batch_output })
+    loss_before = session.run(model_loss, { model_input: batch_input, model_output: batch_output })
     loss, _ = session.run([model_loss, model_train_op], { model_input: batch_input, model_output: batch_output })
+    loss_after = session.run(model_loss, { model_input: batch_input, model_output: batch_output })
     print("tf loss {0}".format(loss))
+
   X_test_rotated, test_rotated_angles = rotate_images(X_test)
   result = model.test_on_batch(X_test_rotated, to_categorical(test_rotated_angles, 360))
   print("Epoch {0}, Loss {1}, Angle Diff: {2}".format(epoch, result[0], result[1]))
