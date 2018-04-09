@@ -83,7 +83,8 @@ layer = tf.layers.dense(layer, nb_classes)
 model_prob_cat = tf.nn.softmax(layer)
 model_output = tf.placeholder(tf.int32, shape=[None], name="model_output")
 model_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=model_output, logits=layer))
-model_optimizer = tf.train.AdamOptimizer(learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-08)
+#model_optimizer = tf.train.AdamOptimizer(learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-08)
+model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op = model_optimizer.minimize(model_loss)
 
 # training parameters
