@@ -28,14 +28,14 @@ def rotate_images(images):
     rotated_images.append(ri)
     rotations.append(ra)
 
-  return np.array(rotated_images).reshape(-1, 28, 28, 1), rotations
+  return np.array(rotated_images).reshape(-1, img_rows, img_cols, 1), rotations
 
 def rotate_image(image):
   rotation_angle = np.random.randint(360)
   rotated_image = utils.generate_rotated_image(
                   image,
                   rotation_angle,
-                  #size=image.shape[:2],
+                  size=image.shape[:2],
                   #crop_center=utils.crop_center,
                   #crop_largest_rect=utils.crop_largest_rect
                   )
@@ -97,6 +97,7 @@ session.run(tf.global_variables_initializer())
 
 for epoch in range(50):
   n_batches = nb_train_samples // batch_size
+
   X_train_rotated, rotated_angles = rotate_images(X_train)
 
   for batch_no in range(n_batches):
