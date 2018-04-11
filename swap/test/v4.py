@@ -7,7 +7,6 @@ cap = cv2.VideoCapture(0)
 
 while(True):
     # Capture frame-by-frame
-    pdb.set_trace()
     ret, frame = cap.read()
 
     # Our operations on the frame come here
