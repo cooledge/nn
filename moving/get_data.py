@@ -18,12 +18,13 @@ get_data -dir forward -time 1 -label forward
 '''
 parser = argparse.ArgumentParser(description="Get data from the camera and motion")
 parser.add_argument("--direction", type=str, default='forward', choices=['forward', 'backward', 'left', 'right', 'stop'])
-parser.add_argument("--time", type=int, default=1000)
+parser.add_argument("--time", type=int, default=2000)
+parser.add_argument('--no-show', dest='feature', action='store_false')
+parser.set_defaults(show=True)
 args = parser.parse_args()
 
 args.time = args.time / 1000.0
 
-'''
 robotcar = RobotCar()
 if args.direction == 'forward':
   robotcar.forward()
@@ -33,7 +34,6 @@ elif args.direction == 'left':
   robotcar.left()
 elif args.direction == 'right':
   robotcar.right()
-'''
 
 class TestDataLocal:
 
@@ -73,9 +73,8 @@ while(td.isOpened()):
   if ret==True:
     filename = "{0}/{1}{2}-{3}.jpg".format(data_dir, args.direction, timestr, counter)
     cv2.imwrite(filename, frame)
-    cv2.imshow('frame',frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-      break
+    if args.show:
+      cv2.imshow('frame',frame)
   else:
     break
 

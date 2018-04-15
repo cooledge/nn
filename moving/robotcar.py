@@ -6,12 +6,12 @@ from socket import *
 import RPi.GPIO as GPIO
 import time
 
-class RobotCar:
+LED0, LED1, LED2 = [10, 9, 25]
+ENA, ENB = [13, 20]
+IN1, IN2, IN3, IN4 = [19, 16, 21, 26]
+SER1, SER2, SER3, SER4, SER7, SER8 = [11, 8, 7, 5, 6, 12]
 
-  LED0, LED1, LED2 = [10, 9, 25]
-  ENA, ENB = [13, 20]
-  IN1, IN2, IN3, IN4 = [19, 16, 21, 26]
-  SER1, SER2, SER3, SER4, SER7, SER8 = [11, 8, 7, 5, 6, 12]
+class RobotCar:
 
   def __init__(self):
     GPIO.setmode(GPIO.BCM)
@@ -43,7 +43,7 @@ class RobotCar:
     Servo8.start(0)  
     '''
 
-  def Forward(self):
+  def forward(self):
     GPIO.output(ENA,True)
     GPIO.output(ENB,True)
     GPIO.output(IN1,True)
@@ -51,7 +51,7 @@ class RobotCar:
     GPIO.output(IN3,True)
     GPIO.output(IN4,False)
     
-  def Backward(self):
+  def backward(self):
     GPIO.output(ENA,True)
     GPIO.output(ENB,True)
     GPIO.output(IN1,False)
@@ -59,7 +59,7 @@ class RobotCar:
     GPIO.output(IN3,False)
     GPIO.output(IN4,True)
     
-  def Left(self):
+  def left(self):
     GPIO.output(ENA,True)
     GPIO.output(ENB,True)
     GPIO.output(IN1,True)
@@ -67,7 +67,7 @@ class RobotCar:
     GPIO.output(IN3,False)
     GPIO.output(IN4,True)
     
-  def Right(self):
+  def right(self):
     GPIO.output(ENA,True)
     GPIO.output(ENB,True)
     GPIO.output(IN1,False)
@@ -75,7 +75,7 @@ class RobotCar:
     GPIO.output(IN3,True)
     GPIO.output(IN4,False)
     
-  def Stop(self):
+  def stop(self):
     GPIO.output(ENA,False)
     GPIO.output(ENB,False)
     GPIO.output(IN1,False)
