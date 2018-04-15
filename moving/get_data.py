@@ -58,7 +58,7 @@ if not os.path.exists(data_dir):
   os.makedirs(data_dir)
 
 start = time.time()  
-timestr = time.strftime("%Y%m%d-%H%M%S")
+timestr = time.strftime("%Y%m%d%H%M%S")
 
 counter = 0
 while(td.isOpened()):
@@ -71,7 +71,7 @@ while(td.isOpened()):
   ret, frame = td.get_frame()
 
   if ret==True:
-    filename = "{0}/{1}{2}-{3}.jpg".format(data_dir, args.direction, timestr, counter)
+    filename = "{0}/{1}_{2}-{3}.jpg".format(data_dir, args.direction, timestr, counter)
     cv2.imwrite(filename, frame)
     if args.show:
       cv2.imshow('frame',frame)
