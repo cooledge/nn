@@ -6,7 +6,7 @@ import pdb
 
 def chw2hwc(chw):
   _, channels, height, width = chw.shape
-  layer = tf.reshape(model_input, [-1, channels, height*width])
+  layer = tf.reshape(chw, [-1, channels, height*width])
   layer = tf.transpose(layer)
   hwc = tf.reshape(layer, [-1, height, width, channels])
   return hwc
