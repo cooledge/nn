@@ -78,21 +78,24 @@ def cats2inds(categories):
 
 assert cats2inds(categories) == [0,1,2,3,4]
 
-# take N images in a row and make them each a channel in a single
-images = []
-directions = []
-for i in range(len(files)):
-  image = get_image(i)
-  if image:
-    images.append(image)
-    directions.append(get_category(i))
+def load_training_data():
+  # take N images in a row and make them each a channel in a single
+  images = []
+  directions = []
+  for i in range(len(files)):
+    image = get_image(i)
+    if image:
+      images.append(image)
+      directions.append(get_category(i))
 
-split_at = int(len(images)*0.9)
-X_train = np.array(images[:split_at])
-Y_train = directions[:split_at]
+  split_at = int(len(images)*0.9)
+  X_train = np.array(images[:split_at])
+  Y_train = directions[:split_at]
 
-X_test = np.array(images[split_at:])
-Y_test = directions[split_at:]
+  X_test = np.array(images[split_at:])
+  Y_test = directions[split_at:]
+
+  return X_train, Y_train, X_test, Y_test
 
 # number of convolutional filters to use
 nb_filters = 64
@@ -102,11 +105,8 @@ pool_size = (2, 2)
 kernel_size = (3, 3)
 # number of classes
 
-nb_train_samples, img_channels, img_rows, img_cols = X_train.shape
-nb_test_samples = X_test.shape[0]
-
-print(nb_train_samples, 'train samples')
-print(nb_test_samples, 'test samples')
+img_rows = INPUT_DIM
+img_cols = INPUT_DIM
 
 def tf_add_conv(inputs, filters, kernel_size=[5,5], include_pool=True):
   layer = tf.layers.conv2d(inputs=inputs, filters=filters, kernel_size=kernel_size, padding='same', activation=tf.nn.relu)
@@ -149,20 +149,42 @@ try:
 except Exception as e:
   0 # ignore 
 
-for epoch in range(50):
-  n_batches = nb_train_samples // batch_size
+class Predict:
 
-  for batch_no in range(n_batches):
-    start = batch_no * batch_size
-    end = start + batch_size
-    batch_input = X_train[start:end]
-    batch_output = cats2inds(Y_train[start:end])
+  def init(self):
+    self.images = []
 
-    loss, _, accuracy = session.run([model_loss, model_train_op, model_accuracy], { model_input: batch_input, model_output: batch_output })
-    #print("Train Loss {0}, Accuracy: {1}".format(loss, accuracy))
-  
-  accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
-  print("Epoch {0} Test Accuracy: {1}".format(epoch, accuracy))
+  def run(self, image):
+    self.images.append(image)
+    if len(self.images) == n_images: 
+      pdb.set_trace()
+      predict = session.run(model_predict, { model_input, [self.images] } )
+      self.images.pop(0)
+      return ind2cat(predict[0])
+    return None
+    
+if __name__ == "__main__":
+  X_train, Y_train, X_test, Y_test = load_training_data()
+  nb_train_samples, img_channels, img_rows, img_cols = X_train.shape
+  nb_test_samples = X_test.shape[0]
 
-saver.save(session, model_filename)
+  print(nb_train_samples, 'train samples')
+  print(nb_test_samples, 'test samples')
+
+  for epoch in range(50):
+    n_batches = nb_train_samples // batch_size
+
+    for batch_no in range(n_batches):
+      start = batch_no * batch_size
+      end = start + batch_size
+      batch_input = X_train[start:end]
+      batch_output = cats2inds(Y_train[start:end])
+
+      loss, _, accuracy = session.run([model_loss, model_train_op, model_accuracy], { model_input: batch_input, model_output: batch_output })
+      #print("Train Loss {0}, Accuracy: {1}".format(loss, accuracy))
+    
+    accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
+    print("Epoch {0} Test Accuracy: {1}".format(epoch, accuracy))
+
+  saver.save(session, model_filename)
 
