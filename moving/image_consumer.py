@@ -12,6 +12,12 @@ current_dir = './current'
 def to_path(fn):
   return "{0}/{1}".format(current_dir, fn)
 
+class FakeConsumer:
+  def run(self, image):
+    return "Output {0}".format(image.shape)
+
+consumers = [FakeConsumer()]
+
 while True:
   time.sleep(0.1)
   files = os.listdir('./current')
@@ -28,6 +34,8 @@ while True:
       filepath = to_path(filename)
       image = np.load(filepath)
       os.remove(filepath)
-      print("Run against neural net {0}".format(filename))
+      #print("Run against neural net {0}".format(filename))
+      for consumer in consumers:
+        print(consumer.run(image))
     except IOError:
       0 # ignore pick up later

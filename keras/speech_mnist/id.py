@@ -19,7 +19,43 @@ def load_mfcc_file(sess, filename):
   mfcc = contrib_audio.mfcc( spectrogram, decoder.sample_rate, dct_coefficient_count=40)
   return sess.run(mfcc, feed_dict={filename_ph: filename})
 
+def load_jpg_file(sess, filename):
+  from PIL import Image
+  jpgfile = Image.open(filename)
+  pdb.set_trace()
+  pdb.set_trace()
+
+def wave_to_mfcc_jpeg(wave_filename, jpeg_filename):
+  from python_speech_features import mfcc
+  import scipy.io.wavfile as wav
+  import matplotlib.pyplot as plt
+  import numpy as np
+  from matplotlib import cm
+
+  (rate,sig) = wav.read("a.wav")
+  mfcc_data = mfcc(sig,rate)
+
+#def mfcc_to_jpeg(mfcc, jpeg_filename):
+#  image = Image.new("RGB", 
+
 #data = load_wav_file(sess, './data/spoken_numbers_wav/0/0_Fred_220.wav').audio
-data = load_mfcc_file(sess, './data/spoken_numbers_wav/0/0_Fred_220.wav')
+#data = load_mfcc_file(sess, './data/spoken_numbers_wav/0/0_Fred_220.wav')
 pdb.set_trace()
 pdb.set_trace()
+load_jpg_file(sess, './a.jpg')
+
+from python_speech_features import mfcc
+import scipy.io.wavfile as wav
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import cm
+
+(rate,sig) = wav.read("a.wav")
+mfcc_data = mfcc(sig,rate)
+
+fig, ax = plt.subplots()
+mfcc_data= np.swapaxes(mfcc_data, 0 ,1)
+cax = ax.imshow(mfcc_data, interpolation='nearest', cmap=cm.coolwarm, origin='lower')
+ax.set_title('MFCC')
+fig.savefig('./fig.jpeg')
+plt.show()

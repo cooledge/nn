@@ -94,12 +94,16 @@ def Decoder(model):
 
   return model
 
+def Categorizer(model):
+  model.add(Dense(2))
+
 def AutoEncoder():
   encoder = Encoder()
   encoder_copy = copy_model(encoder)
   autoencoder_A = Decoder(encoder)
   autoencoder_B = Decoder(encoder_copy)
-  return autoencoder_A, autoencoder_B
+  categorizer = Categorizer(encoder)
+  return autoencoder_A, autoencoder_B, categorizer
 
 def conv(filters):
   def block(x):
@@ -116,7 +120,7 @@ def upscale(filters):
     return x
   return block
 
-model_a, model_b = AutoEncoder()
+model_a, model_b, model_cat = AutoEncoder()
 
 #model.compile(optimizer='adadelta', loss='binary_crossentropy')
 #model.compile(optimizer='adadelta', loss='mean_absolute_error')

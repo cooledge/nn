@@ -26,6 +26,7 @@ import random
 import re
 import sys
 import tarfile
+import pdb
 
 import numpy as np
 from six.moves import urllib
@@ -373,6 +374,7 @@ class AudioProcessor(object):
                                  self.background_volume_placeholder_)
     background_add = tf.add(background_mul, sliced_foreground)
     background_clamp = tf.clip_by_value(background_add, -1.0, 1.0)
+    pdb.set_trace()
     # Run the spectrogram and MFCC ops to get a 2D 'fingerprint' of the audio.
     spectrogram = contrib_audio.audio_spectrogram(
         background_clamp,

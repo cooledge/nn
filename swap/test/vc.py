@@ -11,6 +11,8 @@ fps = vidcap.get(cv2.CAP_PROP_FPS)
 fourcc = int(vidcap.get(cv2.CAP_PROP_FOURCC))
 #fourcc = cv2.VideoWriter_fourcc(*'XVID')
 vidwri = cv2.VideoWriter('output.mp4',fourcc, fps, (width,height))
+if not vidwri.isOpened():
+  print("NOT opened");
 
 index = 0
 while True:
