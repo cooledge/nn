@@ -4,6 +4,7 @@ import pdb
 import math
 import base64
 import argparse
+import os
 
 parser = argparse.ArgumentParser(description="Detect direction of motion")
 parser.add_argument("--copy_to", type=str, default='dev@dev-X555QA')
@@ -11,23 +12,26 @@ args = parser.parse_args()
 
 counter = 0
 
+os.system("rm /tmp/image_*.npy")
+
+cap = cv2.VideoCapture(0)
+
 while True:
-  pdb.set_trace()
-  cap = cv2.VideoCapture(0)
 
   ret, frame = cap.read()
 
   if ret:
     print("Counter {0}".format(counter))
     counter += 1
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    frame = cv2.resize(frame, (64,64))
 
-    filename = "image_{0}".format(counter)
+    filename = "image_{0}.npy".format(counter)
     filepath = "/tmp/{0}".format(filename)
-    np.save(filepath, gray)
+    np.save(filepath, frame)
 
-    command = "sshpass -p bobobo scp ./{0} {1}:~/code/nn/moving/current".format(filepath, args.copy_to)
+    command = "sshpass -p bobobo scp {0} {1}:~/code/nn/moving/current".format(filepath, args.copy_to)
     os.system(command)
 
-  cv2.destroyAllWindows()
+cap.release()
+cv2.destroyAllWindows()
 
