@@ -17,7 +17,7 @@ class FakePredict:
   def run(self, image):
     return "Output {0}".format(image.shape)
 
-consumers = [FakePredict(), Predict()]
+consumers = [Predict()]
 
 while True:
   time.sleep(0.1)

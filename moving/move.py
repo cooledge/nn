@@ -151,14 +151,14 @@ except Exception as e:
 
 class Predict:
 
-  def init(self):
+  def __init__(self):
     self.images = []
 
   def run(self, image):
-    self.images.append(image)
-    if len(self.images) == n_images: 
-      pdb.set_trace()
-      predict = session.run(model_predict, { model_input, [self.images] } )
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    self.images.append(gray)
+    if len(self.images) == n_files: 
+      predict = session.run(model_predict, { model_input: [self.images] } )
       self.images.pop(0)
       return ind2cat(predict[0])
     return None
