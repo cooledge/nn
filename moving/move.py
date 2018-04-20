@@ -12,6 +12,8 @@ import argparse
 from chw2hwc import chw2hwc
 from PIL import Image
 
+batch_size = 64
+nb_epochs = 500
 model_dir = './model'
 
 if not os.path.exists(model_dir):
@@ -28,11 +30,28 @@ n_files = 3
 def filepath(filename):
   return "{0}/{1}".format(data_dir, filename)
 
+def get_counter_fn(filename):
+  return int(filename[filename.find('-')+1:filename.find('.')])
+
+def get_counter(i):
+  if i >= len(files):
+    return -1
+  filename = files[i]
+  return get_counter_fn(filename)
+
+def get_prefix_fn(filename):
+  return filename[:filename.find('-')]
+
 def get_prefix(i):
   if i >= len(files):
     return None
-  file = files[i]
-  return file[:file.find('-')]
+  filename = files[i]
+  return get_prefix_fn(filename)
+
+def sort_key(filename):
+  return (get_prefix_fn(filename), get_counter_fn(filename))
+
+files = sorted(files, key=sort_key)
 
 def si(image):
   cv2.imshow("", image)
@@ -52,11 +71,9 @@ def get_category(i):
   return file[:file.find('_')] 
 
 def get_image(i):
-  if get_prefix(i) == get_prefix(i+n_files-1):
+  if get_counter(i) == get_counter(i+n_files-1) - (n_files-1):
     images = [load_image(files[i+j]) for j in range(n_files)]
     return images
-  else:
-    return None
  
 categories = ['forward', 'backward', 'left', 'right', 'stop']
 
@@ -87,6 +104,8 @@ def load_training_data():
     if image:
       images.append(image)
       directions.append(get_category(i))
+    else:
+      get_image(i)
 
   split_at = int(len(images)*0.9)
   X_train = np.array(images[:split_at])
@@ -134,9 +153,6 @@ model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.
 model_train_op = model_optimizer.minimize(model_loss)
 model_accuracy = tf.metrics.accuracy(model_output, model_predict)
 
-# training parameters
-batch_size = 4
-nb_epoch = 50
 
 session = tf.Session()
 session.run(tf.global_variables_initializer())
@@ -171,7 +187,7 @@ if __name__ == "__main__":
   print(nb_train_samples, 'train samples')
   print(nb_test_samples, 'test samples')
 
-  for epoch in range(50):
+  for epoch in range(nb_epochs):
     n_batches = nb_train_samples // batch_size
 
     for batch_no in range(n_batches):
