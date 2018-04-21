@@ -60,7 +60,6 @@ import os
 if not os.path.exists(data_dir):
   os.makedirs(data_dir)
 
-
 def cleanup():
   print("stopping")
   robotcar.stop()
@@ -96,7 +95,7 @@ timestr = time.strftime("%Y%m%d%H%M%S")
 for image in images:
   filename = "{0}/{1}_{2}-{3}.jpg".format(data_dir, args.direction, timestr, counter)
   counter += 1
-  cv2.imwrite(filename, frame)
+  cv2.imwrite(filename, image)
 
 '''
 filespec = "{0}/{1}{2}*.jpg".format(data_dir, prefix, timestr, counter)
