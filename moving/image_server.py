@@ -7,7 +7,8 @@ import argparse
 import os
 
 parser = argparse.ArgumentParser(description="Detect direction of motion")
-parser.add_argument("--copy_to", type=str, default='dev@dev-X555QA')
+#parser.add_argument("--copy_to", type=str, default='dev@dev-X555QA')
+parser.add_argument("--copy_to", type=str, default='dev@ugpu')
 args = parser.parse_args()
 
 counter = 0
