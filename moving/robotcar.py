@@ -95,3 +95,10 @@ class RobotCar:
     Servo8.ChangeDutyCycle(2.5 + 10 * angle / 180) #Set vertical servo rotation angel
     time.sleep(0.01)
 
+if __name__ == '__main__':
+  rc = RobotCar()
+  def s():
+    rc.stop()
+  pdb.set_trace()
+  pdb.set_trace()
+
