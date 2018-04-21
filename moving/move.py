@@ -11,15 +11,32 @@ import random
 import argparse
 from chw2hwc import chw2hwc
 from PIL import Image
+import argparse
+
+parser = argparse.ArgumentParser(description="Detect direction of motion")
+
+parser.add_argument("--epochs", default=500, type=int)
+parser.add_argument("--train", dest='train', default=True, action='store_true')
+parser.add_argument("--no-train", dest='train', action='store_false')
+parser.add_argument("--test", dest='test', default=True, action='store_true')
+parser.add_argument("--no-test", dest='test', action='store_false')
+parser.add_argument("--clean", dest='clean', default=False, type=bool)
+parser.add_argument("--test-predict", dest='test_predict', default=False, type=bool)
+
+args = parser.parse_args()
 
 batch_size = 64
-nb_epochs = 500
+nb_epochs = args.epochs
 model_dir = './model'
 
 if not os.path.exists(model_dir):
   os.makedirs(model_dir)
 
 model_filename = model_dir + "/model"
+
+if args.clean:
+  pdb.set_trace()
+  os.system("rm {0}/*".model_dir)
 
 INPUT_DIM = 64
 data_dir = './data'
@@ -107,6 +124,15 @@ def load_training_data():
     else:
       get_image(i)
 
+  indexes = [i for i in range(len(images))]
+  random.shuffle(indexes)
+  
+  simages = [images[indexes[i]] for i in range(len(images))]
+  sdirections = [directions[indexes[i]] for i in range(len(directions))] 
+
+  images = simages
+  directions = sdirections
+
   split_at = int(len(images)*0.9)
   X_train = np.array(images[:split_at])
   Y_train = directions[:split_at]
@@ -163,44 +189,55 @@ saver = tf.train.Saver()
 try:
   saver.restore(session, model_filename)
 except Exception as e:
+  pdb.set_trace()
   0 # ignore 
 
 class Predict:
 
   def __init__(self):
-    self.images = []
+    self.images = deque()
 
   def run(self, image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     self.images.append(gray)
     if len(self.images) == n_files: 
       predict = session.run(model_predict, { model_input: [self.images] } )
-      self.images.pop(0)
+      self.images.popleft()
       return ind2cat(predict[0])
     return None
-    
+
+#if args.test_predict:
+      
 if __name__ == "__main__":
   X_train, Y_train, X_test, Y_test = load_training_data()
-  nb_train_samples, img_channels, img_rows, img_cols = X_train.shape
-  nb_test_samples = X_test.shape[0]
 
-  print(nb_train_samples, 'train samples')
-  print(nb_test_samples, 'test samples')
+  if args.train:
+    nb_train_samples, img_channels, img_rows, img_cols = X_train.shape
+    nb_test_samples = X_test.shape[0]
 
-  for epoch in range(nb_epochs):
-    n_batches = nb_train_samples // batch_size
+    print(nb_train_samples, 'train samples')
+    print(nb_test_samples, 'test samples')
 
-    for batch_no in range(n_batches):
-      start = batch_no * batch_size
-      end = start + batch_size
-      batch_input = X_train[start:end]
-      batch_output = cats2inds(Y_train[start:end])
+    for epoch in range(nb_epochs):
+      n_batches = nb_train_samples // batch_size
 
-      loss, _, accuracy = session.run([model_loss, model_train_op, model_accuracy], { model_input: batch_input, model_output: batch_output })
-      #print("Train Loss {0}, Accuracy: {1}".format(loss, accuracy))
-    
-    accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
-    print("Epoch {0} Test Accuracy: {1}".format(epoch, accuracy))
+      for batch_no in range(n_batches):
+        start = batch_no * batch_size
+        end = start + batch_size
+        batch_input = X_train[start:end]
+        batch_output = cats2inds(Y_train[start:end])
+
+        loss, _ = session.run([model_loss, model_train_op], { model_input: batch_input, model_output: batch_output })
+        print("Train Loss {0}".format(loss))
+      
+      #accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
+      #print("Epoch {0} Batch Accuracy: {1}".format(epoch, accuracy))
+
+  if args.test:
+    labels, predictions = session.run([model_output, model_predict], { model_input: X_test, model_output: cats2inds(Y_test) })
+    right = len([True for (label, prediction) in zip(labels, predictions) if label == prediction])
+    accuracy = float(right) / float(len(predictions)) 
+    print("Test Accuracy: {0}".format(accuracy))
 
   saver.save(session, model_filename)
 
