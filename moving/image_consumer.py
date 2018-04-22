@@ -22,7 +22,7 @@ consumers = [Predict()]
 
 def si(image):
   cv2.imshow("", image)
-  cv2.waitKey(1)
+  cv2.waitKey(1000)
 
 while True:
   time.sleep(0.1)
@@ -38,8 +38,7 @@ while True:
     try:
       filename = idx2fn[idx]
       filepath = to_path(filename)
-      image = np.load(filepath)
-      si(image[0])
+      image = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
       os.remove(filepath)
       #print("Run against neural net {0}".format(filename))
       for consumer in consumers:
@@ -47,4 +46,8 @@ while True:
         if result is not None:
           print(result)
     except IOError:
-      0 # ignore pick up later
+      print("IOError: {0}".format(filename))
+      break
+    except ValueError:
+      print("Value : {0}".format(filename))
+      break
