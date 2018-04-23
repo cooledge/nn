@@ -87,7 +87,7 @@ def get_category(files, i):
   return file[:file.find('_')] 
 
 def get_image(data_dir, files, i):
-  if get_counter(files, i) == get_counter(files, i+n_files-1) - (n_files-1):
+  if get_counter(files, i) > 1 and get_counter(files, i) == get_counter(files, i+n_files-1) - (n_files-1):
     images = [load_image(data_dir, files[i+j]) for j in range(n_files)]
     return images
  
@@ -199,9 +199,11 @@ def tf_add_conv(inputs, filters, kernel_size=[5,5], include_pool=True):
 model_input = tf.placeholder(tf.float32, shape=(None, n_files, img_rows, img_cols), name='model_input')
 model_keep_prob = tf.Variable(0.50, dtype=tf.float32)
 layer = chw2hwc(model_input)
-layer = tf_add_conv(model_input, nb_filters, include_pool=False)
+#layer = tf_add_conv(model_input, nb_filters, include_pool=False)
+layer = tf_add_conv(layer, nb_filters, include_pool=False)
 layer = tf_add_conv(layer, nb_filters, include_pool=False)
 layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
+#layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[5,5], strides=2, padding='same')
 layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
 layer = tf.layers.flatten(layer)
 layer = tf.layers.dense(layer, 128, activation=tf.nn.relu)
@@ -275,7 +277,7 @@ if __name__ == "__main__":
       labels, predictions = session.run([model_output, model_predict], { model_input: X_validation, model_output: cats2inds(Y_validation), model_keep_prob: 1.0 })
       right = len([True for (label, prediction) in zip(labels, predictions) if label == prediction])
       accuracy = float(right) / float(len(predictions)) 
-      print("Epoch {0} Validation Accuracy: {1}".format(epoch, accuracy))
+      print("Epoch {0} Validation Accuracy: {1} Loss {2}".format(epoch, accuracy, loss))
       #  accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
       #  print("Epoch {0} Batch Accuracy: {1}".format(epoch, accuracy))
 
@@ -283,8 +285,17 @@ if __name__ == "__main__":
     X_test, Y_test = load_test_data()
     labels, predictions = session.run([model_output, model_predict], { model_input: X_test, model_output: cats2inds(Y_test), model_keep_prob: 1.0 })
     right = len([True for (label, prediction) in zip(labels, predictions) if label == prediction])
+    category_to_right = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0 }
+    category_to_total = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0 }
+    for label, prediction in zip(labels, predictions):
+      if label == prediction:
+        category_to_right[label] += 1
+      category_to_total[label] += 1
+
     accuracy = float(right) / float(len(predictions)) 
     print("Test Accuracy: {0}".format(accuracy))
+    for category in range(len(categories)):
+      print("\t{0} -> {1}".format(categories[category], category_to_right[category]/category_to_total[category]))
 
   saver.save(session, model_filename)
 
