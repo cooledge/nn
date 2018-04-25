@@ -221,7 +221,7 @@ def Model3D(model_input):
   #layer = tf_add_conv(layer, nb_filters, include_pool=False)
   #layer = tf_add_conv(layer, nb_filters, include_pool=False)
   layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[4,2,2], strides=2, padding='same')
-  #layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[5,5], strides=2, padding='same')
+  layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[4,4,4], strides=2, padding='same')
   layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf.layers.flatten(layer)
   layer = tf.layers.dense(layer, 128, activation=tf.nn.relu)
