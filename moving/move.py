@@ -10,6 +10,7 @@ import urllib
 import os.path
 import random
 import argparse
+from collections import defaultdict
 from collections import deque
 from chw2hwc import chw2hwc
 from PIL import Image
@@ -58,7 +59,7 @@ def get_files(dir):
   return files
 
 # number of files per input
-n_files = 4
+n_files = 5
 
 def filepath(data_dir, filename):
   return "{0}/{1}".format(data_dir, filename)
@@ -198,27 +199,47 @@ def tf_add_conv(inputs, filters, kernel_size=[5,5], include_pool=True):
 
 model_input = tf.placeholder(tf.float32, shape=(None, n_files, img_rows, img_cols), name='model_input')
 model_keep_prob = tf.Variable(0.50, dtype=tf.float32)
-layer = chw2hwc(model_input)
-#layer = tf_add_conv(model_input, nb_filters, include_pool=False)
-layer = tf_add_conv(layer, nb_filters, include_pool=False)
-layer = tf_add_conv(layer, nb_filters, include_pool=False)
-layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
-#layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[5,5], strides=2, padding='same')
-layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
-layer = tf.layers.flatten(layer)
-layer = tf.layers.dense(layer, 128, activation=tf.nn.relu)
-layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
-layer = tf.layers.dense(layer, len(categories))
-model_logits = layer
+
+def Model2D(model_input):
+  #layer = chw2hwc(model_input)
+  layer = tf_add_conv(model_input, nb_filters, include_pool=False)
+  layer = tf_add_conv(layer, nb_filters, include_pool=False)
+  layer = tf_add_conv(layer, nb_filters, include_pool=False)
+  layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
+  #layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[5,5], strides=2, padding='same')
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.layers.flatten(layer)
+  layer = tf.layers.dense(layer, 128, activation=tf.nn.relu)
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.layers.dense(layer, len(categories))
+  return layer
+
+def Model3D(model_input):
+  layer = tf.reshape(model_input, (-1, n_files, img_rows, img_cols, 1))
+  layer = tf.layers.conv3d(inputs=layer, filters=nb_filters, kernel_size=n_files, padding='same', activation=tf.nn.relu)
+  layer = tf.layers.conv3d(inputs=layer, filters=nb_filters, kernel_size=n_files, padding='same', activation=tf.nn.relu)
+  #layer = tf_add_conv(layer, nb_filters, include_pool=False)
+  #layer = tf_add_conv(layer, nb_filters, include_pool=False)
+  layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[4,2,2], strides=2, padding='same')
+  #layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[5,5], strides=2, padding='same')
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.layers.flatten(layer)
+  layer = tf.layers.dense(layer, 128, activation=tf.nn.relu)
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.layers.dense(layer, len(categories))
+  return layer
+
+#model_logits = Model2D(model_input)
+model_logits = Model3D(model_input)
 
 model_softmax = tf.nn.softmax(model_logits)
 model_predict = tf.argmax(model_softmax, axis=1)
 model_output = tf.placeholder(tf.int32, shape=[None], name="model_output")
 model_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=model_output, logits=model_logits))
-model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-6, beta1=0.5, beta2=0.999)
+model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+#model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-6, beta1=0.5, beta2=0.999)
 model_train_op = model_optimizer.minimize(model_loss)
 model_accuracy = tf.metrics.accuracy(model_output, model_predict)
-
 
 session = tf.Session()
 session.run(tf.global_variables_initializer())
@@ -286,16 +307,27 @@ if __name__ == "__main__":
     labels, predictions = session.run([model_output, model_predict], { model_input: X_test, model_output: cats2inds(Y_test), model_keep_prob: 1.0 })
     right = len([True for (label, prediction) in zip(labels, predictions) if label == prediction])
     category_to_right = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0 }
+    category_to_other = {}
     category_to_total = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0 }
     for label, prediction in zip(labels, predictions):
       if label == prediction:
         category_to_right[label] += 1
+      if not label in category_to_other:
+        category_to_other[label] = {}
+      ci = category_to_other[label]
+      if not prediction in ci:
+        ci[prediction] = 0
+      ci[prediction] += 1
+       
       category_to_total[label] += 1
 
     accuracy = float(right) / float(len(predictions)) 
     print("Test Accuracy: {0}".format(accuracy))
     for category in range(len(categories)):
       print("\t{0} -> {1}".format(categories[category], category_to_right[category]/category_to_total[category]))
+      cto = category_to_other[category]
+      for key in cto.keys():
+        print("\t\t{0} -> {1}".format(categories[key], cto[key]))
 
   saver.save(session, model_filename)
 
