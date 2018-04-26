@@ -17,6 +17,24 @@ from PIL import Image
 import argparse
 import glob
 
+'''
+Epoch 499 Validation Accuracy: 0.9857142857142858 Loss 0.006371537689119577
+Test Accuracy: 0.9708333333333333
+  forward -> 0.9375
+      forward -> 45
+      backward -> 1
+      stop -> 2
+  backward -> 1.0
+      backward -> 48
+  left -> 0.9166666666666666
+      left -> 44
+      right -> 4
+  right -> 1.0
+      right -> 48
+  stop -> 1.0
+      stop -> 48
+'''
+
 parser = argparse.ArgumentParser(description="Detect direction of motion")
 
 parser.add_argument("--epochs", default=500, type=int)
@@ -218,8 +236,6 @@ def Model3D(model_input):
   layer = tf.reshape(model_input, (-1, n_files, img_rows, img_cols, 1))
   layer = tf.layers.conv3d(inputs=layer, filters=nb_filters, kernel_size=n_files, padding='same', activation=tf.nn.relu)
   layer = tf.layers.conv3d(inputs=layer, filters=nb_filters, kernel_size=n_files, padding='same', activation=tf.nn.relu)
-  #layer = tf_add_conv(layer, nb_filters, include_pool=False)
-  #layer = tf_add_conv(layer, nb_filters, include_pool=False)
   layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[4,2,2], strides=2, padding='same')
   layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[4,4,4], strides=2, padding='same')
   layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
