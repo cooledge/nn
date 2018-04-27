@@ -5,6 +5,7 @@ import binascii
 from socket import *
 import RPi.GPIO as GPIO
 import time
+import pdb
 
 LED0, LED1, LED2 = [10, 9, 25]
 ENA, ENB = [13, 20]
@@ -100,20 +101,27 @@ class RobotCar:
   def move(self, moves, time=0.1):
     for move in moves:
       if move == 'f':
-        self.forward()
+        #self.forward()
       elif move == 'b':
-        self.backward()
+        #self.backward()
       elif move == 'l':
-        self.left()
+        #self.left()
       elif move == 'r':
-        self.right()
+        #self.right()
       elif move == 's':
         self.stop()
-    time.sleep(time)
+      time.sleep(time)
 
 if __name__ == '__main__':
   rc = RobotCar()
+#  rc.move("fss")
   rc.stop()
+  '''
   pdb.set_trace()
-  pdb.set_trace()
+  for i in range(40):
+    rc.backward()
+    time.sleep(0.01)
+    rc.stop() 
+    time.sleep(0.01)
+  '''
 
