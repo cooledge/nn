@@ -1,4 +1,7 @@
-﻿class RobotCar:
+﻿from robotcar import RobotCar
+import pdb
+
+class RobotCar_Stub(RobotCar):
 
   def forward(self):
     print("Forward")
@@ -15,3 +18,7 @@
   def stop(self):
     print("Stop")
 
+
+if __name__ == '__main__':
+  rc = RobotCar_Stub()
+  rc.move("fblrs")
