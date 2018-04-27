@@ -95,10 +95,25 @@ class RobotCar:
     Servo8.ChangeDutyCycle(2.5 + 10 * angle / 180) #Set vertical servo rotation angel
     time.sleep(0.01)
 
+  # moves is a character sequence of fblrs
+  # the car will move that at time units per 
+  def move(self, moves, time=0.1):
+    for move in moves:
+      if move == 'f':
+        self.forward()
+      elif move == 'b':
+        self.backward()
+      elif move == 'l':
+        self.left()
+      elif move == 'r':
+        self.right()
+      elif move == 's':
+        self.stop()
+    time.sleep(time)
+
 if __name__ == '__main__':
   rc = RobotCar()
-  def s():
-    rc.stop()
+  rc.stop()
   pdb.set_trace()
   pdb.set_trace()
 
