@@ -1,3 +1,6 @@
 moving/data
+moving/current
 *.swp
 *.pyc
+*.gz
+*.zip
