@@ -1,6 +1,7 @@
 #coding:utf-8
 
 from time import ctime
+from robotcar import RobotCar
 import binascii
 from socket import *
 import RPi.GPIO as GPIO
@@ -12,7 +13,7 @@ ENA, ENB = [13, 20]
 IN1, IN2, IN3, IN4 = [19, 16, 21, 26]
 SER1, SER2, SER3, SER4, SER7, SER8 = [11, 8, 7, 5, 6, 12]
 
-class RobotCar:
+class RobotCar_Hardware(RobotCar):
 
   def __init__(self):
     GPIO.setmode(GPIO.BCM)
@@ -96,25 +97,9 @@ class RobotCar:
     Servo8.ChangeDutyCycle(2.5 + 10 * angle / 180) #Set vertical servo rotation angel
     time.sleep(0.01)
 
-  # moves is a character sequence of fblrs
-  # the car will move that at time units per 
-  def move(self, moves, time=0.1):
-    for move in moves:
-      if move == 'f':
-        #self.forward()
-      elif move == 'b':
-        #self.backward()
-      elif move == 'l':
-        #self.left()
-      elif move == 'r':
-        #self.right()
-      elif move == 's':
-        self.stop()
-      time.sleep(time)
-
 if __name__ == '__main__':
-  rc = RobotCar()
-#  rc.move("fss")
+  rc = RobotCar_Hardware()
+  rc.move("bbrrbbs", 0.05)
   rc.stop()
   '''
   pdb.set_trace()
