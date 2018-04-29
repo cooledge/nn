@@ -18,10 +18,12 @@ for radius in range(10, 200, 10):
   print("Radius: {0}".format(radius))
   for row in range(radius, n_rows-radius, 20):
     for col in range(radius, n_cols-radius, 20):
-      for background in backgrounds:
+      for idx_bg, background in enumerate(backgrounds):
         img = cv2.imread(backgrounds_dir+background)
-        img = cv2.circle(img, (col, row), radius, (255,255,255), -1)
+        cv2.circle(img, (col, row), radius, (255,255,255), -1)
         #cv2.imshow('', img)
-        filename = "{0}_{1}_{2}.jpg".format(radius, col, row)
+        #cv2.waitKey(10)
+        filename = "{0}_{1}_{2}_{3}.jpg".format(radius, col, row, idx_bg)
         #print(filename)
         cv2.imwrite(data_dir+filename, img)
+  break
