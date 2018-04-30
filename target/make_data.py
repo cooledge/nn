@@ -26,4 +26,4 @@ for radius in range(10, 200, 10):
         filename = "{0}_{1}_{2}_{3}.jpg".format(radius, col, row, idx_bg)
         #print(filename)
         cv2.imwrite(data_dir+filename, img)
-  break
+    break
