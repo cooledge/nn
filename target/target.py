@@ -28,10 +28,11 @@ data_dir = './data'
 images = []
 
 n_scale = 5
-n_radius = 200 / n_scale
-n_rows = 480 / n_scale
-n_cols = 640 / n_scale
-batch_size = 64
+n_radius = int(200 / n_scale)
+n_rows = int(480 / n_scale)
+n_cols = int(640 / n_scale)
+n_filters = 64
+batch_size = 1
 
 train_percent = 90
 
@@ -44,7 +45,7 @@ def filename_to_y(filename):
 
 def si(image):
   cv2.imshow("", image)
-  cv2.waitKey(1)
+  cv2.waitKey(10000)
 
 def load_image(data_dir, filename):
   try:
@@ -70,7 +71,7 @@ def load_training_data():
 
   index = [i for i in range(len(X))]
   random.shuffle(index)
-  n_train = len(X) * train_percent / 100
+  n_train = int(len(X) * train_percent / 100)
 
   X_train = [X[i] for i in index[:n_train]]
   X_validation = [X[i] for i in index[n_train:]]
@@ -85,31 +86,46 @@ def load_training_data():
 
 model_keep_prob = tf.Variable(0.50, dtype=tf.float32)
 model_input = tf.placeholder(tf.float32, shape=(None, n_rows, n_cols))
-layer = tf.reshape(model_input, (-1, n_rows*n_cols))
-layer = tf.layers.dense(layer, n_radius+n_rows*n_cols)
+
+def tf_add_conv(inputs, filters, kernel_size=[5,5], include_pool=True):
+  layer = tf.layers.conv2d(inputs=inputs, filters=filters, kernel_size=kernel_size, padding='same', activation=tf.nn.relu)
+  if include_pool:
+    layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
+  return layer
+
+def NoModel(model_input, output_size):
+  layer = tf.reshape(model_input, (-1, n_rows*n_cols))
+  return tf.layers.dense(layer, output_size)
+
+def Model2D(model_input, output_size):
+  #layer = chw2hwc(model_input)
+  layer = tf_add_conv(model_input, n_filters, include_pool=False)
+  layer = tf_add_conv(layer, 256, include_pool=False)
+  layer = tf_add_conv(layer, 128, include_pool=False)
+  layer = tf_add_conv(layer, 64, include_pool=False)
+  layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
+  layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[5,5], strides=2, padding='same')
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.layers.flatten(layer)
+  layer = tf.layers.dense(layer, 512, activation=tf.nn.relu)
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.layers.dense(layer, output_size) 
+  return layer
+
+layer = Model2D(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
+#layer = NoModel(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
+#layer = tf.layers.dense(layer, n_radius+n_rows*n_cols)
 model_logits = layer
 model_logits_radius, model_logits_position  = tf.split(model_logits, [n_radius, n_rows*n_cols], 1)
 model_predict_radius = tf.argmax(model_logits_radius, axis=1)
 
 def argmax_2d(one_d):
   one_d_argmax = tf.argmax(one_d, axis=1)
-  row_argmax = one_d_argmax / n_cols
+  row_argmax = one_d_argmax // n_cols
   col_argmax = one_d_argmax % n_cols
   return tf.stack((row_argmax, col_argmax), axis=1)
 
 model_predict_position = argmax_2d(model_logits_position)
-'''
-def test():
-  pdb.set_trace()
-  two_d = [ [ [0,0,0], [0,1,0], [0,0,0], [0,0,0] ], [ [0,0,0], [0,1,0], [0,0,0], [0,0,2] ] ]
-  session = tf.Session()
-  model_two_d = tf.placeholder(tf.float32, shape=(None, 4, 3))
-  placeholders = { model_two_d: two_d }
-  result = session.run(argmax_2d(model_two_d), placeholders)
-   
-test() 
-'''
-
 model_logits_position = tf.reshape(model_logits_position, (-1, n_rows, n_cols, 1))
 
 model_output_radius = tf.placeholder(tf.float32, shape=(None, n_radius))
@@ -124,6 +140,15 @@ model_train_op = model_optimizer.minimize(model_loss)
 
 session = tf.Session()
 session.run(tf.global_variables_initializer())
+
+def accuracy(X, Y_position): 
+  predictions = session.run(model_predict_position, { model_input: X, model_keep_prob: 1.0 })
+  labels = Y_position
+  right = len([True for (label, prediction) in zip(labels, predictions) if tuple(label) == tuple(prediction)])
+  distance = [ math.pow(math.pow(label[0]-prediction[0], 2) + math.pow(label[1]-prediction[1], 2), 0.5) for (label, prediction) in zip(labels, predictions) ]
+  mean_distance = sum(distance) / len(distance)
+  accuracy = float(right) / float(len(predictions))
+  print("Epoch {0} Validation Accuracy: {1} Mean Distance: {2} Loss {3}".format(epoch, accuracy, mean_distance, loss))
 
 if __name__ == "__main__":
   X_train, Y_train_radius, Y_train_position, X_validation, Y_validation_radius, Y_validation_position = load_training_data()
@@ -146,13 +171,13 @@ if __name__ == "__main__":
         batch_output_radius = []
         for radius in Y_train_radius[start:end]:
           one_hot = np.zeros((n_radius))
-          one_hot[radius] = 1
+          one_hot[int(radius)] = 1
           batch_output_radius.append(one_hot)
 
         batch_output_position = []
         for (col, row) in Y_train_position[start:end]:
           one_hot = np.zeros((n_rows, n_cols))
-          one_hot[row][col] = 1
+          one_hot[int(row)][int(col)] = 1
           batch_output_position.append(one_hot)
 
         placeholders = { 
@@ -161,14 +186,10 @@ if __name__ == "__main__":
           model_output_position: batch_output_position 
         }
         loss, _ = session.run([model_loss, model_train_op], placeholders)
+        #accuracy(batch_input, Y_train_position[start:end])
         #print("Train Loss {0}".format(loss))
-     
-      predictions = session.run(model_predict_position, { model_input: X_validation, model_keep_prob: 1.0 })
-      labels = Y_validation_position
-      right = len([True for (label, prediction) in zip(labels, predictions) if tuple(label) == tuple(prediction)])
-      distance = [ math.pow(math.pow(label[0]-prediction[0], 2) + math.pow(label[1]-prediction[1], 2), 0.5) for (label, prediction) in zip(labels, predictions) ]
-      mean_distance = sum(distance) / len(distance)
-      accuracy = float(right) / float(len(predictions))
-      print("Epoch {0} Validation Accuracy: {1} Mean Distance: {2} Loss {3}".format(epoch, accuracy, mean_distance, loss))
+    
+      #accuracy(X_validation, Y_validation_position)
+      accuracy(X_train, Y_train_position)
       #  accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
       #  print("Epoch {0} Batch Accuracy: {1}".format(epoch, accuracy))
