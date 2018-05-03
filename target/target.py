@@ -45,7 +45,7 @@ def filename_to_y(filename):
 
 def si(image):
   cv2.imshow("", image)
-  cv2.waitKey(10000)
+  cv2.waitKey(1)
 
 def load_image(data_dir, filename):
   try:
@@ -66,13 +66,14 @@ def load_training_data():
     radius, col, row, _bgidx = filename_to_y(filename)
     image = load_image(data_dir, filename)
     Y_radius.append(radius)
-    Y_position.append((col,row))
+    Y_position.append((row,col))
     X.append(image)
 
   index = [i for i in range(len(X))]
   random.shuffle(index)
   n_train = int(len(X) * train_percent / 100)
-
+  if n_train == 0:
+    n_train = 1
   X_train = [X[i] for i in index[:n_train]]
   X_validation = [X[i] for i in index[n_train:]]
 
@@ -104,16 +105,16 @@ def Model2D(model_input, output_size):
   layer = tf_add_conv(layer, 128, include_pool=False)
   layer = tf_add_conv(layer, 64, include_pool=False)
   layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
-  layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[5,5], strides=2, padding='same')
-  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  #layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[5,5], strides=2, padding='same')
+  #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf.layers.flatten(layer)
   layer = tf.layers.dense(layer, 512, activation=tf.nn.relu)
   layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf.layers.dense(layer, output_size) 
   return layer
 
-layer = Model2D(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
-#layer = NoModel(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
+#layer = Model2D(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
+layer = NoModel(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
 #layer = tf.layers.dense(layer, n_radius+n_rows*n_cols)
 model_logits = layer
 model_logits_radius, model_logits_position  = tf.split(model_logits, [n_radius, n_rows*n_cols], 1)
@@ -126,7 +127,8 @@ def argmax_2d(one_d):
   return tf.stack((row_argmax, col_argmax), axis=1)
 
 model_predict_position = argmax_2d(model_logits_position)
-model_logits_position = tf.reshape(model_logits_position, (-1, n_rows, n_cols, 1))
+model_logits_position = tf.reshape(model_logits_position, (-1, n_rows, n_cols))
+#model_logits_position = tf.reshape(model_logits_position, (-1, n_rows, n_cols, 1))
 
 model_output_radius = tf.placeholder(tf.float32, shape=(None, n_radius))
 model_output_position = tf.placeholder(tf.float32, shape=(None, n_rows, n_cols))
@@ -134,16 +136,24 @@ model_output_position = tf.placeholder(tf.float32, shape=(None, n_rows, n_cols))
 def maxpool(layer):
   return tf.layers.max_pooling2d(tf.reshape(layer, (-1, n_rows, n_cols, 1)), 3, 2)
 
-model_loss = tf.losses.mean_squared_error(maxpool(model_output_position), maxpool(model_logits_position))
+pdb.set_trace()
+model_loss = tf.losses.mean_squared_error(model_output_position, model_logits_position)
 model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op = model_optimizer.minimize(model_loss)
 
 session = tf.Session()
 session.run(tf.global_variables_initializer())
 
+def show_graph(labels, predictions):
+  img = np.zeros((n_rows, n_cols))
+  cv2.circle(img, (int(labels[0][1]), int(labels[0][0])), 5, (255,0,255), -1)
+  cv2.circle(img, (int(predictions[0][1]), int(predictions[0][0])), 5, (255,255,255), -1)
+  si(img)
+
 def accuracy(X, Y_position): 
   predictions = session.run(model_predict_position, { model_input: X, model_keep_prob: 1.0 })
   labels = Y_position
+  show_graph(labels, predictions)
   right = len([True for (label, prediction) in zip(labels, predictions) if tuple(label) == tuple(prediction)])
   distance = [ math.pow(math.pow(label[0]-prediction[0], 2) + math.pow(label[1]-prediction[1], 2), 0.5) for (label, prediction) in zip(labels, predictions) ]
   mean_distance = sum(distance) / len(distance)
@@ -193,3 +203,5 @@ if __name__ == "__main__":
       accuracy(X_train, Y_train_position)
       #  accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
       #  print("Epoch {0} Batch Accuracy: {1}".format(epoch, accuracy))
+
+pdb.set_trace()
