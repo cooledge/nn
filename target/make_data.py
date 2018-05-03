@@ -11,8 +11,8 @@ os.path.exists(data_dir) or os.makedirs(data_dir)
 
 backgrounds = os.listdir(backgrounds_dir)
 
-n_cols = 640
 n_rows = 480
+n_cols = 640
 
 for radius in range(10, 200, 10):
   print("Radius: {0}".format(radius))
@@ -23,7 +23,7 @@ for radius in range(10, 200, 10):
         cv2.circle(img, (col, row), radius, (255,255,255), -1)
         #cv2.imshow('', img)
         #cv2.waitKey(10)
-        filename = "{0}_{1}_{2}_{3}.jpg".format(radius, col, row, idx_bg)
+        filename = "{0}_{1}_{2}_{3}.jpg".format(radius, row, col, idx_bg)
         #print(filename)
         cv2.imwrite(data_dir+filename, img)
     break
