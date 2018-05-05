@@ -22,7 +22,7 @@ for radius in range(10, 200, 10):
         img = cv2.imread(backgrounds_dir+background)
         cv2.circle(img, (col, row), radius, (255,255,255), -1)
         #cv2.imshow('', img)
-        #cv2.waitKey(10)
+        #cv2.waitKey(1000)
         filename = "{0}_{1}_{2}_{3}.jpg".format(radius, row, col, idx_bg)
         #print(filename)
         cv2.imwrite(data_dir+filename, img)

@@ -9,6 +9,7 @@ import argparse
 import tensorflow as tf
 from PIL import Image
 import random
+from scipy.stats import multivariate_normal
 
 parser = argparse.ArgumentParser(description="Detect direction of motion")
 
@@ -45,7 +46,7 @@ def filename_to_y(filename):
 
 def si(image):
   cv2.imshow("", image)
-  cv2.waitKey(1)
+  cv2.waitKey(10000)
 
 def load_image(data_dir, filename):
   try:
@@ -54,6 +55,26 @@ def load_image(data_dir, filename):
     return image / 255.
   except IOError:
     return None
+
+# call it with row,column
+
+def show_field(field):
+  img = np.zeros((n_rows, n_cols))
+  for r in range(n_rows):
+    for c in range(n_cols):
+      img[r][c] = field[r][c] * 255.
+  si(img)
+
+def label_to_normal_field(row, col):
+  nd = multivariate_normal(mean=[row,col], cov=[[n_rows/3,0],[0,n_cols/3]])
+  field = np.zeros((n_rows, n_cols))
+  for r in range(n_rows):
+    for c in range(n_cols):
+      field[r, c] = nd.pdf([r,c])
+  scale = 1.0 / np.sum(field)
+  return field*scale
+
+#show_field(label_to_normal_field(10, 44))
 
 def load_training_data():
   files = os.listdir(data_dir)
@@ -136,8 +157,7 @@ model_output_position = tf.placeholder(tf.float32, shape=(None, n_rows, n_cols))
 def maxpool(layer):
   return tf.layers.max_pooling2d(tf.reshape(layer, (-1, n_rows, n_cols, 1)), 3, 2)
 
-pdb.set_trace()
-model_loss = tf.losses.mean_squared_error(model_output_position, model_logits_position)
+model_loss = (1.0-tf.reduce_sum(model_output_position*model_logits_position))
 model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op = model_optimizer.minimize(model_loss)
 
@@ -186,9 +206,11 @@ if __name__ == "__main__":
 
         batch_output_position = []
         for (col, row) in Y_train_position[start:end]:
-          one_hot = np.zeros((n_rows, n_cols))
-          one_hot[int(row)][int(col)] = 1
-          batch_output_position.append(one_hot)
+          #one_hot = np.zeros((n_rows, n_cols))
+          #one_hot[int(row)][int(col)] = 1
+          field = label_to_normal_field(row, col)
+          #batch_output_position.append(one_hot)
+          batch_output_position.append(field)
 
         placeholders = { 
           model_input: batch_input, 
@@ -204,4 +226,3 @@ if __name__ == "__main__":
       #  accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
       #  print("Epoch {0} Batch Accuracy: {1}".format(epoch, accuracy))
 
-pdb.set_trace()
