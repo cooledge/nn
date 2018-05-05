@@ -58,6 +58,12 @@ def load_image(data_dir, filename):
 
 # call it with row,column
 
+def max_differentiable(x, y):
+  return x/2. + y/2. + abs(x-y)/2.
+
+def min_differentiable(x, y):
+  return x/2. + y/2. - abs(x-y)/2.
+
 def show_field(field):
   img = np.zeros((n_rows, n_cols))
   for r in range(n_rows):
@@ -74,7 +80,33 @@ def label_to_normal_field(row, col):
   scale = 1.0 / np.sum(field)
   return field*scale
 
+def loss_field(target, prediction):
+  return 1.0-np.sum(min_differentiable(target, prediction))
+
+def tf_loss_field(targets, predictions):
+  return 1.0-tf.reduce_sum(min_differentiable(targets, predictions), axis=[1,2])
+
+'''
+session = tf.Session()
+
 #show_field(label_to_normal_field(10, 44))
+area1 = label_to_normal_field(10, 10)
+tf_area_labels = tf.constant(np.array([area1, area1]))
+area2 = label_to_normal_field(20, 20)
+area3 = label_to_normal_field(30, 30)
+tf_area_predictions = tf.constant(np.array([area2, area3]))
+loss1 = loss_field(area1, area1)
+loss12 = loss_field(area1, area2)
+loss13 = loss_field(area1, area3)
+pdb.set_trace()
+xxx = session.run(tf_loss_field(tf_area_labels, tf_area_predictions))
+tf_loss12 = session.run(loss_field(tf_area1, tf_area2))
+loss2 = loss_field(area2, area2)
+loss21 = loss_field(area2, area1)
+loss3 = loss_field(area3, area3)
+loss31 = loss_field(area3, area1)
+pdb.set_trace()
+'''
 
 def load_training_data():
   files = os.listdir(data_dir)
@@ -157,7 +189,7 @@ model_output_position = tf.placeholder(tf.float32, shape=(None, n_rows, n_cols))
 def maxpool(layer):
   return tf.layers.max_pooling2d(tf.reshape(layer, (-1, n_rows, n_cols, 1)), 3, 2)
 
-model_loss = (1.0-tf.reduce_sum(model_output_position*model_logits_position))
+model_loss = tf.reduce_sum(tf_loss_field(targets, predictions))
 model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op = model_optimizer.minimize(model_loss)
 
