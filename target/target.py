@@ -166,8 +166,8 @@ def Model2D(model_input, output_size):
   layer = tf.layers.dense(layer, output_size) 
   return layer
 
-#layer = Model2D(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
-layer = NoModel(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
+layer = Model2D(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
+#layer = NoModel(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
 #layer = tf.layers.dense(layer, n_radius+n_rows*n_cols)
 model_logits = layer
 model_logits_radius, model_logits_position  = tf.split(model_logits, [n_radius, n_rows*n_cols], 1)
@@ -189,7 +189,9 @@ model_output_position = tf.placeholder(tf.float32, shape=(None, n_rows, n_cols))
 def maxpool(layer):
   return tf.layers.max_pooling2d(tf.reshape(layer, (-1, n_rows, n_cols, 1)), 3, 2)
 
-model_loss = tf.reduce_sum(tf_loss_field(targets, predictions))
+#model_loss = (1.0-tf.reduce_sum(model_output_position*model_logits_position))
+model_loss = tf.reduce_sum(tf_loss_field(model_output_position, model_logits_position))
+
 model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op = model_optimizer.minimize(model_loss)
 
@@ -205,12 +207,13 @@ def show_graph(labels, predictions):
 def accuracy(X, Y_position): 
   predictions = session.run(model_predict_position, { model_input: X, model_keep_prob: 1.0 })
   labels = Y_position
-  show_graph(labels, predictions)
   right = len([True for (label, prediction) in zip(labels, predictions) if tuple(label) == tuple(prediction)])
   distance = [ math.pow(math.pow(label[0]-prediction[0], 2) + math.pow(label[1]-prediction[1], 2), 0.5) for (label, prediction) in zip(labels, predictions) ]
   mean_distance = sum(distance) / len(distance)
   accuracy = float(right) / float(len(predictions))
   print("Epoch {0} Validation Accuracy: {1} Mean Distance: {2} Loss {3}".format(epoch, accuracy, mean_distance, loss))
+  print("Labels {0} Predictions {1}".format(labels, predictions))
+  show_graph(labels, predictions)
 
 if __name__ == "__main__":
   X_train, Y_train_radius, Y_train_position, X_validation, Y_validation_radius, Y_validation_position = load_training_data()
@@ -222,6 +225,7 @@ if __name__ == "__main__":
     print(nb_train_samples, 'train samples')
     print(nb_validation_samples, 'validation samples')
 
+    pdb.set_trace()
     for epoch in range(args.epochs):
       n_batches = nb_train_samples // batch_size
 
