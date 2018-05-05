@@ -1,5 +1,9 @@
 moving/data
 moving/current
+**/model*
+*.out
+*.bak
+*.mp4
 *.swp
 *.pyc
 *.gz
