@@ -10,6 +10,7 @@ import tensorflow as tf
 from PIL import Image
 import random
 from scipy.stats import multivariate_normal
+from scipy import ndimage
 
 parser = argparse.ArgumentParser(description="Detect direction of motion")
 
@@ -95,6 +96,8 @@ session = tf.Session()
 
 #show_field(label_to_normal_field(10, 44))
 area1 = label_to_normal_field(46, 22)
+com_area1 = ndimage.measurements.center_of_mass(area1)
+pdb.set_trace()
 tf_area_labels = tf.constant(np.array([area1, area1, area1]))
 area2 = label_to_normal_field(20, 20)
 area2_4 = label_to_normal_field(20, 20)*4
@@ -212,7 +215,12 @@ def show_graph(labels, predictions):
   si(img)
 
 def accuracy(X, Y_position): 
-  predictions = session.run(model_predict_position, { model_input: X, model_keep_prob: 1.0 })
+  #predictions = session.run(model_predict_position, { model_input: X, model_keep_prob: 1.0 })
+  logits = session.run(model_logits_position, { model_input: X, model_keep_prob: 1.0 })
+  predictions = []
+  for i in range(logits.shape[0]):
+    pos = ndimage.measurements.center_of_mass(logits[i])
+    predictions.append((pos[1], pos[0]))
   labels = Y_position
   right = len([True for (label, prediction) in zip(labels, predictions) if tuple(label) == tuple(prediction)])
   distance = [ math.pow(math.pow(label[0]-prediction[0], 2) + math.pow(label[1]-prediction[1], 2), 0.5) for (label, prediction) in zip(labels, predictions) ]
@@ -268,6 +276,8 @@ if __name__ == "__main__":
         #print("Train Loss {0}".format(loss))
     
       #accuracy(X_validation, Y_validation_position)
+      #if epoch == 10:
+        #pdb.set_trace()
       accuracy(X_train, Y_train_position)
       #  accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
       #  print("Epoch {0} Batch Accuracy: {1}".format(epoch, accuracy))
