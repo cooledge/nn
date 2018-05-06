@@ -46,7 +46,7 @@ def filename_to_y(filename):
 
 def si(image):
   cv2.imshow("", image)
-  cv2.waitKey(10000)
+  cv2.waitKey(10)
 
 def load_image(data_dir, filename):
   try:
@@ -72,7 +72,8 @@ def show_field(field):
   si(img)
 
 def label_to_normal_field(row, col):
-  nd = multivariate_normal(mean=[row,col], cov=[[n_rows/3,0],[0,n_cols/3]])
+  scale = 1
+  nd = multivariate_normal(mean=[row,col], cov=[[n_rows/scale,0],[0,n_cols/scale]])
   field = np.zeros((n_rows, n_cols))
   for r in range(n_rows):
     for c in range(n_cols):
@@ -81,22 +82,27 @@ def label_to_normal_field(row, col):
   return field*scale
 
 def loss_field(target, prediction):
-  return 1.0-np.sum(min_differentiable(target, prediction))
+  return 1.0-np.sum(min_differentiable(target, prediction/np.sum(prediction)))
 
 def tf_loss_field(targets, predictions):
-  return 1.0-tf.reduce_sum(min_differentiable(targets, predictions), axis=[1,2])
+  scale = tf.reduce_sum(predictions, axis=[1,2])
+  normalized_predictions = tf.reshape(predictions, (-1, n_rows*n_cols)) / tf.reshape(scale, (-1, 1))
+  normalized_predictions = tf.reshape(normalized_predictions, (-1, n_rows, n_cols))
+  return 1.0-tf.reduce_sum(min_differentiable(targets, normalized_predictions), axis=[1,2])
 
 '''
 session = tf.Session()
 
 #show_field(label_to_normal_field(10, 44))
-area1 = label_to_normal_field(10, 10)
-tf_area_labels = tf.constant(np.array([area1, area1]))
+area1 = label_to_normal_field(46, 22)
+tf_area_labels = tf.constant(np.array([area1, area1, area1]))
 area2 = label_to_normal_field(20, 20)
+area2_4 = label_to_normal_field(20, 20)*4
 area3 = label_to_normal_field(30, 30)
-tf_area_predictions = tf.constant(np.array([area2, area3]))
+tf_area_predictions = tf.constant(np.array([area2, area2_4, area3]))
 loss1 = loss_field(area1, area1)
 loss12 = loss_field(area1, area2)
+loss12_4 = loss_field(area1, area2_4)
 loss13 = loss_field(area1, area3)
 pdb.set_trace()
 xxx = session.run(tf_loss_field(tf_area_labels, tf_area_predictions))
@@ -116,7 +122,7 @@ def load_training_data():
   Y_position = []
 
   for filename in files:
-    radius, col, row, _bgidx = filename_to_y(filename)
+    radius, row, col, _bgidx = filename_to_y(filename)
     image = load_image(data_dir, filename)
     Y_radius.append(radius)
     Y_position.append((row,col))
@@ -138,7 +144,7 @@ def load_training_data():
 
   return np.array(X_train), np.array(Y_train_radius), np.array(Y_train_position), np.array(X_validation), np.array(Y_validation_radius), np.array(Y_validation_position)
 
-model_keep_prob = tf.Variable(0.50, dtype=tf.float32)
+model_keep_prob = tf.Variable(1.00, dtype=tf.float32)
 model_input = tf.placeholder(tf.float32, shape=(None, n_rows, n_cols))
 
 def tf_add_conv(inputs, filters, kernel_size=[5,5], include_pool=True):
@@ -190,7 +196,7 @@ def maxpool(layer):
   return tf.layers.max_pooling2d(tf.reshape(layer, (-1, n_rows, n_cols, 1)), 3, 2)
 
 #model_loss = (1.0-tf.reduce_sum(model_output_position*model_logits_position))
-model_loss = tf.reduce_sum(tf_loss_field(model_output_position, model_logits_position))
+model_loss = tf.reduce_sum(tf_loss_field(model_output_position, model_logits_position))# + tf.reduce_sum(model_logits_position)
 
 model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op = model_optimizer.minimize(model_loss)
@@ -225,7 +231,6 @@ if __name__ == "__main__":
     print(nb_train_samples, 'train samples')
     print(nb_validation_samples, 'validation samples')
 
-    pdb.set_trace()
     for epoch in range(args.epochs):
       n_batches = nb_train_samples // batch_size
 
@@ -253,7 +258,11 @@ if __name__ == "__main__":
           model_output_radius: batch_output_radius, 
           model_output_position: batch_output_position 
         }
-        loss, _ = session.run([model_loss, model_train_op], placeholders)
+        loss, mop, mlp, _ = session.run([model_loss, model_output_position, model_logits_position, model_train_op], placeholders)
+        if loss == 0 or epoch == 480:
+          pdb.set_trace()
+          pdb.set_trace()
+
         #accuracy(batch_input, Y_train_position[start:end])
         #print("Train Loss {0}".format(loss))
     
