@@ -170,6 +170,7 @@ def Model2D(model_input, output_size):
   layer = tf.layers.dense(layer, 512, activation=tf.nn.relu)
   layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf.layers.dense(layer, output_size) 
+  layer = tf.nn.relu(layer)
   return layer
 
 layer = Model2D(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
