@@ -34,7 +34,7 @@ n_radius = int(200 / n_scale)
 n_rows = int(480 / n_scale)
 n_cols = int(640 / n_scale)
 n_filters = 64
-batch_size = 1
+batch_size = 16
 
 train_percent = 90
 
@@ -173,6 +173,7 @@ def Model2D(model_input, output_size):
   layer = tf.layers.dense(layer, 512, activation=tf.nn.relu)
   layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf.layers.dense(layer, output_size) 
+  # relu is here to force non-negative otherwise the nn cheats
   layer = tf.nn.relu(layer)
   return layer
 
@@ -210,13 +211,15 @@ session.run(tf.global_variables_initializer())
 
 def show_graph(labels, predictions):
   img = np.zeros((n_rows, n_cols))
-  cv2.circle(img, (int(labels[0][1]), int(labels[0][0])), 5, (255,0,255), -1)
+  cv2.circle(img, (int(labels[0][1]), int(labels[0][0])), 5, (255,0,0), -1)
   cv2.circle(img, (int(predictions[0][1]), int(predictions[0][0])), 5, (255,255,255), -1)
   si(img)
 
 def accuracy(X, Y_position): 
-  #predictions = session.run(model_predict_position, { model_input: X, model_keep_prob: 1.0 })
-  logits = session.run(model_logits_position, { model_input: X, model_keep_prob: 1.0 })
+  logits = []
+  for i in range(X.shape[0]):
+    logits.append(session.run(model_logits_position, { model_input: [X[i]], model_keep_prob: 1.0 })[0])
+  logits = np.array(logits)
   predictions = []
   for i in range(logits.shape[0]):
     pos = ndimage.measurements.center_of_mass(logits[i])
@@ -226,8 +229,8 @@ def accuracy(X, Y_position):
   distance = [ math.pow(math.pow(label[0]-prediction[0], 2) + math.pow(label[1]-prediction[1], 2), 0.5) for (label, prediction) in zip(labels, predictions) ]
   mean_distance = sum(distance) / len(distance)
   accuracy = float(right) / float(len(predictions))
-  print("Epoch {0} Validation Accuracy: {1} Mean Distance: {2} Loss {3}".format(epoch, accuracy, mean_distance, loss))
-  print("Labels {0} Predictions {1}".format(labels, predictions))
+  print("Epoch {0} Validation Accuracy: {1} Mean Distance: {2}".format(epoch, accuracy, mean_distance))
+  #print("Labels {0} Predictions {1}".format(labels, predictions))
   show_graph(labels, predictions)
 
 if __name__ == "__main__":
@@ -267,10 +270,7 @@ if __name__ == "__main__":
           model_output_radius: batch_output_radius, 
           model_output_position: batch_output_position 
         }
-        loss, mop, mlp, _ = session.run([model_loss, model_output_position, model_logits_position, model_train_op], placeholders)
-        if loss == 0 or epoch == 480:
-          pdb.set_trace()
-          pdb.set_trace()
+        loss, _ = session.run([model_loss, model_train_op], placeholders)
 
         #accuracy(batch_input, Y_train_position[start:end])
         #print("Train Loss {0}".format(loss))
@@ -278,7 +278,8 @@ if __name__ == "__main__":
       #accuracy(X_validation, Y_validation_position)
       #if epoch == 10:
         #pdb.set_trace()
-      accuracy(X_train, Y_train_position)
+      #accuracy(X_train, Y_train_position)
+      accuracy(X_validation, Y_validation_position)
       #  accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
       #  print("Epoch {0} Batch Accuracy: {1}".format(epoch, accuracy))
 
