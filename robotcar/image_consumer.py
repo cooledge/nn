@@ -2,7 +2,8 @@ import numpy as np
 import string
 import os
 import time
-from moving.move import Predict
+from moving.move import Predict as Move_Predict
+from target.target import Predict as Target_Predict
 import pdb
 import cv2
 import socket
@@ -19,7 +20,8 @@ class FakePredict:
   def run(self, image):
     return "Output {0}".format(image.shape)
 
-consumers = [Predict()]
+#consumers = [Move_Predict()]
+consumers = [Target_Predict()]
 
 def si(image):
   cv2.imshow("", image)

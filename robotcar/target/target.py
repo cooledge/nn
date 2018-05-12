@@ -79,7 +79,7 @@ def filename_to_y(filename):
 
 def si(image):
   cv2.imshow("", image)
-  cv2.waitKey(10)
+  cv2.waitKey(300)
 
 def load_image(data_dir, filename):
   try:
@@ -312,6 +312,19 @@ def accuracy(X, Y_position):
   print("Validation Accuracy: {0} Mean Distance: {1}".format(accuracy, mean_distance))
   #show_graph(labels, predictions)
   show_distances(distances)
+
+
+class Predict:
+
+  def run(self, image):
+    image = cv2.resize(image, (n_cols, n_rows))
+    logits = session.run(model_logits_position, { model_input: [image], model_keep_prob: 1.0 })[0]
+    pos = ndimage.measurements.center_of_mass(logits)
+
+    cv2.circle(image, (int(pos[1]), int(pos[0])), 5, (255,255,255), -1)
+    si(image)
+
+    return "({0}, {0})".format(pos[0], pos[1])
 
 if __name__ == "__main__":
   X_train, Y_train_radius, Y_train_position, X_validation, Y_validation_radius, Y_validation_position = load_training_data()
