@@ -5,6 +5,7 @@ import time
 from moving.move import Predict
 import pdb
 import cv2
+import socket
 
 def fn2idx(fn):
   return int(fn.strip(string.ascii_letters+"_."))
@@ -25,7 +26,7 @@ def si(image):
   cv2.waitKey(1000)
 
 command = "ssh pi@robotcar 'echo {0} > ~/code/nn/robotcar/send_to.txt'".format(socket.gethostname())
-os.system(comment)
+os.system(command)
 
 while True:
   time.sleep(0.1)

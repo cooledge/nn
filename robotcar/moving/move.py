@@ -12,7 +12,7 @@ import random
 import argparse
 from collections import defaultdict
 from collections import deque
-from chw2hwc import chw2hwc
+from moving.chw2hwc import chw2hwc
 from PIL import Image
 import argparse
 import glob
