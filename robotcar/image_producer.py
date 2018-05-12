@@ -17,6 +17,7 @@ def si(image):
   cv2.waitKey(1)
 
 counter = 0
+args.copy_to = "dev@`cat send_to.txt`"
 
 os.system("rm /tmp/image_*.jpg")
 
@@ -40,7 +41,8 @@ while True:
     filepath = "/tmp/{0}".format(filename)
     cv2.imwrite(filepath, frame)
 
-    command = "sshpass -p bobobo scp {0} {1}:~/code/nn/moving/current".format(filepath, args.copy_to)
+    command = "sshpass -p bobobo scp {0} {1}:~/code/nn/robotcar/current".format(filepath, args.copy_to)
+    pdb.set_trace()
     os.system(command)
 
 cap.release()

@@ -2,7 +2,7 @@ import numpy as np
 import string
 import os
 import time
-from move import Predict
+from moving.move import Predict
 import pdb
 import cv2
 
@@ -23,6 +23,9 @@ consumers = [Predict()]
 def si(image):
   cv2.imshow("", image)
   cv2.waitKey(1000)
+
+command = "ssh pi@robotcar 'echo {0} > ~/code/nn/robotcar/send_to.txt'".format(socket.gethostname())
+os.system(comment)
 
 while True:
   time.sleep(0.1)
