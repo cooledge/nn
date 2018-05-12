@@ -42,7 +42,6 @@ while True:
     cv2.imwrite(filepath, frame)
 
     command = "sshpass -p bobobo scp {0} {1}:~/code/nn/robotcar/current".format(filepath, args.copy_to)
-    pdb.set_trace()
     os.system(command)
 
 cap.release()
