@@ -11,6 +11,27 @@ from PIL import Image
 import random
 from scipy.stats import multivariate_normal
 from scipy import ndimage
+import matplotlib.pyplot as plt
+
+def show_distances(distances):
+  counts = dict()
+  for distance in distances:
+    distance = round(distance)
+    counts[distance] = counts.get(distance, 0) + 1
+
+  counts = counts.values()
+
+  x = range(len(counts))
+
+  x_pos = [i for i, _ in enumerate(x)]
+
+  plt.bar(x_pos, counts, color='green')
+  plt.xlabel("Distance")
+  plt.ylabel("Count")
+  plt.title("Distance vs Count")
+
+  plt.xticks(x_pos, x)
+  plt.show()
 
 parser = argparse.ArgumentParser(description="Detect direction of motion")
 
@@ -30,6 +51,9 @@ data_dir = './data'
 images = []
 
 n_scale = 5
+# how close a prediction has to be in order to 
+# count as a equal
+closeness = 5
 n_radius = int(200 / n_scale)
 n_rows = int(480 / n_scale)
 n_cols = int(640 / n_scale)
@@ -37,6 +61,14 @@ n_filters = 64
 batch_size = 16
 
 train_percent = 90
+
+model_dir = './model'
+
+if not os.path.exists(model_dir):
+  os.makedirs(model_dir)
+
+model_filename = model_dir + "/model"
+
 
 def filepath(data_dir, filename):
   return "{0}/{1}".format(data_dir, filename)
@@ -147,7 +179,10 @@ def load_training_data():
 
   return np.array(X_train), np.array(Y_train_radius), np.array(Y_train_position), np.array(X_validation), np.array(Y_validation_radius), np.array(Y_validation_position)
 
-model_keep_prob = tf.Variable(1.00, dtype=tf.float32)
+# Model2D_1: Epoch 49 Validation Accuracy: 0.0 Mean Distance: 4.33011001554824
+#            dropout 0.75
+
+model_keep_prob = tf.Variable(1.0, dtype=tf.float32)
 model_input = tf.placeholder(tf.float32, shape=(None, n_rows, n_cols))
 
 def tf_add_conv(inputs, filters, kernel_size=[5,5], include_pool=True):
@@ -160,7 +195,7 @@ def NoModel(model_input, output_size):
   layer = tf.reshape(model_input, (-1, n_rows*n_cols))
   return tf.layers.dense(layer, output_size)
 
-def Model2D(model_input, output_size):
+def Model2D_1(model_input, output_size):
   #layer = chw2hwc(model_input)
   layer = tf_add_conv(model_input, n_filters, include_pool=False)
   layer = tf_add_conv(layer, 256, include_pool=False)
@@ -177,7 +212,41 @@ def Model2D(model_input, output_size):
   layer = tf.nn.relu(layer)
   return layer
 
-layer = Model2D(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
+def Model2D_2(model_input, output_size):
+  #layer = chw2hwc(model_input)
+  layer = tf_add_conv(model_input, n_filters, include_pool=False)
+  layer = tf_add_conv(layer, 256, include_pool=False)
+  layer = tf_add_conv(layer, 128, include_pool=False)
+  layer = tf_add_conv(layer, 64, include_pool=False)
+  layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
+  layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[5,5], strides=2, padding='same')
+  #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.layers.flatten(layer)
+  layer = tf.layers.dense(layer, 512, activation=tf.nn.relu)
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.layers.dense(layer, output_size) 
+  # relu is here to force non-negative otherwise the nn cheats
+  layer = tf.nn.relu(layer)
+  return layer
+
+def Model2D_3(model_input, output_size):
+  #layer = chw2hwc(model_input)
+  layer = tf_add_conv(model_input, n_filters, include_pool=False)
+  layer = tf_add_conv(layer, 256, include_pool=True)
+  layer = tf_add_conv(layer, 128, include_pool=False)
+  layer = tf_add_conv(layer, 64, include_pool=False)
+  #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.layers.flatten(layer)
+  layer = tf.layers.dense(layer, 512, activation=tf.nn.relu)
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.layers.dense(layer, output_size) 
+  # relu is here to force non-negative otherwise the nn cheats
+  layer = tf.nn.relu(layer)
+  return layer
+
+#layer = Model2D_1(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
+#layer = Model2D_2(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
+layer = Model2D_3(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
 #layer = NoModel(tf.reshape(model_input, (-1, n_rows, n_cols, 1)), n_radius+n_rows*n_cols)
 #layer = tf.layers.dense(layer, n_radius+n_rows*n_cols)
 model_logits = layer
@@ -215,6 +284,17 @@ def show_graph(labels, predictions):
   cv2.circle(img, (int(predictions[0][1]), int(predictions[0][0])), 5, (255,255,255), -1)
   si(img)
 
+def math_is_close(n1, n2, abs_tol):
+  return n1-abs_tol <= n2 <= n1+abs_tol
+
+def tuple_is_close(t1, t2, abs_tol):
+  return math_is_close(t1[0], t2[0], abs_tol) and math_is_close(t1[0], t2[1], abs_tol)
+
+result = tuple_is_close([1, 2], [1.1, 2.2], 0.5)
+
+def distance(p1, p2):
+  return math.pow(math.pow(p1[0]-p2[0], 2) + math.pow(p1[1]-p2[1], 2), 0.5)
+
 def accuracy(X, Y_position): 
   logits = []
   for i in range(X.shape[0]):
@@ -225,16 +305,24 @@ def accuracy(X, Y_position):
     pos = ndimage.measurements.center_of_mass(logits[i])
     predictions.append((pos[1], pos[0]))
   labels = Y_position
-  right = len([True for (label, prediction) in zip(labels, predictions) if tuple(label) == tuple(prediction)])
-  distance = [ math.pow(math.pow(label[0]-prediction[0], 2) + math.pow(label[1]-prediction[1], 2), 0.5) for (label, prediction) in zip(labels, predictions) ]
-  mean_distance = sum(distance) / len(distance)
+  right = len([True for (label, prediction) in zip(labels, predictions) if distance(label, prediction) < closeness])
+  distances = [ distance(label, prediction) for (label, prediction) in zip(labels, predictions) ]
+  mean_distance = sum(distances) / len(distances)
   accuracy = float(right) / float(len(predictions))
-  print("Epoch {0} Validation Accuracy: {1} Mean Distance: {2}".format(epoch, accuracy, mean_distance))
-  #print("Labels {0} Predictions {1}".format(labels, predictions))
-  show_graph(labels, predictions)
+  print("Validation Accuracy: {0} Mean Distance: {1}".format(accuracy, mean_distance))
+  #show_graph(labels, predictions)
+  show_distances(distances)
 
 if __name__ == "__main__":
   X_train, Y_train_radius, Y_train_position, X_validation, Y_validation_radius, Y_validation_position = load_training_data()
+
+  saver = tf.train.Saver()
+
+  if not args.clean:
+    try:
+      saver.restore(session, model_filename)
+    except Exception as e:
+      0 # ignore
 
   if args.train:
     nb_train_samples, img_rows, img_cols = X_train.shape
@@ -279,7 +367,11 @@ if __name__ == "__main__":
       #if epoch == 10:
         #pdb.set_trace()
       #accuracy(X_train, Y_train_position)
-      accuracy(X_validation, Y_validation_position)
+      #accuracy(X_validation, Y_validation_position)
+      saver.save(session, model_filename)
+
       #  accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
       #  print("Epoch {0} Batch Accuracy: {1}".format(epoch, accuracy))
 
+  if args.test:
+    accuracy(X_validation, Y_validation_position)
