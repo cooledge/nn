@@ -10,7 +10,7 @@ import atexit
 from flask import Flask
 
 if socket.gethostname() == 'robotcar':
-  from robotcar import RobotCar
+  from robotcar_hardware import RobotCar_Hardware as RobotCar
 else:
   from robotcar_stub import RobotCar
 

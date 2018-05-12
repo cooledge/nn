@@ -16,6 +16,8 @@ SER1, SER2, SER3, SER4, SER7, SER8 = [11, 8, 7, 5, 6, 12]
 class RobotCar_Hardware(RobotCar):
 
   def __init__(self):
+    self.cap = None
+
     GPIO.setmode(GPIO.BCM)
 
     GPIO.setwarnings(False)
@@ -96,6 +98,64 @@ class RobotCar_Hardware(RobotCar):
     angle=int(angle,16)
     Servo8.ChangeDutyCycle(2.5 + 10 * angle / 180) #Set vertical servo rotation angel
     time.sleep(0.01)
+
+  def camera_on(self):
+    if self.cap:
+      return
+
+    import cv2
+    self.cap = cv2.VideoCapture(0)
+
+  def camera_off(self):
+    self.cap.release()
+    self.cap = None
+
+  def camera_get_frame(self):
+    self.camera_on()
+    return self.cap.read()
+
+  def camera_ok(self):
+    self.camera_on()
+    return self.cap.isOpened()
+
+  '''
+  def cleanup():
+    self.stop()
+    cv2.destroyAllWindows()
+
+  def stream_camera(self, dst, prefix):
+    atexit.register(cleanup)
+
+    # get the first frame before starting the car moving
+    # since there is a setup lag
+    self.get_frame()
+    #do_action()
+
+    images = []
+    start = time.time()
+    while(td.isOpened()):
+      duration = time.time() - start
+      if duration > args.time:
+        break
+
+      ret, frame = td.get_frame()
+
+      if ret==True:
+        images.append(frame)
+        if args.show:
+          cv2.imshow('frame',frame)
+      else:
+        break
+
+    print("Writing {0} files".format(len(images)))
+    counter = 0
+    timestr = time.strftime("%Y%m%d%H%M%S")
+    for image in images:
+      filename = "{0}/{1}_{2}-{3}.jpg".format(data_dir, args.direction, timestr, counter)
+      counter += 1
+      cv2.imwrite(filename, image)
+  '''
+
 
 if __name__ == '__main__':
   rc = RobotCar_Hardware()

@@ -18,3 +18,18 @@ class RobotCar:
         self.stop()
       time.sleep(tm)
 
+  def camera_on(self):
+    # on
+    print("Camera on")
+
+  def camera_off(self):
+    # off
+    print("Camera off")
+
+  def camera_get_frame(self):
+    print("Camera get frame")
+    return []
+
+  def camera_ok(self):
+    print("Camera ok")
+    return false

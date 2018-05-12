@@ -7,8 +7,9 @@ import argparse
 import os
 
 parser = argparse.ArgumentParser(description="Detect direction of motion")
-#parser.add_argument("--copy_to", type=str, default='dev@dev-X555QA')
-parser.add_argument("--copy_to", type=str, default='dev@ugpu')
+parser.add_argument("--copy_to", type=str, default='dev@ulap')
+parser.add_argument("--raw_image", default=False, action='store_true')
+#parser.add_argument("--copy_to", type=str, default='dev@ugpu')
 args = parser.parse_args()
 
 def si(image):
@@ -29,8 +30,11 @@ while True:
     print("Counter {0}".format(counter))
     counter += 1
 
-    frame = cv2.resize(frame, (64,64))
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    if args.raw_image:
+      frame
+    else:
+      frame = cv2.resize(frame, (64,64))
+      frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     filename = "image_{0}.jpg".format(counter)
     filepath = "/tmp/{0}".format(filename)
