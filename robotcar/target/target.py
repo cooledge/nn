@@ -62,7 +62,7 @@ batch_size = 16
 
 train_percent = 90
 
-model_dir = './model'
+model_dir = os.path.dirname(os.path.abspath(__file__)) + "/model"
 
 if not os.path.exists(model_dir):
   os.makedirs(model_dir)
@@ -313,7 +313,6 @@ def accuracy(X, Y_position):
   #show_graph(labels, predictions)
   show_distances(distances)
 
-
 class Predict:
 
   def run(self, image):
@@ -330,7 +329,6 @@ if __name__ == "__main__":
   X_train, Y_train_radius, Y_train_position, X_validation, Y_validation_radius, Y_validation_position = load_training_data()
 
   saver = tf.train.Saver()
-
   if not args.clean:
     try:
       saver.restore(session, model_filename)

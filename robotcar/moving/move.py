@@ -49,7 +49,7 @@ args = parser.parse_args()
 
 batch_size = 64
 nb_epochs = args.epochs
-model_dir = './model'
+model_dir = os.path.dirname(os.path.abspath(__file__)) + "/model"
 
 if not os.path.exists(model_dir):
   os.makedirs(model_dir)
