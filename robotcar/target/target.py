@@ -313,6 +313,13 @@ def accuracy(X, Y_position):
   #show_graph(labels, predictions)
   show_distances(distances)
 
+saver = tf.train.Saver()
+if not args.clean:
+  try:
+    saver.restore(session, model_filename)
+  except Exception as e:
+    0 # ignore
+
 class Predict:
 
   def run(self, image):
@@ -320,20 +327,13 @@ class Predict:
     logits = session.run(model_logits_position, { model_input: [image], model_keep_prob: 1.0 })[0]
     pos = ndimage.measurements.center_of_mass(logits)
 
-    cv2.circle(image, (int(pos[1]), int(pos[0])), 5, (255,255,255), -1)
+    cv2.circle(image, (int(pos[0]), int(pos[1])), 5, (255,255,255), -1)
     si(image)
 
     return "({0}, {0})".format(pos[0], pos[1])
 
 if __name__ == "__main__":
   X_train, Y_train_radius, Y_train_position, X_validation, Y_validation_radius, Y_validation_position = load_training_data()
-
-  saver = tf.train.Saver()
-  if not args.clean:
-    try:
-      saver.restore(session, model_filename)
-    except Exception as e:
-      0 # ignore
 
   if args.train:
     nb_train_samples, img_rows, img_cols = X_train.shape
