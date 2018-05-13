@@ -2,11 +2,17 @@ import numpy as np
 import string
 import os
 import time
-from moving.move import Predict as Move_Predict
-from target.target import Predict as Target_Predict
 import pdb
 import cv2
 import socket
+import tensorflow as tf
+
+moving_graph = tf.Graph()
+with moving_graph.as_default():
+  from moving.move import Predict as Move_Predict
+target_graph = tf.Graph()
+with target_graph.as_default():
+  from target.target import Predict as Target_Predict
 
 def fn2idx(fn):
   return int(fn.strip(string.ascii_letters+"_."))
