@@ -6,6 +6,7 @@ import pdb
 import cv2
 import socket
 import tensorflow as tf
+import utils
 
 moving_graph = tf.Graph()
 with moving_graph.as_default():
@@ -45,13 +46,17 @@ while True:
     idx2fn[fn2idx(file)] = file
 
   idxs = list(idx2fn.keys())
+  # skip the last file since it might be getting written to
+  idxs.pop()
   idxs.sort()
   for idx in idxs:
     try:
       filename = idx2fn[idx]
-      filepath = to_path(filename)
-      image = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
-      os.remove(filepath)
+      #filepath = to_path(filename)
+      #image = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
+      #pdb.set_trace()
+      image = utils.load_image(current_dir, filename, 480, 640)
+      #os.remove(filepath)
       #print("Run against neural net {0}".format(filename))
       for consumer in consumers:
         result = consumer.run(image)
@@ -59,6 +64,9 @@ while True:
           print(result)
     except IOError:
       print("IOError: {0}".format(filename))
+      break
+    except cv2.error:
+      print("cv2.error")
       break
     except ValueError:
       print("Value : {0}".format(filename))

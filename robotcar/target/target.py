@@ -13,6 +13,10 @@ from scipy.stats import multivariate_normal
 from scipy import ndimage
 import matplotlib.pyplot as plt
 
+parent_dir = os.path.dirname(os.path.abspath(__file__)) + "/.."
+sys.path.append(parent_dir)
+import utils
+
 def show_distances(distances):
   counts = dict()
   for distance in distances:
@@ -79,8 +83,11 @@ def filename_to_y(filename):
 
 def si(image):
   cv2.imshow("", image)
-  cv2.waitKey(300)
+  cv2.waitKey(4000)
 
+def load_image(data_dir, filename):
+  return utils.load_image(data_dir, filename, n_rows, n_cols)
+'''
 def load_image(data_dir, filename):
   try:
     image = cv2.imread(filepath(data_dir, filename), cv2.IMREAD_GRAYSCALE)
@@ -88,7 +95,7 @@ def load_image(data_dir, filename):
     return image / 255.
   except IOError:
     return None
-
+'''
 # call it with row,column
 
 def max_differentiable(x, y):
@@ -168,6 +175,10 @@ def load_training_data():
   n_train = int(len(X) * train_percent / 100)
   if n_train == 0:
     n_train = 1
+
+  fn_train = [files[i] for i in index[:n_train]]
+  fn_validation = [files[i] for i in index[n_train:]]
+
   X_train = [X[i] for i in index[:n_train]]
   X_validation = [X[i] for i in index[n_train:]]
 
@@ -177,7 +188,7 @@ def load_training_data():
   Y_train_position = [Y_position[i] for i in index[:n_train]]
   Y_validation_position = [Y_position[i] for i in index[n_train:]]
 
-  return np.array(X_train), np.array(Y_train_radius), np.array(Y_train_position), np.array(X_validation), np.array(Y_validation_radius), np.array(Y_validation_position)
+  return fn_train, fn_validation, np.array(X_train), np.array(Y_train_radius), np.array(Y_train_position), np.array(X_validation), np.array(Y_validation_radius), np.array(Y_validation_position)
 
 # Model2D_1: Epoch 49 Validation Accuracy: 0.0 Mean Distance: 4.33011001554824
 #            dropout 0.75
@@ -278,11 +289,12 @@ model_train_op = model_optimizer.minimize(model_loss)
 session = tf.Session()
 session.run(tf.global_variables_initializer())
 
-def show_graph(labels, predictions):
-  img = np.zeros((n_rows, n_cols))
-  cv2.circle(img, (int(labels[0][1]), int(labels[0][0])), 5, (255,0,0), -1)
-  cv2.circle(img, (int(predictions[0][1]), int(predictions[0][0])), 5, (255,255,255), -1)
-  si(img)
+def show_graph(inputs, labels, predictions):
+  for i in range(len(labels)):
+    img = np.array(inputs[i])
+    cv2.circle(img, (int(labels[i][1]), int(labels[i][0])), 5, (255,0,0), -1)
+    cv2.circle(img, (int(predictions[i][1]), int(predictions[i][0])), 5, (255,255,255), -1)
+    si(img)
 
 def math_is_close(n1, n2, abs_tol):
   return n1-abs_tol <= n2 <= n1+abs_tol
@@ -295,7 +307,7 @@ result = tuple_is_close([1, 2], [1.1, 2.2], 0.5)
 def distance(p1, p2):
   return math.pow(math.pow(p1[0]-p2[0], 2) + math.pow(p1[1]-p2[1], 2), 0.5)
 
-def accuracy(X, Y_position): 
+def accuracy(fn, X, Y_position): 
   logits = []
   for i in range(X.shape[0]):
     logits.append(session.run(model_logits_position, { model_input: [X[i]], model_keep_prob: 1.0 })[0])
@@ -304,13 +316,15 @@ def accuracy(X, Y_position):
   for i in range(logits.shape[0]):
     pos = ndimage.measurements.center_of_mass(logits[i])
     predictions.append((pos[1], pos[0]))
+  print("filename {0} position {1}".format(fn[0], predictions[0]))
+  pdb.set_trace()
   labels = Y_position
   right = len([True for (label, prediction) in zip(labels, predictions) if distance(label, prediction) < closeness])
   distances = [ distance(label, prediction) for (label, prediction) in zip(labels, predictions) ]
   mean_distance = sum(distances) / len(distances)
   accuracy = float(right) / float(len(predictions))
   print("Validation Accuracy: {0} Mean Distance: {1}".format(accuracy, mean_distance))
-  #show_graph(labels, predictions)
+  #show_graph(X, labels, predictions)
   show_distances(distances)
 
 saver = tf.train.Saver()
@@ -322,18 +336,31 @@ if not args.clean:
 
 class Predict:
 
+  def __init__(self):
+    self.counter = 0
+    self.rows = [10,30,60,80]
+    self.columns = [10,50,90,120]
+  
   def run(self, image):
+    #pdb.set_trace()
     image = cv2.resize(image, (n_cols, n_rows))
+
+    #self.counter += 1
+    #idx = self.counter % 4
+    #cv2.circle(image, (self.rows[idx], self.columns[idx]), 5, (255,255,255), -1)
+
     logits = session.run(model_logits_position, { model_input: [image], model_keep_prob: 1.0 })[0]
     pos = ndimage.measurements.center_of_mass(logits)
 
     cv2.circle(image, (int(pos[0]), int(pos[1])), 5, (255,255,255), -1)
+    print("position({0}, {1})".format(self.rows[idx], self.columns[idx]))
     si(image)
+    pdb.set_trace()
 
     return "({0}, {0})".format(pos[0], pos[1])
 
 if __name__ == "__main__":
-  X_train, Y_train_radius, Y_train_position, X_validation, Y_validation_radius, Y_validation_position = load_training_data()
+  fn_train, fn_validation, X_train, Y_train_radius, Y_train_position, X_validation, Y_validation_radius, Y_validation_position = load_training_data()
 
   if args.train:
     nb_train_samples, img_rows, img_cols = X_train.shape
@@ -385,4 +412,4 @@ if __name__ == "__main__":
       #  print("Epoch {0} Batch Accuracy: {1}".format(epoch, accuracy))
 
   if args.test:
-    accuracy(X_validation, Y_validation_position)
+    accuracy(fn_validation, X_validation, Y_validation_position)

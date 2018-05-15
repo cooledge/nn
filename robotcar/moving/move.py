@@ -16,6 +16,7 @@ from moving.chw2hwc import chw2hwc
 from PIL import Image
 import argparse
 import glob
+import utils
 
 '''
 Epoch 499 Validation Accuracy: 0.9857142857142858 Loss 0.006371537689119577
@@ -92,6 +93,7 @@ def si(image):
   cv2.imshow("", image)
   cv2.waitKey(1)
 
+'''
 def load_image(data_dir, filename):
   try:
     image = Image.open(filepath(data_dir, filename)).resize((INPUT_DIM, INPUT_DIM))
@@ -100,6 +102,9 @@ def load_image(data_dir, filename):
     return image / 255.
   except IOError:
     return None
+ '''
+def load_image(data_dir, filename):
+  utils.load_image(data_dir, filename, INPUT_DIM, INPUT_DIM)
 
 def get_category(files, i):
   file = files[i]
