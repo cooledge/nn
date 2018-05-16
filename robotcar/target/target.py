@@ -400,7 +400,8 @@ if __name__ == "__main__":
 
         #accuracy(batch_input, Y_train_position[start:end])
         #print("Train Loss {0}".format(loss))
-    
+   
+      print("Epoch {0} loss{1}".format(epoch, loss))
       #accuracy(X_validation, Y_validation_position)
       #if epoch == 10:
         #pdb.set_trace()
