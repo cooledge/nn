@@ -52,11 +52,11 @@ while True:
   for idx in idxs:
     try:
       filename = idx2fn[idx]
-      #filepath = to_path(filename)
+      filepath = to_path(filename)
       #image = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
       #pdb.set_trace()
       image = utils.load_image(current_dir, filename, 480, 640)
-      #os.remove(filepath)
+      os.remove(filepath)
       #print("Run against neural net {0}".format(filename))
       for consumer in consumers:
         result = consumer.run(image)

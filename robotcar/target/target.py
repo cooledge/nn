@@ -83,7 +83,7 @@ def filename_to_y(filename):
 
 def si(image):
   cv2.imshow("", image)
-  cv2.waitKey(4000)
+  cv2.waitKey(250)
 
 def load_image(data_dir, filename):
   return utils.load_image(data_dir, filename, n_rows, n_cols)
@@ -353,9 +353,9 @@ class Predict:
     pos = ndimage.measurements.center_of_mass(logits)
 
     cv2.circle(image, (int(pos[0]), int(pos[1])), 5, (255,255,255), -1)
-    print("position({0}, {1})".format(self.rows[idx], self.columns[idx]))
+    #print("predicted({0}, {1}) actual({2}, {3})".format(pos[0], pos[1], self.rows[idx], self.columns[idx]))
     si(image)
-    pdb.set_trace()
+    #pdb.set_trace()
 
     return "({0}, {0})".format(pos[0], pos[1])
 
