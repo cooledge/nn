@@ -317,7 +317,7 @@ def accuracy(fn, X, Y_position):
     pos = ndimage.measurements.center_of_mass(logits[i])
     predictions.append((pos[1], pos[0]))
   print("filename {0} position {1}".format(fn[0], predictions[0]))
-  pdb.set_trace()
+  #pdb.set_trace()
   labels = Y_position
   right = len([True for (label, prediction) in zip(labels, predictions) if distance(label, prediction) < closeness])
   distances = [ distance(label, prediction) for (label, prediction) in zip(labels, predictions) ]
