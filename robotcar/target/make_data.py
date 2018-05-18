@@ -14,7 +14,7 @@ backgrounds = os.listdir(backgrounds_dir)
 
 n_rows = 480
 n_cols = 640
-n_samples = 1000
+n_samples = 1500
 
 for i in range(n_samples):
   for idx_bg, background in enumerate(backgrounds):
@@ -22,7 +22,8 @@ for i in range(n_samples):
     radius = random.randint(5, 195)
     col = random.randint(10, n_cols-10)
     row = random.randint(10, n_rows-10)
-    cv2.circle(img, (col, row), radius, (255,255,255), -1)
+    color = random.randint(10, 255)
+    cv2.circle(img, (col, row), radius, (color,color,color), -1)
     filename = "{0}_{1}_{2}_{3}.jpg".format(radius, row, col, idx_bg)
     cv2.imwrite(data_dir+filename, img)
 

@@ -85,7 +85,7 @@ def si(image):
   cv2.imshow("", image)
   cv2.waitKey(250)
 
-def load_image(data_dir, filename):
+def load_image(data_dir, filename): 
   return utils.load_image(data_dir, filename, n_rows, n_cols)
 '''
 def load_image(data_dir, filename):
@@ -336,12 +336,14 @@ if not args.clean:
 
 class Predict:
 
+  '''
   def __init__(self):
     self.counter = 0
     self.rows = [10,30,60,80]
     self.columns = [10,50,90,120]
+  '''
   
-  def run(self, image):
+  def run(self, image, display_image):
     #pdb.set_trace()
     image = cv2.resize(image, (n_cols, n_rows))
 
@@ -352,9 +354,10 @@ class Predict:
     logits = session.run(model_logits_position, { model_input: [image], model_keep_prob: 1.0 })[0]
     pos = ndimage.measurements.center_of_mass(logits)
 
-    cv2.circle(image, (int(pos[0]), int(pos[1])), 5, (255,255,255), -1)
+    #cv2.circle(image, (int(pos[0]), int(pos[1])), 5, (255,255,255), -1)
+    cv2.circle(display_image, utils.translate_point(image, display_image, (int(pos[0]), int(pos[1]))), 5, (255,255,255), -1)
     #print("predicted({0}, {1}) actual({2}, {3})".format(pos[0], pos[1], self.rows[idx], self.columns[idx]))
-    si(image)
+    #si(image)
     #pdb.set_trace()
 
     return "({0}, {0})".format(pos[0], pos[1])

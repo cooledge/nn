@@ -30,9 +30,11 @@ class FakePredict:
 #consumers = [Move_Predict()]
 consumers = [Target_Predict()]
 
+'''
 def si(image):
   cv2.imshow("", image)
   cv2.waitKey(1000)
+'''
 
 command = "ssh pi@robotcar 'echo {0} > ~/code/nn/robotcar/send_to.txt'".format(socket.gethostname())
 os.system(command)
@@ -56,12 +58,14 @@ while True:
       #image = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
       #pdb.set_trace()
       image = utils.load_image(current_dir, filename, 480, 640)
+      display_image = np.array(image)
       os.remove(filepath)
       #print("Run against neural net {0}".format(filename))
       for consumer in consumers:
-        result = consumer.run(image)
+        result = consumer.run(image, display_image)
         if result is not None:
           print(result)
+      utils.si(display_image)
     except IOError:
       print("IOError: {0}".format(filename))
       break
