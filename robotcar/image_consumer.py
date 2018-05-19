@@ -27,8 +27,8 @@ class FakePredict:
   def run(self, image):
     return "Output {0}".format(image.shape)
 
-#consumers = [Move_Predict()]
-consumers = [Target_Predict()]
+consumers = [Move_Predict()]
+#consumers = [Target_Predict()]
 
 '''
 def si(image):
@@ -59,7 +59,7 @@ while True:
       #pdb.set_trace()
       image = utils.load_image(current_dir, filename, 480, 640)
       display_image = np.array(image)
-      os.remove(filepath)
+      #os.remove(filepath)
       #print("Run against neural net {0}".format(filename))
       for consumer in consumers:
         result = consumer.run(image, display_image)

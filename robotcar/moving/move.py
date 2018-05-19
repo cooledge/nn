@@ -12,6 +12,7 @@ import random
 import argparse
 from collections import defaultdict
 from collections import deque
+from arrow import draw_arrow
 from moving.chw2hwc import chw2hwc
 from PIL import Image
 import argparse
@@ -61,6 +62,9 @@ if args.clean:
   os.system("rm {0}/*".format(model_dir))
 
 INPUT_DIM = 64
+n_rows = INPUT_DIM
+n_cols = INPUT_DIM
+
 #data_dir = './data'
 
 def get_prefix_fn(filename):
@@ -279,13 +283,15 @@ class Predict:
   def __init__(self):
     self.images = deque()
 
-  def run(self, image):
+  def run(self, image, display_image):
+    image = cv2.resize(image, (n_cols, n_rows))
     self.images.append(image)
     category = None
     if len(self.images) == n_files: 
       try:
         predict = session.run(model_predict, { model_input: [self.images], model_keep_prob: 1.0 } )
         category = ind2cat(predict[0])
+        draw_arrow(display_image, category)
       except ValueError:
         category = None
       self.images.popleft()
