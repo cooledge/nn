@@ -81,9 +81,11 @@ def filepath(data_dir, filename):
 def filename_to_y(filename):
   return [int(c)/n_scale for c in filename.split('.')[0].split('_')]
 
+'''
 def si(image):
   cv2.imshow("", image)
   cv2.waitKey(250)
+'''
 
 def load_image(data_dir, filename): 
   return utils.load_image(data_dir, filename, n_rows, n_cols)
@@ -109,7 +111,7 @@ def show_field(field):
   for r in range(n_rows):
     for c in range(n_cols):
       img[r][c] = field[r][c] * 255.
-  si(img)
+  utils.si(img)
 
 def label_to_normal_field(row, col):
   scale = 1
@@ -294,7 +296,7 @@ def show_graph(inputs, labels, predictions):
     img = np.array(inputs[i])
     cv2.circle(img, (int(labels[i][1]), int(labels[i][0])), 5, (255,0,0), -1)
     cv2.circle(img, (int(predictions[i][1]), int(predictions[i][0])), 5, (255,255,255), -1)
-    si(img)
+    utils.si(img)
 
 def math_is_close(n1, n2, abs_tol):
   return n1-abs_tol <= n2 <= n1+abs_tol
@@ -355,7 +357,22 @@ class Predict:
     pos = ndimage.measurements.center_of_mass(logits)
 
     #cv2.circle(image, (int(pos[0]), int(pos[1])), 5, (255,255,255), -1)
-    cv2.circle(display_image, utils.translate_point(image, display_image, (int(pos[0]), int(pos[1]))), 5, (255,255,255), -1)
+    #pdb.set_trace()
+    #utils.si(image)
+
+    translated_pos = utils.translate_point(image, display_image, (int(pos[0]), int(pos[1])))
+    #print("translated_pos: {0}".format(translated_pos))
+
+    def draw_target(display_image, pos):
+      fill = -1
+      for diameter in [5,10,15,20]:
+        cv2.circle(display_image, pos, diameter, (0,0,0), fill)
+        fill = 1
+
+    draw_target(display_image, translated_pos)
+
+    #pdb.set_trace()
+    #utils.si(display_image)
     #print("predicted({0}, {1}) actual({2}, {3})".format(pos[0], pos[1], self.rows[idx], self.columns[idx]))
     #si(image)
     #pdb.set_trace()

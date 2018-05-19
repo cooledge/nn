@@ -3,9 +3,9 @@ import cv2
 import numpy as np
 import pdb
 
-def si(image):
-  cv2.imshow("", image)
-  cv2.waitKey(1)
+def si(image, title="", waitTime=1):
+  cv2.imshow(title, image)
+  cv2.waitKey(waitTime)
 
 def filepath(data_dir, filename):
   return "{0}/{1}".format(data_dir, filename)
@@ -28,10 +28,15 @@ def translate_point_helper(old_shape, new_shape, old_point):
  return tuple((old_point * scale).astype(int))
 
 def translate_point(old_image, new_image, old_point):
-  translate_point_helper(old_image.shape, old_image.shape, old_point)
+  return translate_point_helper(old_image.shape, new_image.shape, old_point)
 
 if __name__ == '__main__':
-  pdb.set_trace()
   new_point = translate_point_helper( (50, 50), (25, 25), (12, 12) )
+  assert new_point == (6,6)
+  new_point = translate_point_helper( (25, 25), (50, 50), (6, 6) )
+  assert new_point == (12,12)
 
-  print(new_point)
+  new_point = translate_point( np.zeros((50, 50)), np.zeros((25, 25)), (12, 12) )
+  assert new_point == (6,6)
+  new_point = translate_point( np.zeros((25, 25)), np.zeros((50, 50)), (6, 6) )
+  assert new_point == (12,12)

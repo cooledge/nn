@@ -65,7 +65,9 @@ while True:
         result = consumer.run(image, display_image)
         if result is not None:
           print(result)
-      utils.si(display_image)
+      #pdb.set_trace()
+      #utils.si(image, title='Input Image', waitTime=5000)
+      utils.si(display_image, title='Output Image', waitTime=100)
     except IOError:
       print("IOError: {0}".format(filename))
       break
