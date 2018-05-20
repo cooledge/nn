@@ -7,6 +7,16 @@ import cv2
 import socket
 import tensorflow as tf
 import utils
+import argparse
+
+parser = argparse.ArgumentParser(description="Runs neural nets on images")
+pdb.set_trace()
+parser.add_argument("--move", dest='move', default=True, action='store_true')
+parser.add_argument("--no-move", dest='move', action='store_false')
+parser.add_argument("--target", dest='target', default=True, action='store_true')
+parser.add_argument("--no-target", dest='target', action='store_false')
+
+args = parser.parse_args()
 
 moving_graph = tf.Graph()
 with moving_graph.as_default():
@@ -27,8 +37,12 @@ class FakePredict:
   def run(self, image):
     return "Output {0}".format(image.shape)
 
-consumers = [Move_Predict()]
-#consumers = [Target_Predict()]
+consumers= []
+if args.move:
+  consumers.append(Move_Predict())
+if args.target:
+  consumers.append(Target_Predict())
+#consumers = [Move_Predict(), Target_Predict()]
 
 '''
 def si(image):
@@ -59,7 +73,7 @@ while True:
       #pdb.set_trace()
       image = utils.load_image(current_dir, filename, 480, 640)
       display_image = np.array(image)
-      #os.remove(filepath)
+      os.remove(filepath)
       #print("Run against neural net {0}".format(filename))
       for consumer in consumers:
         result = consumer.run(image, display_image)
@@ -67,7 +81,7 @@ while True:
           print(result)
       #pdb.set_trace()
       #utils.si(image, title='Input Image', waitTime=5000)
-      utils.si(display_image, title='Output Image', waitTime=100)
+      utils.si(display_image, title='Output Image', waitTime=1)
     except IOError:
       print("IOError: {0}".format(filename))
       break

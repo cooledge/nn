@@ -37,18 +37,6 @@ def show_distances(distances):
   plt.xticks(x_pos, x)
   plt.show()
 
-parser = argparse.ArgumentParser(description="Detect direction of motion")
-
-parser.add_argument("--epochs", default=500, type=int)
-parser.add_argument("--train", dest='train', default=True, action='store_true')
-parser.add_argument("--no-train", dest='train', action='store_false')
-parser.add_argument("--test", dest='test', default=True, action='store_true')
-parser.add_argument("--no-test", dest='test', action='store_false')
-parser.add_argument("--clean", dest='clean', default=False, action='store_true')
-parser.add_argument("--test-predict", dest='test_predict', default=False, type=bool)
-
-args = parser.parse_args()
-
 data_dir = './data'
 
 # shape (NImages, Cols, Rows)
@@ -329,13 +317,6 @@ def accuracy(fn, X, Y_position):
   #show_graph(X, labels, predictions)
   show_distances(distances)
 
-saver = tf.train.Saver()
-if not args.clean:
-  try:
-    saver.restore(session, model_filename)
-  except Exception as e:
-    0 # ignore
-
 class Predict:
 
   '''
@@ -379,7 +360,33 @@ class Predict:
 
     return "({0}, {0})".format(pos[0], pos[1])
 
+saver = tf.train.Saver()
+
+if not __name__ == "__main__":
+  try:
+    saver.restore(session, model_filename)
+  except Exception as e:
+    0 # ignore
+
 if __name__ == "__main__":
+  parser = argparse.ArgumentParser(description="Detect direction of motion")
+
+  parser.add_argument("--epochs", default=500, type=int)
+  parser.add_argument("--train", dest='train', default=True, action='store_true')
+  parser.add_argument("--no-train", dest='train', action='store_false')
+  parser.add_argument("--test", dest='test', default=True, action='store_true')
+  parser.add_argument("--no-test", dest='test', action='store_false')
+  parser.add_argument("--clean", dest='clean', default=False, action='store_true')
+  parser.add_argument("--test-predict", dest='test_predict', default=False, type=bool)
+
+  args = parser.parse_args()
+
+  if not args.clean:
+    try:
+      saver.restore(session, model_filename)
+    except Exception as e:
+      0 # ignore
+
   fn_train, fn_validation, X_train, Y_train_radius, Y_train_position, X_validation, Y_validation_radius, Y_validation_position = load_training_data()
 
   if args.train:

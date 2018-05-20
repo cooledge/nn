@@ -12,11 +12,14 @@ import random
 import argparse
 from collections import defaultdict
 from collections import deque
-from arrow import draw_arrow
-from moving.chw2hwc import chw2hwc
+# from moving.chw2hwc import chw2hwc
 from PIL import Image
 import argparse
 import glob
+import sys
+
+parent_dir = os.path.dirname(os.path.abspath(__file__)) + "/.."
+sys.path.append(parent_dir)
 import utils
 
 '''
@@ -37,29 +40,13 @@ Test Accuracy: 0.9708333333333333
       stop -> 48
 '''
 
-parser = argparse.ArgumentParser(description="Detect direction of motion")
-
-parser.add_argument("--epochs", default=500, type=int)
-parser.add_argument("--train", dest='train', default=True, action='store_true')
-parser.add_argument("--no-train", dest='train', action='store_false')
-parser.add_argument("--test", dest='test', default=True, action='store_true')
-parser.add_argument("--no-test", dest='test', action='store_false')
-parser.add_argument("--clean", dest='clean', default=False, action='store_true')
-parser.add_argument("--test-predict", dest='test_predict', default=False, type=bool)
-
-args = parser.parse_args()
-
 batch_size = 64
-nb_epochs = args.epochs
 model_dir = os.path.dirname(os.path.abspath(__file__)) + "/model"
 
 if not os.path.exists(model_dir):
   os.makedirs(model_dir)
 
 model_filename = model_dir + "/model"
-
-if args.clean:
-  os.system("rm {0}/*".format(model_dir))
 
 INPUT_DIM = 64
 n_rows = INPUT_DIM
@@ -272,18 +259,13 @@ session.run(tf.local_variables_initializer())
 
 saver = tf.train.Saver()
 
-if not args.clean:
-  try:
-    saver.restore(session, model_filename)
-  except Exception as e:
-    0 # ignore 
-
 class Predict:
 
   def __init__(self):
     self.images = deque()
 
   def run(self, image, display_image):
+    from arrow import draw_arrow
     image = cv2.resize(image, (n_cols, n_rows))
     self.images.append(image)
     category = None
@@ -298,9 +280,36 @@ class Predict:
 
     return category
 
-#if args.test_predict:
-      
+if not __name__ == '__main__':
+  try:
+    saver.restore(session, model_filename)
+  except Exception as e:
+    0 # ignore 
+
 if __name__ == "__main__":
+  parser = argparse.ArgumentParser(description="Detect direction of motion")
+
+  parser.add_argument("--epochs", default=500, type=int)
+  parser.add_argument("--train", dest='train', default=True, action='store_true')
+  parser.add_argument("--no-train", dest='train', action='store_false')
+  parser.add_argument("--test", dest='test', default=True, action='store_true')
+  parser.add_argument("--no-test", dest='test', action='store_false')
+  parser.add_argument("--clean", dest='clean', default=False, action='store_true')
+  parser.add_argument("--test-predict", dest='test_predict', default=False, type=bool)
+
+  args = parser.parse_args()
+
+  if not args.clean:
+    try:
+      saver.restore(session, model_filename)
+    except Exception as e:
+      0 # ignore 
+
+  if args.clean:
+    os.system("rm {0}/*".format(model_dir))
+
+  nb_epochs = args.epochs
+
   X_train, Y_train, X_validation, Y_validation = load_training_data()
 
   if args.train:
