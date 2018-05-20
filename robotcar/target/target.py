@@ -346,7 +346,7 @@ class Predict:
 
     def draw_target(display_image, pos):
       fill = -1
-      for diameter in [5,10,15,20]:
+      for diameter in [5,10,15,20,25]:
         cv2.circle(display_image, pos, diameter, (0,0,0), fill)
         fill = 1
 

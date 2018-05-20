@@ -48,9 +48,11 @@ if not os.path.exists(model_dir):
 
 model_filename = model_dir + "/model"
 
-INPUT_DIM = 64
-n_rows = INPUT_DIM
-n_cols = INPUT_DIM
+n_scale = 5
+#n_rows = int(480 / n_scale)
+#n_cols = int(640 / n_scale)
+n_rows = 64
+n_cols = 64
 
 #data_dir = './data'
 
@@ -93,9 +95,10 @@ def load_image(data_dir, filename):
     return image / 255.
   except IOError:
     return None
- '''
+'''
+
 def load_image(data_dir, filename):
-  utils.load_image(data_dir, filename, INPUT_DIM, INPUT_DIM)
+  return utils.load_image(data_dir, filename, n_rows, n_cols)
 
 def get_category(files, i):
   file = files[i]
@@ -184,9 +187,6 @@ pool_size = (2, 2)
 kernel_size = (3, 3)
 # number of classes
 
-img_rows = INPUT_DIM
-img_cols = INPUT_DIM
-
 def tf_add_conv(inputs, filters, kernel_size=[5,5], include_pool=True):
   layer = tf.layers.conv2d(inputs=inputs, filters=filters, kernel_size=kernel_size, padding='same', activation=tf.nn.relu)
   if include_pool:
@@ -211,7 +211,7 @@ def tf_add_conv(inputs, filters, kernel_size=[5,5], include_pool=True):
 # n_files == 5
 #   66%
 
-model_input = tf.placeholder(tf.float32, shape=(None, n_files, img_rows, img_cols), name='model_input')
+model_input = tf.placeholder(tf.float32, shape=(None, n_files, n_rows, n_cols), name='model_input')
 model_keep_prob = tf.Variable(0.50, dtype=tf.float32)
 
 def Model2D(model_input):
@@ -229,7 +229,7 @@ def Model2D(model_input):
   return layer
 
 def Model3D(model_input):
-  layer = tf.reshape(model_input, (-1, n_files, img_rows, img_cols, 1))
+  layer = tf.reshape(model_input, (-1, n_files, n_rows, n_cols, 1))
   layer = tf.layers.conv3d(inputs=layer, filters=nb_filters, kernel_size=n_files, padding='same', activation=tf.nn.relu)
   layer = tf.layers.conv3d(inputs=layer, filters=nb_filters, kernel_size=n_files, padding='same', activation=tf.nn.relu)
   layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[4,2,2], strides=2, padding='same')
@@ -313,7 +313,7 @@ if __name__ == "__main__":
   X_train, Y_train, X_validation, Y_validation = load_training_data()
 
   if args.train:
-    nb_train_samples, img_channels, img_rows, img_cols = X_train.shape
+    nb_train_samples, img_channels, n_rows, n_cols = X_train.shape
     nb_validation_samples = X_validation.shape[0]
 
     print(nb_train_samples, 'train samples')

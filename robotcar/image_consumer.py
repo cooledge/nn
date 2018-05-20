@@ -10,7 +10,6 @@ import utils
 import argparse
 
 parser = argparse.ArgumentParser(description="Runs neural nets on images")
-pdb.set_trace()
 parser.add_argument("--move", dest='move', default=True, action='store_true')
 parser.add_argument("--no-move", dest='move', action='store_false')
 parser.add_argument("--target", dest='target', default=True, action='store_true')
