@@ -25,23 +25,14 @@ get_data -dir forward -time 1 -label forward
 parser = argparse.ArgumentParser(description="Get data from the camera and motion")
 parser.add_argument("--n_samples", type=int, default=1)
 parser.add_argument("--time", type=int, default=2000)
-parser.add_argument('--no-show', dest='feature', action='store_false')
+parser.add_argument('--show', dest='show', default=False, action='store_true')
+parser.add_argument('--no-show', dest='show', action='store_false')
 parser.set_defaults(show=False)
 args = parser.parse_args()
 
 args.time = args.time / 1000.0
 
 robotcar = RobotCar()
-
-def do_action():
-  if args.direction == 'forward':
-    robotcar.forward()
-  elif args.direction == 'backward':
-    robotcar.backward()
-  elif args.direction == 'left':
-    robotcar.left()
-  elif args.direction == 'right':
-    robotcar.right()
 
 class TestDataLocal:
 
@@ -79,14 +70,13 @@ td.get_frame()
 
 seq_len = 10
 def get_actions():
-  return [random.choice('fblrs')]
+  return ''.join([random.choice('fblrs') for _ in range(seq_len)])
 
 def error_check(ret):
   return 0
 
 images = []
 start = time.time()  
-pdb.set_trace()
 if td.isOpened():
   for sample_no in range(args.n_samples):
     ret, before_frame = td.get_frame()
@@ -94,10 +84,13 @@ if td.isOpened():
 
     actions = get_actions()
     robotcar.move(actions)
+    robotcar.stop()
+    time.sleep(0.5)
        
     ret, after_frame = td.get_frame()
     error_check(ret)
 
+    pdb.set_trace()
     if args.show:
       cv2.imshow('before', before_frame)
       cv2.imshow('after', after_frame)
@@ -109,10 +102,10 @@ counter = 0
 timestr = time.strftime("%Y%m%d%H%M%S")
 for before, after, actions in images:
   def wf(code, image):
-    filename = "{0}/{1}_{2}_{3}-{4}.jpg".format(data_dir, args.actions, code, timestr, counter)
+    filename = "{0}/{1}_{2}_{3}-{4}.jpg".format(data_dir, actions, code, timestr, counter)
     cv2.imwrite(filename, image)
-  wf('b', before)
-  wf('a', after)
+  wf('1', before)
+  wf('2', after)
   counter += 1
 
 '''
