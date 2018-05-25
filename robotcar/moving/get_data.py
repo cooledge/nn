@@ -2,17 +2,22 @@ import numpy as np
 import cv2
 import pdb
 import time
+import os
 import math
+import sys
 import base64
 import socket
 import argparse
 import atexit
 from flask import Flask
 
+parent_dir = os.path.dirname(os.path.abspath(__file__)) + "/.."
+sys.path.append(parent_dir)
+
 if socket.gethostname() == 'robotcar':
   from robotcar_hardware import RobotCar_Hardware as RobotCar
 else:
-  from robotcar_stub import RobotCar
+  from robotcar_stub import RobotCar_Stub as RobotCar
 
 '''
 get_data -dir forward -time 1 -label forward
