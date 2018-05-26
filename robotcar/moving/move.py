@@ -86,17 +86,6 @@ def si(image):
   cv2.imshow("", image)
   cv2.waitKey(1)
 
-'''
-def load_image(data_dir, filename):
-  try:
-    image = Image.open(filepath(data_dir, filename)).resize((INPUT_DIM, INPUT_DIM))
-    image = np.array(image)
-    image = np.mean(image, -1)
-    return image / 255.
-  except IOError:
-    return None
-'''
-
 def load_image(data_dir, filename):
   return utils.load_image(data_dir, filename, n_rows, n_cols)
 
@@ -129,9 +118,39 @@ def cats2inds(categories):
 
 assert cats2inds(categories) == [0,1,2,3,4]
 
-def load_test_data():
-  data_dir = './data/test'
+data_dir = './data'
+percent_test = 0.1
+
+def split_to_training_and_test_data():
   files = get_files(data_dir)
+  prefix_to_files = {}
+  for filename in files:
+    prefix = get_prefix_fn(filename)
+    if not prefix in prefix_to_files:
+      prefix_to_files[prefix] = []
+    prefix_to_files[prefix].append(filename)
+  keys = list(prefix_to_files.keys())
+  random.shuffle(keys)
+  n_test = int(percent_test*len(keys))
+  test_prefix = keys[:n_test]
+  training_prefix = keys[n_test:]
+
+  training_files = []
+  for prefix in training_prefix:
+    training_files.extend(prefix_to_files[prefix])
+
+  test_files = []
+  for prefix in test_prefix:
+    test_files.extend(prefix_to_files[prefix])
+
+  pdb.set_trace()
+  assert len(training_files)+len(test_files) == len(files)
+  return training_files, test_files
+
+training_files, test_files = split_to_training_and_test_data()
+
+def load_test_data():
+  files = test_files
 
   # take N images in a row and make them each a channel in a single
   images = []
@@ -147,8 +166,7 @@ def load_test_data():
   return images, directions
 
 def load_training_data():
-  data_dir = './data'
-  files = get_files(data_dir)
+  files = training_files
 
   # take N images in a row and make them each a channel in a single
   images = []
