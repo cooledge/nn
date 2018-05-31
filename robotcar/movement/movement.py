@@ -18,11 +18,24 @@ import argparse
 import glob
 import sys
 
+parent_dir = os.path.dirname(os.path.abspath(__file__)) + "/../target"
+sys.path.append(parent_dir)
+
+target_graph = tf.Graph()
+with target_graph.as_default():
+  from target import Predict as Target_Predict
+
 parent_dir = os.path.dirname(os.path.abspath(__file__)) + "/.."
 sys.path.append(parent_dir)
 import utils
 
-batch_size = 64
+target_predict = Target_Predict()
+
+def image_to_logits(image):
+  return target_predict.logits(image)
+
+#batch_size = 64
+batch_size = 8
 model_dir = os.path.dirname(os.path.abspath(__file__)) + "/model"
 
 if not os.path.exists(model_dir):
@@ -31,6 +44,10 @@ if not os.path.exists(model_dir):
 model_filename = model_dir + "/model"
 
 actions = ['f', 'b', 'l', 'r', 's']
+
+def action_to_one_hot_index(action):
+  return actions.index(action)
+
 n_actions = len(actions)
 # number of actions to be generated
 cell_state_size = 128
@@ -70,18 +87,24 @@ def si(image):
   cv2.waitKey(1)
 
 def load_image(data_dir, filename):
-  return utils.load_image(data_dir, filename, n_rows, n_cols)
+  return image_to_logits(utils.load_image(data_dir, filename, n_rows, n_cols))
 
-def get_category(files, i):
-  file = files[i]
-  return file[:file.find('_')] 
+categories = ['forward', 'backward', 'left', 'right', 'stop']
 
-def get_image(data_dir, files, i):
-  if get_counter(files, i) > 1 and get_counter(files, i) == get_counter(files, i+n_files-1) - (n_files-1):
+def get_actions(files, batch_no):
+  file = files[batch_no]
+  actions = file[:file.find('_')]
+  return actions
+
+def set_actions(files, directions, batch_no):
+  actions = get_actions(files, batch_no)
+  for action_no in range(n_len):
+    directions[batch_no][action_to_one_hot_index(actions[action_no])] = 1
+
+def get_image_sequence(data_dir, files, i):
+  if get_counter(files, i) == 1:
     images = [load_image(data_dir, files[i+j]) for j in range(n_files)]
     return images
- 
-categories = ['forward', 'backward', 'left', 'right', 'stop']
 
 def cat2ind(category):
   return categories.index(category)
@@ -93,6 +116,17 @@ def ind2cat(index):
 
 assert ind2cat(0) == categories[0]
 
+def action2one_hot(action):
+  one_hots = np.zeros((n_actions))
+  one_hots[action_to_one_hot_index(action)]
+  return one_hots
+
+def actions2one_hots(actions):
+  return [action2one_hot(action) for action in actions]
+
+def batch_of_actions2one_hots(batches_of_actions):
+  return [actions2one_hots(actions) for actions in batches_of_actions]
+  
 def cats2inds(categories):
   indexes = []
   for category in categories:
@@ -136,14 +170,12 @@ def load_test_data():
 
   # take N images in a row and make them each a channel in a single
   images = []
-  directions = []
+  directions = np.zeros((len(files), n_len, n_actions))
   for i in range(len(files)):
-    image = get_image(data_dir, files, i)
-    if image:
-      images.append(image)
-      directions.append(get_category(files, i))
-    else:
-      get_image(data_dir, files, i)
+    image_sequence = get_image_sequence(data_dir, files, i)
+    if image_sequence:
+      images.append(image_sequence)
+      set_actions(files, directions, i)
 
   return images, directions
 
@@ -154,12 +186,10 @@ def load_training_data():
   images = []
   directions = []
   for i in range(len(files)):
-    image = get_image(data_dir, files, i)
-    if image:
-      images.append(image)
-      directions.append(get_category(files, i))
-    else:
-      get_image(data_dir, files, i)
+    image_sequence = get_image_sequence(data_dir, files, i)
+    if image_sequence:
+      images.append(image_sequence)
+      directions.append(get_actions(files, i))
 
   indexes = [i for i in range(len(images))]
   random.shuffle(indexes)
@@ -220,13 +250,12 @@ def Model3D(model_input):
   return model_logits
 
 model_logits = Model3D(model_input)
-pdb.set_trace()
 #model_softmax = tf.nn.softmax(model_logits)
 #model_predict = tf.argmax(model_softmax, axis=1)
-model_one_hot_outputs = tf.placeholder(tf.int32, shape=[None, n_len, n_actions], name="model_output")
+model_output = tf.placeholder(tf.int32, shape=[None, n_len, n_actions], name="model_output")
 
 def loss():
-  outputs = tf.split(model_one_hot_outputs, n_len, axis=1)
+  outputs = tf.split(model_output, n_len, axis=1)
   losses = []
   for i in range(n_len):
     losses.append(tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=outputs[i], logits=model_logits[i])))
@@ -307,19 +336,25 @@ if __name__ == "__main__":
     for epoch in range(nb_epochs):
       n_batches = nb_train_samples // batch_size
 
+      pdb.set_trace()
       for batch_no in range(n_batches):
         start = batch_no * batch_size
         end = start + batch_size
         batch_input = X_train[start:end]
-        batch_output = cats2inds(Y_train[start:end])
+        batch_output = batch_of_actions2one_hots(Y_train[start:end])
 
         loss, _ = session.run([model_loss, model_train_op], { model_input: batch_input, model_output: batch_output })
-        #print("Train Loss {0}".format(loss))
-      
+        print("Train Loss {0}".format(loss))
+     
+      ''' 
       labels, predictions = session.run([model_output, model_predict], { model_input: X_validation, model_output: cats2inds(Y_validation), model_keep_prob: 1.0 })
       right = len([True for (label, prediction) in zip(labels, predictions) if label == prediction])
       accuracy = float(right) / float(len(predictions)) 
       print("Epoch {0} Validation Accuracy: {1} Loss {2}".format(epoch, accuracy, loss))
+      '''
+
+      labels, loss= session.run([model_output, model_loss], { model_input: X_validation, model_output: batch_of_actions2one_hots(Y_validation), model_keep_prob: 1.0 })
+      print("Epoch {0} loss {1}".format(epoch, loss))
       #  accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
       #  print("Epoch {0} Batch Accuracy: {1}".format(epoch, accuracy))
 

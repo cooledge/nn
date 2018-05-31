@@ -319,6 +319,11 @@ def accuracy(fn, X, Y_position):
 
 class Predict:
 
+  def logits(self, image):
+    image = cv2.resize(image, (n_cols, n_rows))
+    logits = session.run(model_logits_position, { model_input: [image], model_keep_prob: 1.0 })[0]
+    return logits
+
   def run(self, image, display_image):
     #pdb.set_trace()
     image = cv2.resize(image, (n_cols, n_rows))
@@ -327,7 +332,8 @@ class Predict:
     pos = ndimage.measurements.center_of_mass(logits)
 
     translated_pos = utils.translate_point(image, display_image, (int(pos[0]), int(pos[1])))
-    #print("translated_pos: {0}".format(translated_pos))
+
+    print("translated_pos: {0} sum: {1}".format(translated_pos, np.sum(logits)))
 
     def draw_target(display_image, pos):
       fill = -1
