@@ -118,14 +118,14 @@ assert ind2cat(0) == categories[0]
 
 def action2one_hot(action):
   one_hots = np.zeros((n_actions))
-  one_hots[action_to_one_hot_index(action)]
+  one_hots[action_to_one_hot_index(action)] = 1
   return one_hots
 
 def actions2one_hots(actions):
   return [action2one_hot(action) for action in actions]
 
 def batch_of_actions2one_hots(batches_of_actions):
-  return [actions2one_hots(actions) for actions in batches_of_actions]
+  return np.array([actions2one_hots(actions) for actions in batches_of_actions])
   
 def cats2inds(categories):
   indexes = []
@@ -224,6 +224,7 @@ def tf_add_conv(inputs, filters, kernel_size=[5,5], include_pool=True):
   return layer
 
 model_input = tf.placeholder(tf.float32, shape=(None, n_files, n_rows, n_cols), name='model_input')
+model_batch_size = tf.placeholder(tf.int32, [], name='batch_size')
 model_keep_prob = tf.Variable(0.50, dtype=tf.float32)
 
 def Model3D(model_input):
@@ -241,7 +242,8 @@ def Model3D(model_input):
     return tf.contrib.rnn.BasicLSTMCell(cell_state_size)
   
   model_rnn_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell() for _ in range(rnn_cell_depth)])
-  model_initial_state = model_rnn_cell.zero_state(batch_size, tf.float32) 
+  #model_initial_state = model_rnn_cell.zero_state(model_batch_size, tf.float32) 
+  model_initial_state = model_rnn_cell.zero_state(model_batch_size, tf.float32) 
   model_rnn_outputs, model_rnn_state = tf.nn.static_rnn(model_rnn_cell, rnn_inputs, model_initial_state)
   model_logits = [tf.layers.dense(rnn_output, len(actions)) for rnn_output in model_rnn_outputs]
 
@@ -336,14 +338,13 @@ if __name__ == "__main__":
     for epoch in range(nb_epochs):
       n_batches = nb_train_samples // batch_size
 
-      pdb.set_trace()
       for batch_no in range(n_batches):
         start = batch_no * batch_size
         end = start + batch_size
         batch_input = X_train[start:end]
         batch_output = batch_of_actions2one_hots(Y_train[start:end])
 
-        loss, _ = session.run([model_loss, model_train_op], { model_input: batch_input, model_output: batch_output })
+        loss, _ = session.run([model_loss, model_train_op], { model_batch_size: batch_size, model_input: batch_input, model_output: batch_output })
         print("Train Loss {0}".format(loss))
      
       ''' 
@@ -353,7 +354,7 @@ if __name__ == "__main__":
       print("Epoch {0} Validation Accuracy: {1} Loss {2}".format(epoch, accuracy, loss))
       '''
 
-      labels, loss= session.run([model_output, model_loss], { model_input: X_validation, model_output: batch_of_actions2one_hots(Y_validation), model_keep_prob: 1.0 })
+      labels, loss= session.run([model_output, model_loss], { model_batch_size: X_validation.shape[0], model_input: X_validation, model_output: batch_of_actions2one_hots(Y_validation), model_keep_prob: 1.0 })
       print("Epoch {0} loss {1}".format(epoch, loss))
       #  accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
       #  print("Epoch {0} Batch Accuracy: {1}".format(epoch, accuracy))
