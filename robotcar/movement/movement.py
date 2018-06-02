@@ -52,10 +52,15 @@ n_actions = len(actions)
 # number of actions to be generated
 cell_state_size = 128
 rnn_cell_depth = 3
-n_len = 5
+#n_len = 5
+n_len = 1
 n_scale = 5
 n_rows = int(480 / n_scale)
 n_cols = int(640 / n_scale)
+
+def softmax(x):
+  e_x = np.exp(x - np.max(x))
+  return e_x / e_x.sum()
 
 def get_prefix_fn(filename):
   return filename[:filename.find('-')]
@@ -94,7 +99,10 @@ categories = ['forward', 'backward', 'left', 'right', 'stop']
 def get_actions(files, batch_no):
   file = files[batch_no]
   actions = file[:file.find('_')]
-  return actions
+  if n_len == 1:
+    return actions[1]
+  else:
+    return actions
 
 def set_actions(files, directions, batch_no):
   actions = get_actions(files, batch_no)
@@ -166,7 +174,6 @@ def load_test_data():
 
   # take N images in a row and make them each a channel in a single
   images = []
-  pdb.set_trace()
   directions = []
   for i in range(len(files)):
     image_sequence = get_image_sequence(data_dir, files, i)
@@ -242,8 +249,6 @@ def Model3D(model_input):
   model_rnn_outputs, model_rnn_state = tf.nn.static_rnn(model_rnn_cell, rnn_inputs, model_initial_state)
   model_logits = [tf.layers.dense(rnn_output, len(actions)) for rnn_output in model_rnn_outputs]
 
-  #model_probs = tf.nn.softmax(model_logits)
-
   return model_logits
 
 model_logits = Model3D(model_input)
@@ -256,9 +261,10 @@ def loss():
   losses = []
   for i in range(n_len):
     losses.append(tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=outputs[i], logits=model_logits[i])))
-  return tf.reduce_mean(losses)
+  loss = tf.reduce_mean(losses)
+  return loss, losses
 
-model_loss = loss()
+model_loss, model_losses = loss()
 
 def predict():
   predicts = []
@@ -346,25 +352,41 @@ if __name__ == "__main__":
         end = start + batch_size
         batch_input = X_train[start:end]
         batch_output = batch_of_actions2one_hots(Y_train[start:end])
-
         loss, _ = session.run([model_loss, model_train_op], { model_batch_size: batch_size, model_input: batch_input, model_output: batch_output })
+        '''
+        loss, _, predict_, logits_ = session.run([model_loss, model_train_op, model_predict, model_logits], { model_batch_size: batch_size, model_input: batch_input, model_output: batch_output })
+        if epoch == 1000:
+          predict_1 = predict_
+          logits_1 = logits_
+          logits_p_1 = (np.array([softmax(l) for l in logits_1[0]])*100).astype(int)
+          loss_1 = loss
+        if epoch == nb_epochs-1:
+          predict_end = predict_
+          logits_end = logits_
+          logits_p_end = (np.array([softmax(l) for l in logits_[0]])*100).astype(int)
+          loss_end = loss
+          pdb.set_trace()
+          pdb.set_trace()
+        '''
         print("Train Loss {0}".format(loss))
-    
+      '''    
       predictions = session.run(model_predict, { model_batch_size: X_validation.shape[0], model_input: X_validation, model_output: batch_of_actions2one_hots(Y_validation), model_keep_prob: 1.0 })
       predictions = np.array(predictions).transpose()
       predictions = batch_indexes2actions(predictions)
       right = len([True for (label, prediction) in zip(Y_validation, predictions) if label == prediction])
       accuracy = float(right) / float(len(predictions)) 
       print("Epoch {0} Validation Accuracy: {1} Loss {2}".format(epoch, accuracy, loss))
+      print("      tests {0} predictions: {1}".format(Y_validation, predictions))
+      '''
 
   if args.test:
     X_test, Y_test = load_test_data()
-    pdb.set_trace()
     predictions = session.run(model_predict, { model_batch_size: X_test.shape[0], model_input: X_test, model_output: batch_of_actions2one_hots(Y_test), model_keep_prob: 1.0 })
     predictions = np.array(predictions).transpose()
     predictions = batch_indexes2actions(predictions)
     right = len([True for (label, prediction) in zip(Y_test, predictions) if label == prediction])
     accuracy = float(right) / float(len(predictions)) 
+    print("test: {0} predictions: {1}".format(Y_test, predictions))
     print("Test Accuracy: {0}".format(accuracy))
 
   saver.save(session, model_filename)
