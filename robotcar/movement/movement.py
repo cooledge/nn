@@ -106,15 +106,19 @@ def get_image_sequence(data_dir, files, i):
     images = [load_image(data_dir, files[i+j]) for j in range(n_files)]
     return images
 
-def cat2ind(category):
-  return categories.index(category)
+def index2action(index):
+  return actions[index]
 
-assert cat2ind(categories[0]) == 0
+for index in range(len(actions)):
+  assert index2action(index) == actions[action_to_one_hot_index(actions[index])]
+ 
+def indexes2actions(indexes):
+  return ''.join([index2action(index) for index in indexes])
 
-def ind2cat(index):
-  return categories[index]
+assert indexes2actions([0,1,2,3,4]) == 'fblrs'
 
-assert ind2cat(0) == categories[0]
+def batch_indexes2actions(batches):
+  return [indexes2actions(batch) for batch in batches]
 
 def action2one_hot(action):
   one_hots = np.zeros((n_actions))
@@ -127,14 +131,6 @@ def actions2one_hots(actions):
 def batch_of_actions2one_hots(batches_of_actions):
   return np.array([actions2one_hots(actions) for actions in batches_of_actions])
   
-def cats2inds(categories):
-  indexes = []
-  for category in categories:
-    indexes.append(cat2ind(category))
-  return indexes
-
-assert cats2inds(categories) == [0,1,2,3,4]
-
 data_dir = './data'
 percent_test = 0.1
 
@@ -170,14 +166,15 @@ def load_test_data():
 
   # take N images in a row and make them each a channel in a single
   images = []
-  directions = np.zeros((len(files), n_len, n_actions))
+  pdb.set_trace()
+  directions = []
   for i in range(len(files)):
     image_sequence = get_image_sequence(data_dir, files, i)
     if image_sequence:
       images.append(image_sequence)
-      set_actions(files, directions, i)
+      directions.append(get_actions(files, i))
 
-  return images, directions
+  return np.array(images), np.array(directions)
 
 def load_training_data():
   files = training_files
@@ -193,12 +190,10 @@ def load_training_data():
 
   indexes = [i for i in range(len(images))]
   random.shuffle(indexes)
-  
   simages = [images[indexes[i]] for i in range(len(images))]
-  sdirections = [directions[indexes[i]] for i in range(len(directions))] 
-
+  #sdirections = [directions[indexes[i]] for i in range(len(directions))] 
   images = simages
-  directions = sdirections
+  #directions = sdirections
 
   split_at = int(len(images)*0.9)
   X_train = np.array(images[:split_at])
@@ -264,6 +259,14 @@ def loss():
   return tf.reduce_mean(losses)
 
 model_loss = loss()
+
+def predict():
+  predicts = []
+  for i in range(n_len):
+    predicts.append(tf.argmax(tf.nn.softmax(model_logits[i]), axis=1))
+  return predicts
+
+model_predict = predict()
 
 model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op = model_optimizer.minimize(model_loss)
@@ -346,45 +349,23 @@ if __name__ == "__main__":
 
         loss, _ = session.run([model_loss, model_train_op], { model_batch_size: batch_size, model_input: batch_input, model_output: batch_output })
         print("Train Loss {0}".format(loss))
-     
-      ''' 
-      labels, predictions = session.run([model_output, model_predict], { model_input: X_validation, model_output: cats2inds(Y_validation), model_keep_prob: 1.0 })
-      right = len([True for (label, prediction) in zip(labels, predictions) if label == prediction])
+    
+      predictions = session.run(model_predict, { model_batch_size: X_validation.shape[0], model_input: X_validation, model_output: batch_of_actions2one_hots(Y_validation), model_keep_prob: 1.0 })
+      predictions = np.array(predictions).transpose()
+      predictions = batch_indexes2actions(predictions)
+      right = len([True for (label, prediction) in zip(Y_validation, predictions) if label == prediction])
       accuracy = float(right) / float(len(predictions)) 
       print("Epoch {0} Validation Accuracy: {1} Loss {2}".format(epoch, accuracy, loss))
-      '''
-
-      labels, loss= session.run([model_output, model_loss], { model_batch_size: X_validation.shape[0], model_input: X_validation, model_output: batch_of_actions2one_hots(Y_validation), model_keep_prob: 1.0 })
-      print("Epoch {0} loss {1}".format(epoch, loss))
-      #  accuracy = session.run(model_accuracy, { model_input: X_train, model_output: cats2inds(Y_train) })
-      #  print("Epoch {0} Batch Accuracy: {1}".format(epoch, accuracy))
 
   if args.test:
     X_test, Y_test = load_test_data()
-    labels, predictions = session.run([model_output, model_predict], { model_input: X_test, model_output: cats2inds(Y_test), model_keep_prob: 1.0 })
-    right = len([True for (label, prediction) in zip(labels, predictions) if label == prediction])
-    category_to_right = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0 }
-    category_to_other = {}
-    category_to_total = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0 }
-    for label, prediction in zip(labels, predictions):
-      if label == prediction:
-        category_to_right[label] += 1
-      if not label in category_to_other:
-        category_to_other[label] = {}
-      ci = category_to_other[label]
-      if not prediction in ci:
-        ci[prediction] = 0
-      ci[prediction] += 1
-       
-      category_to_total[label] += 1
-
+    pdb.set_trace()
+    predictions = session.run(model_predict, { model_batch_size: X_test.shape[0], model_input: X_test, model_output: batch_of_actions2one_hots(Y_test), model_keep_prob: 1.0 })
+    predictions = np.array(predictions).transpose()
+    predictions = batch_indexes2actions(predictions)
+    right = len([True for (label, prediction) in zip(Y_test, predictions) if label == prediction])
     accuracy = float(right) / float(len(predictions)) 
     print("Test Accuracy: {0}".format(accuracy))
-    for category in range(len(categories)):
-      print("\t{0} -> {1}".format(categories[category], category_to_right[category]/category_to_total[category]))
-      cto = category_to_other[category]
-      for key in cto.keys():
-        print("\t\t{0} -> {1}".format(categories[key], cto[key]))
 
   saver.save(session, model_filename)
 
