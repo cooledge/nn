@@ -52,8 +52,8 @@ n_actions = len(actions)
 # number of actions to be generated
 cell_state_size = 128
 rnn_cell_depth = 3
-#n_len = 5
-n_len = 1
+n_len = 5
+#n_len = 1
 n_scale = 5
 n_rows = int(480 / n_scale)
 n_cols = int(640 / n_scale)
@@ -237,9 +237,11 @@ def Model3D(model_input):
   layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[4,4,4], strides=2, padding='same')
   layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf.layers.flatten(layer)
-  layer = tf.layers.dense(layer, n_len, activation=tf.nn.relu)
+  n_width = 50
+  n_transition = n_len * n_width
+  layer = tf.layers.dense(layer, n_transition, activation=tf.nn.relu)
 
-  rnn_inputs = tf.split(layer, n_len, 1)
+  rnn_inputs = tf.split(layer, n_len, axis=1)
   def lstm_cell():
     return tf.contrib.rnn.BasicLSTMCell(cell_state_size)
   
@@ -337,6 +339,14 @@ if __name__ == "__main__":
 
   X_train, Y_train, X_validation, Y_validation = load_training_data()
 
+  def get_accuracy(X, Y): 
+    predictions = session.run(model_predict, { model_batch_size: X.shape[0], model_input: X, model_output: batch_of_actions2one_hots(Y), model_keep_prob: 1.0 })
+    predictions = np.array(predictions).transpose()
+    predictions = batch_indexes2actions(predictions)
+    right = len([True for (label, prediction) in zip(Y, predictions) if label == prediction])
+    accuracy = float(right) / float(len(predictions)) 
+    return accuracy, predictions
+
   if args.train:
     nb_train_samples, img_channels, n_rows, n_cols = X_train.shape
     nb_validation_samples = X_validation.shape[0]
@@ -369,15 +379,13 @@ if __name__ == "__main__":
           pdb.set_trace()
         '''
         print("Train Loss {0}".format(loss))
-      '''    
-      predictions = session.run(model_predict, { model_batch_size: X_validation.shape[0], model_input: X_validation, model_output: batch_of_actions2one_hots(Y_validation), model_keep_prob: 1.0 })
-      predictions = np.array(predictions).transpose()
-      predictions = batch_indexes2actions(predictions)
-      right = len([True for (label, prediction) in zip(Y_validation, predictions) if label == prediction])
-      accuracy = float(right) / float(len(predictions)) 
+   
+      #accuracy, predictions = get_accuracy(X_validation, Y_validation)
+      accuracy, predictions = get_accuracy(X_train[0:8], Y_train[0:8])
       print("Epoch {0} Validation Accuracy: {1} Loss {2}".format(epoch, accuracy, loss))
-      print("      tests {0} predictions: {1}".format(Y_validation, predictions))
-      '''
+      #print("      tests {0}\n      predictions: {1}".format(Y_validation, predictions))
+      print("      tests {0} predictions: {1}".format(Y_train, predictions))
+     
 
   if args.test:
     X_test, Y_test = load_test_data()
