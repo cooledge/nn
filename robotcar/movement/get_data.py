@@ -68,7 +68,7 @@ atexit.register(cleanup)
 # since there is a setup lag
 td.get_frame()
 
-seq_len = 10
+seq_len = 5
 def get_actions():
   return ''.join([random.choice('fblrs') for _ in range(seq_len)])
 
@@ -90,7 +90,7 @@ if td.isOpened():
     ret, after_frame = td.get_frame()
     error_check(ret)
 
-    pdb.set_trace()
+    #pdb.set_trace()
     if args.show:
       cv2.imshow('before', before_frame)
       cv2.imshow('after', after_frame)
@@ -98,15 +98,13 @@ if td.isOpened():
     images.append((before_frame, after_frame, actions))
 
 print("Writing {0} files".format(len(images)))
-counter = 0
 timestr = time.strftime("%Y%m%d%H%M%S")
 for before, after, actions in images:
-  def wf(code, image):
-    filename = "{0}/{1}_{2}_{3}-{4}.jpg".format(data_dir, actions, code, timestr, counter)
+  def wf(counter, image):
+    filename = "{0}/{1}_{2}-{3}.jpg".format(data_dir, actions, timestr, counter)
     cv2.imwrite(filename, image)
   wf('1', before)
   wf('2', after)
-  counter += 1
 
 '''
 filespec = "{0}/{1}{2}*.jpg".format(data_dir, prefix, timestr, counter)
