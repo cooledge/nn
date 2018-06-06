@@ -45,6 +45,7 @@ model_filename = model_dir + "/model"
 
 actions = ['f', 'b', 'l', 'r', 's']
 
+
 def action_to_one_hot_index(action):
   return actions.index(action)
 
@@ -57,6 +58,14 @@ n_len = 5
 n_scale = 5
 n_rows = int(480 / n_scale)
 n_cols = int(640 / n_scale)
+
+def actions_to_canonical(actions):
+  moves = [action for action in actions if action != 's']
+  return moves + 's'*(len(moves)-n_actions)
+    
+pdb.set_trace()
+assert actions_to_canonical('fsfls') == 'fflss'
+pdb.set_trace()
 
 def softmax(x):
   e_x = np.exp(x - np.max(x))
