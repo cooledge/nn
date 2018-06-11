@@ -304,8 +304,21 @@ def accuracy(fn, X, Y_position):
   logits = np.array(logits)
   predictions = []
   for i in range(logits.shape[0]):
-    pos = ndimage.measurements.center_of_mass(logits[i])
-    predictions.append((pos[1], pos[0]))
+    #pdb.set_trace()
+    row, col = ndimage.measurements.center_of_mass(logits[i])
+    '''
+    display_logits = np.array(logits[i])
+    for r in range(display_logits.shape[0]):
+      for c in range(display_logits.shape[1]):
+        if display_logits[r][c] > 0:
+          display_logits[r][c] = 255
+
+    pdb.set_trace()
+    utils.si(display_logits, "display_logits")
+    utils.si(X[i], 'input')
+    '''
+
+    predictions.append((row, col))
   print("filename {0} position {1}".format(fn[0], predictions[0]))
   #pdb.set_trace()
   labels = Y_position
@@ -329,19 +342,19 @@ class Predict:
     image = cv2.resize(image, (n_cols, n_rows))
 
     logits = session.run(model_logits_position, { model_input: [image], model_keep_prob: 1.0 })[0]
-    pos = ndimage.measurements.center_of_mass(logits)
+    row, col = ndimage.measurements.center_of_mass(logits)
 
-    translated_pos = utils.translate_point(image, display_image, (int(pos[0]), int(pos[1])))
+    translated_row, translated_col = utils.translate_point(image, display_image, (int(row), int(col)))
 
-    print("translated_pos: {0} sum: {1}".format(translated_pos, np.sum(logits)))
+    print("translated_pos: {0} sum: {1}".format((translated_row, translated_col), np.sum(logits)))
 
-    def draw_target(display_image, pos):
+    def draw_target(display_image, row, col):
       fill = -1
       for diameter in [5,10,15,20,25]:
-        cv2.circle(display_image, pos, diameter, (0,0,0), fill)
+        cv2.circle(display_image, (col, row), diameter, (0,0,0), fill)
         fill = 1
 
-    draw_target(display_image, translated_pos)
+    draw_target(display_image, translated_row, translated_col)
 
     #pdb.set_trace()
     #utils.si(display_image)
@@ -349,7 +362,7 @@ class Predict:
     #si(image)
     #pdb.set_trace()
 
-    return "({0}, {0})".format(pos[0], pos[1])
+    return "({0}, {0})".format(col, row)
 
 saver = tf.train.Saver()
 
@@ -402,7 +415,7 @@ if __name__ == "__main__":
           batch_output_radius.append(one_hot)
 
         batch_output_position = []
-        for (col, row) in Y_train_position[start:end]:
+        for (row, col) in Y_train_position[start:end]:
           #one_hot = np.zeros((n_rows, n_cols))
           #one_hot[int(row)][int(col)] = 1
           field = label_to_normal_field(row, col)
