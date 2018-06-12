@@ -34,6 +34,11 @@ target_predict = Target_Predict()
 def image_to_logits(image):
   return target_predict.logits(image)
 
+def image_to_target(image):
+  decorated = np.array(image)
+  target_predict.run(image, decorated)
+  return decorated
+
 #batch_size = 64
 batch_size = 8
 model_dir = os.path.dirname(os.path.abspath(__file__)) + "/model"
@@ -61,11 +66,26 @@ n_cols = int(640 / n_scale)
 
 def actions_to_canonical(actions):
   moves = [action for action in actions if action != 's']
-  return moves + 's'*(len(moves)-n_actions)
-    
-pdb.set_trace()
+  reduced = []
+  n_moves = len(moves)
+  i = 0
+  while i < n_moves-1:
+    if moves[i] == 'f' and moves[i+1] == 'b':
+      i += 2
+    elif moves[i] == 'b' and moves[i+1] == 'f':
+      i += 2
+    else:
+      reduced.append(moves[i])
+      i += 1
+  if i < n_moves:
+    reduced.append(moves[i])
+
+  return ''.join(reduced) + 's'*(n_actions-len(reduced))
+
+assert actions_to_canonical('blsbf') == 'blsss'
+assert actions_to_canonical('bffss') == 'fssss'
 assert actions_to_canonical('fsfls') == 'fflss'
-pdb.set_trace()
+assert actions_to_canonical('fbfls') == 'flsss'
 
 def softmax(x):
   e_x = np.exp(x - np.max(x))
@@ -96,18 +116,34 @@ def get_counter(files, i):
   filename = files[i]
   return get_counter_fn(filename)
 
-def si(image):
-  cv2.imshow("", image)
+def si(image, title=""):
+  cv2.imshow(title, image)
   cv2.waitKey(1)
 
 def load_image(data_dir, filename):
-  return image_to_logits(utils.load_image(data_dir, filename, n_rows, n_cols))
+  image = utils.load_image(data_dir, filename, n_rows, n_cols)
+  logits = image_to_logits(image)
+  '''
+  show_logits = np.array(logits)
+  for r in range(show_logits.shape[0]):
+    for c in range(show_logits.shape[1]):
+      if logits[r][c] > 0.0:
+        show_logits[r][c] = 255*logits[r][c]
+
+  # 'bsfrf_20180605061616-1.jpg'
+  si(image_to_target(image), "target")
+  si(image, "image")
+  si(show_logits, "logits")
+  pdb.set_trace()
+  '''
+  return logits
 
 categories = ['forward', 'backward', 'left', 'right', 'stop']
 
 def get_actions(files, batch_no):
   file = files[batch_no]
   actions = file[:file.find('_')]
+  actions = actions_to_canonical(actions)
   if n_len == 1:
     return actions[1]
   else:
@@ -365,12 +401,17 @@ if __name__ == "__main__":
 
     for epoch in range(nb_epochs):
       n_batches = nb_train_samples // batch_size
+      indexes = list(range(nb_train_samples))
+      random.shuffle(indexes)
+
+      def select(elements, indexes, start, end):
+        return [elements[indexes[i]] for i in range(start, end)] 
 
       for batch_no in range(n_batches):
         start = batch_no * batch_size
         end = start + batch_size
-        batch_input = X_train[start:end]
-        batch_output = batch_of_actions2one_hots(Y_train[start:end])
+        batch_input = select(X_train, indexes, start, end)
+        batch_output = batch_of_actions2one_hots(select(Y_train, indexes, start, end))
         loss, _ = session.run([model_loss, model_train_op], { model_batch_size: batch_size, model_input: batch_input, model_output: batch_output })
         '''
         loss, _, predict_, logits_ = session.run([model_loss, model_train_op, model_predict, model_logits], { model_batch_size: batch_size, model_input: batch_input, model_output: batch_output })
@@ -384,16 +425,14 @@ if __name__ == "__main__":
           logits_end = logits_
           logits_p_end = (np.array([softmax(l) for l in logits_[0]])*100).astype(int)
           loss_end = loss
-          pdb.set_trace()
-          pdb.set_trace()
         '''
-        print("Train Loss {0}".format(loss))
+        #print("Train Loss {0}".format(loss))
    
-      #accuracy, predictions = get_accuracy(X_validation, Y_validation)
-      accuracy, predictions = get_accuracy(X_train[0:8], Y_train[0:8])
-      print("Epoch {0} Validation Accuracy: {1} Loss {2}".format(epoch, accuracy, loss))
+      accuracy, predictions = get_accuracy(X_validation, Y_validation)
+      accuracy_train, predictions_train = get_accuracy(X_train[0:32], Y_train[0:32])
+      print("Epoch {0} Validation Accuracy: {1} Train Accuracy {2} Loss {3}".format(epoch, accuracy, accuracy_train, loss))
       #print("      tests {0}\n      predictions: {1}".format(Y_validation, predictions))
-      print("      tests {0} predictions: {1}".format(Y_train, predictions))
+      #print("      tests {0} predictions: {1}".format(Y_train, predictions))
      
 
   if args.test:
@@ -403,7 +442,10 @@ if __name__ == "__main__":
     predictions = batch_indexes2actions(predictions)
     right = len([True for (label, prediction) in zip(Y_test, predictions) if label == prediction])
     accuracy = float(right) / float(len(predictions)) 
-    print("test: {0} predictions: {1}".format(Y_test, predictions))
+    print("Test/Predictions")
+    for t, p in zip(Y_test, predictions):
+      print("{0}\n{1}\n".format(t, p))
+    #print("test/predictions: {0}".format(zip(Y_test, predictions)))
     print("Test Accuracy: {0}".format(accuracy))
 
   saver.save(session, model_filename)
