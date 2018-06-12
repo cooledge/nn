@@ -28,6 +28,7 @@ with target_graph.as_default():
 parent_dir = os.path.dirname(os.path.abspath(__file__)) + "/.."
 sys.path.append(parent_dir)
 import utils
+import params
 
 target_predict = Target_Predict()
 
@@ -58,7 +59,7 @@ n_actions = len(actions)
 # number of actions to be generated
 cell_state_size = 128
 rnn_cell_depth = 3
-n_len = 5
+n_len = params.N_ACTIONS
 #n_len = 1
 n_scale = 5
 n_rows = int(480 / n_scale)

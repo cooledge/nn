@@ -10,6 +10,7 @@ import socket
 import argparse
 import atexit
 from flask import Flask
+import params
 
 parent_dir = os.path.dirname(os.path.abspath(__file__)) + "/.."
 sys.path.append(parent_dir)
@@ -68,7 +69,7 @@ atexit.register(cleanup)
 # since there is a setup lag
 td.get_frame()
 
-seq_len = 5
+seq_len = params.N_ACTIONS
 def get_actions():
   return ''.join([random.choice('fblrs') for _ in range(seq_len)])
 
@@ -83,7 +84,7 @@ if td.isOpened():
     error_check(ret)
 
     actions = get_actions()
-    robotcar.move(actions)
+    robotcar.move(actions, params.ACTION_DURATION)
     robotcar.stop()
     time.sleep(0.5)
        
