@@ -15,6 +15,12 @@ import params
 parent_dir = os.path.dirname(os.path.abspath(__file__)) + "/.."
 sys.path.append(parent_dir)
 
+def inverse(actions):
+  map = {'f': 'b', 'b': 'f', 'l': 'r', 'r': 'l', 's':'s'}
+  return ''.join([map[action] for action in actions])[::-1]
+
+assert inverse('fblrs') == 'slrfb'
+
 if socket.gethostname() == 'robotcar':
   from robotcar_hardware import RobotCar_Hardware as RobotCar
 else:
@@ -86,12 +92,14 @@ if td.isOpened():
     actions = get_actions()
     robotcar.move(actions, params.ACTION_DURATION)
     robotcar.stop()
-    time.sleep(0.5)
+    time.sleep(params.ACTION_DURATION)
        
     ret, after_frame = td.get_frame()
     error_check(ret)
 
-    #pdb.set_trace()
+    # back to start
+    robotcar.move(inverse(actions), params.ACTION_DURATION)
+
     if args.show:
       cv2.imshow('before', before_frame)
       cv2.imshow('after', after_frame)
