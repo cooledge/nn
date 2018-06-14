@@ -15,6 +15,15 @@ SER1, SER2, SER3, SER4, SER7, SER8 = [11, 8, 7, 5, 6, 12]
 
 class RobotCar_Hardware(RobotCar):
 
+  # scale the time so the inverse directions
+  # go the same distance. I got this by putting
+  # that car in a spot and doing fb or lr and 
+  # making sure it went back to the start
+  # position
+  def compensation(self):
+    # fblrs
+    return [1.0, 1.0, 1.05, 1.0, 1.0]
+
   def __init__(self):
     self.cap = None
 
@@ -158,8 +167,9 @@ class RobotCar_Hardware(RobotCar):
 
 
 if __name__ == '__main__':
+  pdb.set_trace()
   rc = RobotCar_Hardware()
-  rc.move("bbrrbbs", 0.05)
+  rc.move("lr", 0.1)
   rc.stop()
   '''
   pdb.set_trace()
