@@ -90,15 +90,17 @@ if td.isOpened():
     error_check(ret)
 
     actions = get_actions()
+    print(actions)
     robotcar.move(actions, params.ACTION_DURATION)
     robotcar.stop()
-    time.sleep(params.ACTION_DURATION)
+    time.sleep(0.5)
        
     ret, after_frame = td.get_frame()
     error_check(ret)
 
     # back to start
     robotcar.move(inverse(actions), params.ACTION_DURATION)
+    robotcar.stop()
 
     if args.show:
       cv2.imshow('before', before_frame)
@@ -106,7 +108,7 @@ if td.isOpened():
 
     images.append((before_frame, after_frame, actions))
 
-print("Writing {0} files".format(len(images)))
+print("Writing {0} example".format(len(images)))
 timestr = time.strftime("%Y%m%d%H%M%S")
 for before, after, actions in images:
   def wf(counter, image):
