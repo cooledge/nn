@@ -66,6 +66,7 @@ n_rows = int(480 / n_scale)
 n_cols = int(640 / n_scale)
 
 def actions_to_canonical(actions):
+  n_actions = len(actions)
   moves = [action for action in actions if action != 's']
   reduced = []
   n_moves = len(moves)
@@ -78,11 +79,13 @@ def actions_to_canonical(actions):
     else:
       reduced.append(moves[i])
       i += 1
+
   if i < n_moves:
     reduced.append(moves[i])
 
   return ''.join(reduced) + 's'*(n_actions-len(reduced))
 
+assert actions_to_canonical('bls') == 'bls'
 assert actions_to_canonical('blsbf') == 'blsss'
 assert actions_to_canonical('bffss') == 'fssss'
 assert actions_to_canonical('fsfls') == 'fflss'
@@ -161,7 +164,7 @@ def get_image_sequence(data_dir, files, i):
     return images
 
 def index2action(index):
-  return actions[index]
+  return actions[int(index)]
 
 for index in range(len(actions)):
   assert index2action(index) == actions[action_to_one_hot_index(actions[index])]
@@ -277,6 +280,7 @@ model_keep_prob = tf.Variable(0.50, dtype=tf.float32)
 
 def Model3D(model_input):
   layer = tf.reshape(model_input, (-1, n_files, n_rows, n_cols, 1))
+  
   layer = tf.layers.conv3d(inputs=layer, filters=nb_filters, kernel_size=n_files, padding='same', activation=tf.nn.relu)
   layer = tf.layers.conv3d(inputs=layer, filters=nb_filters, kernel_size=n_files, padding='same', activation=tf.nn.relu)
   layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[4,2,2], strides=2, padding='same')
@@ -287,7 +291,11 @@ def Model3D(model_input):
   n_transition = n_len * n_width
   layer = tf.layers.dense(layer, n_transition, activation=tf.nn.relu)
 
+  # try1
   rnn_inputs = tf.split(layer, n_len, axis=1)
+  pdb.set_trace() 
+  rnn_inputs = [layer for _ in range(n_len)]
+
   def lstm_cell():
     return tf.contrib.rnn.BasicLSTMCell(cell_state_size)
   
@@ -386,8 +394,16 @@ if __name__ == "__main__":
   X_train, Y_train, X_validation, Y_validation = load_training_data()
 
   def get_accuracy(X, Y): 
-    predictions = session.run(model_predict, { model_batch_size: X.shape[0], model_input: X, model_output: batch_of_actions2one_hots(Y), model_keep_prob: 1.0 })
-    predictions = np.array(predictions).transpose()
+    n_batch_size = 32
+    n_batches = int(X.shape[0] / n_batch_size)
+    predictions = np.zeros((n_batches*n_batch_size, n_len))
+    for i in range(n_batches):
+      start = i*n_batch_size
+      end = start + n_batch_size
+      batch_predictions = session.run(model_predict, { model_batch_size: n_batch_size, model_input: X[start:end], model_output: batch_of_actions2one_hots(Y)[start:end], model_keep_prob: 1.0 })
+      batch_predictions = np.array(batch_predictions).transpose()
+      for j in range(n_batch_size):
+        predictions[j+i*n_batch_size] = batch_predictions[j]
     predictions = batch_indexes2actions(predictions)
     right = len([True for (label, prediction) in zip(Y, predictions) if label == prediction])
     accuracy = float(right) / float(len(predictions)) 
@@ -434,8 +450,8 @@ if __name__ == "__main__":
       print("Epoch {0} Validation Accuracy: {1} Train Accuracy {2} Loss {3}".format(epoch, accuracy, accuracy_train, loss))
       #print("      tests {0}\n      predictions: {1}".format(Y_validation, predictions))
       #print("      tests {0} predictions: {1}".format(Y_train, predictions))
+      saver.save(session, model_filename)
      
-
   if args.test:
     X_test, Y_test = load_test_data()
     predictions = session.run(model_predict, { model_batch_size: X_test.shape[0], model_input: X_test, model_output: batch_of_actions2one_hots(Y_test), model_keep_prob: 1.0 })
@@ -449,5 +465,4 @@ if __name__ == "__main__":
     #print("test/predictions: {0}".format(zip(Y_test, predictions)))
     print("Test Accuracy: {0}".format(accuracy))
 
-  saver.save(session, model_filename)
 
