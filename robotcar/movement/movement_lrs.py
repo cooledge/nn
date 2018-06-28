@@ -17,8 +17,6 @@ from PIL import Image
 import argparse
 import glob
 import sys
-import matplotlib.pyplot as plt
-from itertools import product
 
 parent_dir = os.path.dirname(os.path.abspath(__file__)) + "/../target"
 sys.path.append(parent_dir)
@@ -53,6 +51,7 @@ model_filename = model_dir + "/model"
 
 actions = ['f', 'b', 'l', 'r', 's']
 
+
 def action_to_one_hot_index(action):
   return actions.index(action)
 
@@ -66,24 +65,17 @@ n_scale = 5
 n_rows = int(480 / n_scale)
 n_cols = int(640 / n_scale)
 
-'''
 def action_to_vector(action);
   return { "f": 0, "b": 0, "l": -1, "r": 1 }[action]
-'''
 
-elements = ['f', 'b', 'l', 'r']
-index_to_dir = ['s']
-for i in range(3):
-  index_to_dir += ["".join(str) for str in product(elements, repeat=i+1)]
-
-dir_to_index = {}
-for i, choice in enumerate(index_to_dir):
-  dir_to_index[choice] = i
-
-def ind2cat(ind):
-  return index_to_dir[ind]
-
-n_directions = len(dir_to_index)
+# actions to left right stop
+def actions_to_lrs(actions):
+  t = sum([action_to_vector(action) for action in actions])
+  if t < 0:
+    return 'l'
+  if t == 0:
+    return 's'
+  return 'r'
 
 def actions_to_canonical(actions):
   n_actions = len(actions)
@@ -103,13 +95,13 @@ def actions_to_canonical(actions):
   if i < n_moves:
     reduced.append(moves[i])
 
-  return ''.join(reduced)
+  return ''.join(reduced) + 's'*(n_actions-len(reduced))
 
-assert actions_to_canonical('bls') == 'bl'
-assert actions_to_canonical('blsbf') == 'bl'
-assert actions_to_canonical('bffss') == 'f'
-assert actions_to_canonical('fsfls') == 'ffl'
-assert actions_to_canonical('fbfls') == 'fl'
+assert actions_to_canonical('bls') == 'bls'
+assert actions_to_canonical('blsbf') == 'blsss'
+assert actions_to_canonical('bffss') == 'fssss'
+assert actions_to_canonical('fsfls') == 'fflss'
+assert actions_to_canonical('fbfls') == 'flsss'
 
 def softmax(x):
   e_x = np.exp(x - np.max(x))
@@ -168,43 +160,19 @@ def get_actions(files, batch_no):
   file = files[batch_no]
   actions = file[:file.find('_')]
   actions = actions_to_canonical(actions)
-  if actions == '':
-    actions = 's'
-  idx = dir_to_index[actions]
-  one_hots = np.zeros(n_directions)
-  one_hots[idx] = 1
-  return one_hots
+  if n_len == 1:
+    return actions[1]
+  else:
+    return actions
 
 def set_actions(files, directions, batch_no):
   actions = get_actions(files, batch_no)
   for action_no in range(n_len):
     directions[batch_no][action_to_one_hot_index(actions[action_no])] = 1
 
-def plot_figures(figures, nrows = 1, ncols=1):
-  """
-  Plot a dictionary of figures.
-
-  Parameters
-  ----------
-  figures : <title, figure> dictionary
-  ncols : number of columns of subplots wanted in the display
-  nrows : number of rows of subplots wanted in the figure
-  """
-  fig, axeslist = plt.subplots(ncols=ncols, nrows=nrows)
-  for ind,title in enumerate(figures):
-    axeslist.ravel()[ind].imshow(figures[title], cmap=plt.gray())
-    axeslist.ravel()[ind].set_title(title)
-    axeslist.ravel()[ind].set_axis_off()
-    plt.tight_layout() # optional
-  plt.show()
-
 def get_image_sequence(data_dir, files, i):
   if get_counter(files, i) == 1:
     images = [load_image(data_dir, files[i+j]) for j in range(n_files)]
-    
-    plot_figures({'a':images[0], 'b':images[1]}, 1, 2)
-    pdb.set_trace()
-   
     return images
 
 def index2action(index):
@@ -312,23 +280,10 @@ pool_size = (2, 2)
 kernel_size = (3, 3)
 # number of classes
 
-def tf_add_conv(layer, filters, kernel_size=[5,5], name=None, reuse=False, include_pool=True):
-  layer = tf.layers.conv2d(inputs=layer, filters=filters, kernel_size=kernel_size, padding='same', activation=tf.nn.relu, name=name, reuse=reuse)
+def tf_add_conv(inputs, filters, kernel_size=[5,5], include_pool=True):
+  layer = tf.layers.conv2d(inputs=inputs, filters=filters, kernel_size=kernel_size, padding='same', activation=tf.nn.relu)
   if include_pool:
     layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2,2], strides=2, padding='same')
-  return layer
-
-# get some shared features on the images with reuse
-def tf_add_conv_by_image(layer, n_filters, name, kernel_size=[5,5], include_pool=True):
-  layers = tf.split(layer, n_files, axis=1)
-  nps = layers[0].shape.as_list()
-  nps.remove(1)
-  layers = [tf.reshape(layer, (-1, nps[1], nps[2], nps[3])) for layer in layers]
-  layers = [tf_add_conv(layer, n_filters, name=name, kernel_size=kernel_size, reuse=(idx!=0), include_pool=include_pool) for idx, layer in enumerate(layers)]
-  n_rows = layers[0].shape[1]
-  n_cols = layers[0].shape[2]
-  layers = [tf.reshape(layer, (-1, 1, n_rows, n_cols, n_filters)) for layer in layers]
-  layer = tf.concat(layers, 1)
   return layer
 
 model_input = tf.placeholder(tf.float32, shape=(None, n_files, n_rows, n_cols), name='model_input')
@@ -337,36 +292,59 @@ model_keep_prob = tf.Variable(0.50, dtype=tf.float32)
 
 def Model3D(model_input):
   layer = tf.reshape(model_input, (-1, n_files, n_rows, n_cols, 1))
-
-  layer = tf_add_conv_by_image(layer, 64, 'layer1', kernel_size=[2,2], include_pool=False)
-  layer = tf_add_conv_by_image(layer, 64, 'layer2', kernel_size=[5,5])
-  #layer = tf_add_conv_by_image(layer, 32, 'layer2', include_pool=False)
-  #layer = tf_add_conv_by_image(layer, 64, 'layer3', include_pool=False)
- 
-  layer = tf.layers.conv3d(inputs=layer, filters=16, kernel_size=2, padding='same', activation=tf.nn.relu)
-  #layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[2,2,2], strides=2, padding='same')
-  #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  
+  layer = tf.layers.conv3d(inputs=layer, filters=nb_filters, kernel_size=n_files, padding='same', activation=tf.nn.relu)
+  layer = tf.layers.conv3d(inputs=layer, filters=nb_filters, kernel_size=n_files, padding='same', activation=tf.nn.relu)
+  layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[4,2,2], strides=2, padding='same')
+  layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[4,4,4], strides=2, padding='same')
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf.layers.flatten(layer)
-  #layer = tf.layers.dense(layer, 256, activation=tf.nn.relu)
-  layer = tf.layers.dense(layer, 128, activation=tf.nn.relu)
-  #layer = tf.layers.dense(layer, 64, activation=tf.nn.relu)
-  layer = tf.layers.dense(layer, n_directions, activation=tf.nn.relu)
- 
-  model_logits = layer
+  n_width = 50
+  n_transition = n_len * n_width
+  layer = tf.layers.dense(layer, n_transition, activation=tf.nn.relu)
+
+  # try1
+  rnn_inputs = tf.split(layer, n_len, axis=1)
+  pdb.set_trace() 
+  rnn_inputs = [layer for _ in range(n_len)]
+
+  def lstm_cell():
+    return tf.contrib.rnn.BasicLSTMCell(cell_state_size)
+  
+  model_rnn_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell() for _ in range(rnn_cell_depth)])
+  #model_initial_state = model_rnn_cell.zero_state(model_batch_size, tf.float32) 
+  model_initial_state = model_rnn_cell.zero_state(model_batch_size, tf.float32) 
+  model_rnn_outputs, model_rnn_state = tf.nn.static_rnn(model_rnn_cell, rnn_inputs, model_initial_state)
+  model_logits = [tf.layers.dense(rnn_output, len(actions)) for rnn_output in model_rnn_outputs]
+
   return model_logits
 
 model_logits = Model3D(model_input)
 #model_softmax = tf.nn.softmax(model_logits)
 #model_predict = tf.argmax(model_softmax, axis=1)
-model_outputs = tf.placeholder(tf.int32, shape=[None, n_directions], name="model_outputs")
+model_output = tf.placeholder(tf.int32, shape=[None, n_len, n_actions], name="model_output")
 
-model_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=model_outputs, logits=model_logits))
-#model_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=model_outputs, logits=tf.stop_gradient(model_logits)))
-model_predict = tf.nn.softmax(model_logits)
+def loss():
+  outputs = tf.split(model_output, n_len, axis=1)
+  losses = []
+  for i in range(n_len):
+    losses.append(tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=outputs[i], logits=model_logits[i])))
+  loss = tf.reduce_mean(losses)
+  return loss, losses
+
+model_loss, model_losses = loss()
+
+def predict():
+  predicts = []
+  for i in range(n_len):
+    predicts.append(tf.argmax(tf.nn.softmax(model_logits[i]), axis=1))
+  return predicts
+
+model_predict = predict()
 
 model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
 model_train_op = model_optimizer.minimize(model_loss)
-model_accuracy = tf.metrics.accuracy(model_outputs, model_predict)
+#model_accuracy = tf.metrics.accuracy(model_output, model_predict)
 
 session = tf.Session()
 session.run(tf.global_variables_initializer())
@@ -423,26 +401,25 @@ if __name__ == "__main__":
   if args.clean:
     os.system("rm {0}/*".format(model_dir))
 
-  n_epochs = args.epochs
+  nb_epochs = args.epochs
 
   X_train, Y_train, X_validation, Y_validation = load_training_data()
-
-  def one_hots_to_directions(one_hots):
-    return [index_to_dir[np.argmax(one_hot)] for one_hot in one_hots]
 
   def get_accuracy(X, Y): 
     n_batch_size = 32
     n_batches = int(X.shape[0] / n_batch_size)
-    predictions = []
+    predictions = np.zeros((n_batches*n_batch_size, n_len))
     for i in range(n_batches):
       start = i*n_batch_size
       end = start + n_batch_size
-      batch_predictions = session.run(model_predict, { model_batch_size: n_batch_size, model_input: X[start:end], model_outputs: Y[start:end], model_keep_prob: 1.0 })
-      predictions += one_hots_to_directions(batch_predictions)
-    labels = one_hots_to_directions(Y)
-    right = len([True for (label, prediction) in zip(labels, predictions) if label == prediction])
+      batch_predictions = session.run(model_predict, { model_batch_size: n_batch_size, model_input: X[start:end], model_output: batch_of_actions2one_hots(Y)[start:end], model_keep_prob: 1.0 })
+      batch_predictions = np.array(batch_predictions).transpose()
+      for j in range(n_batch_size):
+        predictions[j+i*n_batch_size] = batch_predictions[j]
+    predictions = batch_indexes2actions(predictions)
+    right = len([True for (label, prediction) in zip(Y, predictions) if label == prediction])
     accuracy = float(right) / float(len(predictions)) 
-    return accuracy, predictions, labels
+    return accuracy, predictions
 
   if args.train:
     nb_train_samples, img_channels, n_rows, n_cols = X_train.shape
@@ -451,7 +428,7 @@ if __name__ == "__main__":
     print(nb_train_samples, 'train samples')
     print(nb_validation_samples, 'validation samples')
 
-    for epoch in range(n_epochs):
+    for epoch in range(nb_epochs):
       n_batches = nb_train_samples // batch_size
       indexes = list(range(nb_train_samples))
       random.shuffle(indexes)
@@ -463,26 +440,25 @@ if __name__ == "__main__":
         start = batch_no * batch_size
         end = start + batch_size
         batch_input = select(X_train, indexes, start, end)
-        batch_output = select(Y_train, indexes, start, end)
-        #lds = session.run(layers_dude, { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
-        #ss = [ld.shape for ld in lds]
-        loss, _ = session.run([model_loss, model_train_op], { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
+        batch_output = batch_of_actions2one_hots(select(Y_train, indexes, start, end))
+        loss, _ = session.run([model_loss, model_train_op], { model_batch_size: batch_size, model_input: batch_input, model_output: batch_output })
         '''
-        loss, _, predict_, logits_ = session.run([model_loss, model_train_op, model_predict, model_logits], { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
+        loss, _, predict_, logits_ = session.run([model_loss, model_train_op, model_predict, model_logits], { model_batch_size: batch_size, model_input: batch_input, model_output: batch_output })
         if epoch == 1000:
           predict_1 = predict_
           logits_1 = logits_
           logits_p_1 = (np.array([softmax(l) for l in logits_1[0]])*100).astype(int)
           loss_1 = loss
-        if epoch == n_epochs-1:
+        if epoch == nb_epochs-1:
           predict_end = predict_
           logits_end = logits_
           logits_p_end = (np.array([softmax(l) for l in logits_[0]])*100).astype(int)
           loss_end = loss
         '''
         #print("Train Loss {0}".format(loss))
-      accuracy, predictions, _ = get_accuracy(X_validation, Y_validation)
-      accuracy_train, predictions_train, _ = get_accuracy(X_train[0:32], Y_train[0:32])
+   
+      accuracy, predictions = get_accuracy(X_validation, Y_validation)
+      accuracy_train, predictions_train = get_accuracy(X_train[0:32], Y_train[0:32])
       print("Epoch {0} Validation Accuracy: {1} Train Accuracy {2} Loss {3}".format(epoch, accuracy, accuracy_train, loss))
       #print("      tests {0}\n      predictions: {1}".format(Y_validation, predictions))
       #print("      tests {0} predictions: {1}".format(Y_train, predictions))
@@ -490,10 +466,14 @@ if __name__ == "__main__":
      
   if args.test:
     X_test, Y_test = load_test_data()
-    accuracy, predictions, labels = get_accuracy(X_test, Y_test)
+    predictions = session.run(model_predict, { model_batch_size: X_test.shape[0], model_input: X_test, model_output: batch_of_actions2one_hots(Y_test), model_keep_prob: 1.0 })
+    predictions = np.array(predictions).transpose()
+    predictions = batch_indexes2actions(predictions)
+    right = len([True for (label, prediction) in zip(Y_test, predictions) if label == prediction])
+    accuracy = float(right) / float(len(predictions)) 
     print("Test/Predictions")
-    for t, p in zip(labels, predictions):
-      print("{0}-{1}".format(t, p))
+    for t, p in zip(Y_test, predictions):
+      print("{0}\n{1}\n".format(t, p))
     #print("test/predictions: {0}".format(zip(Y_test, predictions)))
     print("Test Accuracy: {0}".format(accuracy))
 
