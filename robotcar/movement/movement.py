@@ -66,14 +66,12 @@ n_scale = 5
 n_rows = int(480 / n_scale)
 n_cols = int(640 / n_scale)
 
-'''
-def action_to_vector(action);
-  return { "f": 0, "b": 0, "l": -1, "r": 1 }[action]
-'''
-
-elements = ['f', 'b', 'l', 'r']
-index_to_dir = ['s']
-for i in range(3):
+elements = [action for action in params.ACTIONS if not action == 's']
+if 's' in params.ACTIONS:
+  index_to_dir = ['s']
+else:
+  index_to_dir = []
+for i in range(params.N_ACTIONS):
   index_to_dir += ["".join(str) for str in product(elements, repeat=i+1)]
 
 dir_to_index = {}
@@ -384,7 +382,7 @@ def Model3D(model_input):
   layer = tf.reshape(model_input, (-1, n_files, n_rows, n_cols, 1))
 
   layer = tf_add_conv_by_image(layer, 64, 'layer1', kernel_size=[2,2], include_pool=False)
-  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf_add_conv_by_image(layer, 64, 'layer2', kernel_size=[5,5])
   #layer = tf_add_conv_by_image(layer, 32, 'layer3', kernel_size=[5,5])
   #layer = tf_add_conv_by_image(layer, 32, 'layer2', include_pool=False)
@@ -399,10 +397,9 @@ def Model3D(model_input):
   #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf.layers.flatten(layer)
   #layer = tf.layers.dense(layer, 256, activation=tf.nn.relu)
-  layer = tf.layers.dense(layer, 128, activation=tf.nn.relu)
+  layer = tf.layers.dense(layer, 128)
   #layer = tf.layers.dense(layer, 64, activation=tf.nn.relu)
-  layer = tf.layers.dense(layer, n_directions, activation=tf.nn.relu)
- 
+  layer = tf.layers.dense(layer, n_directions)
   model_logits = layer
   return model_logits
 
@@ -445,7 +442,44 @@ def Model3D_3(model_input):
   model_logits = layer
   return model_logits
 
-model_logits = Model3D_CNN(model_input)
+def Model3D_LR(model_input):
+  layer = tf.reshape(model_input, (-1, n_files, n_rows, n_cols, 1))
+
+  layer = tf_add_conv_by_image(layer, 64, 'layer1', kernel_size=[2,2], include_pool=False)
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf_add_conv_by_image(layer, 52, 'layer2', kernel_size=[5,5])
+
+  # ([Dimension(None), Dimension(2), Dimension(48), Dimension(64), Dimension(64)]
+  layers = tf.split(layer, 2, axis=1)
+  layers = [tf.squeeze(layer, axis=1) for layer in layers]
+  layers = [tf.layers.max_pooling2d(inputs=layer, pool_size=[n_rows/2, 1], strides=1, padding='valid') for layer in layers]
+  # (?, 1, 64, 52) 
+  layers = [tf.squeeze(layer, axis=1) for layer in layers]
+  # (?, 64, 52) 
+  pdb.set_trace()
+  n_filters = layers[0].shape[2]
+  layers1 = [tf.reduce_sum(tf.squeeze(layer, axis=2), axis=1) for layer in tf.split(layers[0], n_filters, axis=2)]
+  layers2 = [tf.reduce_sum(tf.squeeze(layer, axis=2), axis=1) for layer in tf.split(layers[1], n_filters, axis=2)]
+  lefts = [layer1-layer2 for layer1,layer2 in zip(layers1, layers2)]
+  rights = [layer2-layer1 for layer1,layer2 in zip(layers1, layers2)]
+  lefts = [tf.reshape(left, (-1, 1)) for left in lefts] 
+  left = tf.concat(lefts, axis=1)
+  rights = [tf.reshape(right, (-1, 1)) for right in rights] 
+  right = tf.concat(rights, axis=1)
+
+  layer = tf.layers.conv3d(inputs=layer, filters=16, kernel_size=2, padding='same', activation=tf.nn.relu)
+  #layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[2,2,2], strides=2, padding='same')
+  #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.layers.flatten(layer)
+  #layer = tf.layers.dense(layer, 256, activation=tf.nn.relu)
+  layer = tf.layers.dense(layer, 128, activation=tf.nn.relu)
+  #layer = tf.layers.dense(layer, 64, activation=tf.nn.relu)
+  layer = tf.layers.dense(layer, n_directions, activation=tf.nn.relu)
+ 
+  model_logits = layer
+  return model_logits
+
+model_logits = Model3D(model_input)
 #model_softmax = tf.nn.softmax(model_logits)
 #model_predict = tf.argmax(model_softmax, axis=1)
 model_outputs = tf.placeholder(tf.int32, shape=[None, n_directions], name="model_outputs")
@@ -454,7 +488,8 @@ model_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=model
 #model_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=model_outputs, logits=tf.stop_gradient(model_logits)))
 model_predict = tf.nn.softmax(model_logits)
 
-model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+#model_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5, beta1=0.5, beta2=0.999)
+model_optimizer = tf.train.AdamOptimizer()
 model_train_op = model_optimizer.minimize(model_loss)
 model_accuracy = tf.metrics.accuracy(model_outputs, model_predict)
 
@@ -559,21 +594,21 @@ if __name__ == "__main__":
         batch_output = select(Y_train, indexes, start, end)
         #lds = session.run(layers_dude, { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
         #ss = [ld.shape for ld in lds]
+        '''
+        loss_before = session.run(model_loss, { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
+        model_gradients = []
+        for (gradient, _) in model_optimizer.compute_gradients(model_loss):
+          if not gradient is None:
+            model_gradients.append(gradient)
+        pdb.set_trace()
+        gradients = session.run(model_gradients, { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
+        '''
         loss, _ = session.run([model_loss, model_train_op], { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
         '''
-        loss, _, predict_, logits_ = session.run([model_loss, model_train_op, model_predict, model_logits], { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
-        if epoch == 1000:
-          predict_1 = predict_
-          logits_1 = logits_
-          logits_p_1 = (np.array([softmax(l) for l in logits_1[0]])*100).astype(int)
-          loss_1 = loss
-        if epoch == n_epochs-1:
-          predict_end = predict_
-          logits_end = logits_
-          logits_p_end = (np.array([softmax(l) for l in logits_[0]])*100).astype(int)
-          loss_end = loss
+        loss_after = session.run(model_loss, { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
+        pdb.set_trace()
+        pdb.set_trace()
         '''
-        #print("Train Loss {0}".format(loss))
       accuracy, predictions, _, _ = get_accuracy(X_validation, Y_validation)
       accuracy_train, predictions_train, _, tloss  = get_accuracy(X_train[0:32], Y_train[0:32])
       print("Epoch {0} Validation Accuracy: {1} Train Accuracy {2} TLoss {3}".format(epoch, accuracy, accuracy_train, tloss))
@@ -583,7 +618,7 @@ if __name__ == "__main__":
      
   if args.test:
     X_test, Y_test = load_test_data()
-    accuracy, predictions, labels = get_accuracy(X_test, Y_test)
+    accuracy, predictions, labels, _ = get_accuracy(X_test, Y_test)
     print("Test/Predictions")
     for t, p in zip(labels, predictions):
       print("{0}-{1}".format(t, p))
