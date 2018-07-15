@@ -43,7 +43,7 @@ def image_to_target(image):
   return decorated
 
 #batch_size = 64
-batch_size = 32
+batch_size = 1
 model_dir = os.path.dirname(os.path.abspath(__file__)) + "/model"
 
 if not os.path.exists(model_dir):
@@ -350,6 +350,7 @@ def Model3D_CNN(model_input):
   layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf_add_conv_by_image(layer, 64, 'layer2', kernel_size=[5,5])
 
+
   pdb.set_trace() 
   rnn_inputs = tf.split(layer, n_len, axis=1)
   
@@ -382,8 +383,9 @@ def Model3D(model_input):
   layer = tf.reshape(model_input, (-1, n_files, n_rows, n_cols, 1))
 
   layer = tf_add_conv_by_image(layer, 64, 'layer1', kernel_size=[2,2], include_pool=False)
-  #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
-  layer = tf_add_conv_by_image(layer, 64, 'layer2', kernel_size=[5,5])
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf_add_conv_by_image(layer, 12, 'layer2', kernel_size=[5,5])
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   #layer = tf_add_conv_by_image(layer, 32, 'layer3', kernel_size=[5,5])
   #layer = tf_add_conv_by_image(layer, 32, 'layer2', include_pool=False)
   #layer = tf_add_conv_by_image(layer, 64, 'layer3', include_pool=False)
@@ -394,10 +396,11 @@ def Model3D(model_input):
   # TRY Check circles -> are they all the same size -> use that info -> pool up to the right size
   layer = tf.layers.conv3d(inputs=layer, filters=16, kernel_size=2, padding='same', activation=tf.nn.relu)
   #layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[2,2,2], strides=2, padding='same')
-  #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf.layers.flatten(layer)
   #layer = tf.layers.dense(layer, 256, activation=tf.nn.relu)
   layer = tf.layers.dense(layer, 128)
+  #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   #layer = tf.layers.dense(layer, 64, activation=tf.nn.relu)
   layer = tf.layers.dense(layer, n_directions)
   model_logits = layer
@@ -419,9 +422,9 @@ def Model3D_2(model_input):
 
 def Model3D_3(model_input):
   layer = tf.reshape(model_input, (-1, n_files, n_rows, n_cols, 1))
-
-  layer = tf_add_conv_by_image(layer, 64, 'layer1', kernel_size=[10,10], include_pool=False)
-  #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+#continue wiht reductin the filter
+  layer = tf_add_conv_by_image(layer, 32, 'layer1', kernel_size=[10,10], include_pool=False)
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf_add_conv_by_image(layer, 64, 'layer2', kernel_size=[10,10], pool_size=[5,5])
   #layer = tf_add_conv_by_image(layer, 32, 'layer3', kernel_size=[5,5])
   #layer = tf_add_conv_by_image(layer, 32, 'layer2', include_pool=False)
@@ -432,54 +435,110 @@ def Model3D_3(model_input):
   # TRY Check circles -> are they all the same size -> use that info -> pool up to the right size
   layer = tf.layers.conv3d(inputs=layer, filters=16, kernel_size=2, padding='same', activation=tf.nn.relu)
   #layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[2,2,2], strides=2, padding='same')
-  #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
   layer = tf.layers.flatten(layer)
   #layer = tf.layers.dense(layer, 256, activation=tf.nn.relu)
-  layer = tf.layers.dense(layer, 128, activation=tf.nn.relu)
+  layer = tf.layers.dense(layer, 128)
   #layer = tf.layers.dense(layer, 64, activation=tf.nn.relu)
-  layer = tf.layers.dense(layer, n_directions, activation=tf.nn.relu)
+  layer = tf.layers.dense(layer, n_directions)
  
   model_logits = layer
   return model_logits
+
+n_features_last_layer = 1
 
 def Model3D_LR(model_input):
   layer = tf.reshape(model_input, (-1, n_files, n_rows, n_cols, 1))
 
-  layer = tf_add_conv_by_image(layer, 64, 'layer1', kernel_size=[2,2], include_pool=False)
-  layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
-  layer = tf_add_conv_by_image(layer, 52, 'layer2', kernel_size=[5,5])
+  if False:
+    layer = tf_add_conv_by_image(layer, 64, 'layer1', kernel_size=[10,10], include_pool=False)
+    layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
+    #n_features_last_layer = 52
+    layer = tf_add_conv_by_image(layer, n_features_last_layer, 'layer2', kernel_size=[5,5])
+  else:
+    layer = tf_add_conv_by_image(layer, n_features_last_layer, 'layer1', kernel_size=[10,10])
+    #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
 
-  # ([Dimension(None), Dimension(2), Dimension(48), Dimension(64), Dimension(64)]
+  # ?, 2 , 48, 64, 1
+ 
+  if True: 
+    fake = np.zeros((1, 2, 48, 64, 2))
+    fake[0][0][0][32][0] = 2.0
+    fake[0][0][0][31][0] = 1.9
+    fake[0][1][0][56][0] = 2.0
+  else:
+    fake = np.zeros((1, 2, 48, 64, 2))
+    fake[0][0][0][32][0] = 2.0
+    fake[0][0][0][31][0] = 1.9
+    fake[0][1][0][56][0] = 2.0
+
+    fake[0][0][0][12][1] = 1.0
+    fake[0][0][0][21][1] = 0.9
+    fake[0][1][0][46][1] = 1.0
+    layer = tf.constant(fake, dtype=tf.float32)
+  
+  # ([Dimension(None), Dimension(2), Dimension(48), Dimension(64), Dimension(2)]
+  '''
+  pdb.set_trace()
+  model_coolness = tf.split(layer, n_features_last_layer, axis=4)
+  model_coolness = [tf.squeeze(layer, axis=1) for layer in model_coolness]
+  # 1,2,48,64 should be 1,48,64,2
+  #model_coolness = [tf.layers.max_pooling2d(inputs=layer, pool_size=[n_rows/2, 1], strides=1, padding='valid') for layer in model_coolness]
+  '''
+
   layers = tf.split(layer, 2, axis=1)
   layers = [tf.squeeze(layer, axis=1) for layer in layers]
-  layers = [tf.layers.max_pooling2d(inputs=layer, pool_size=[n_rows/2, 1], strides=1, padding='valid') for layer in layers]
+ 
+  pdb.set_trace() 
+  pages = [tf.split(layer, n_features_last_layer, axis=3) for layer in layers]
+  #pages = [[tf.nn.softmax(layer) for layer in page] for page in pages]
+  #model_coolness = pages
+  pages = [[tf.layers.max_pooling2d(inputs=layer, pool_size=[n_rows/2, 1], strides=1, padding='valid') for layer in page] for page in pages]
+  #pages = [[layer/layer for layer in page] for page in pages]
+  #model_coolness = pages
+
+  layers = [tf.concat(page, axis=3) for page in pages]
   # (?, 1, 64, 52) 
   layers = [tf.squeeze(layer, axis=1) for layer in layers]
+  model_coolness = [layers]
+  
   # (?, 64, 52) 
-  pdb.set_trace()
   n_filters = layers[0].shape[2]
-  layers1 = [tf.reduce_sum(tf.squeeze(layer, axis=2), axis=1) for layer in tf.split(layers[0], n_filters, axis=2)]
-  layers2 = [tf.reduce_sum(tf.squeeze(layer, axis=2), axis=1) for layer in tf.split(layers[1], n_filters, axis=2)]
+
+  def dude(layer):
+    layer = tf.squeeze(layer, axis=2)
+    return tf.reduce_sum(tf.nn.softmax(layer*100)*layer, axis=1)
+
+  layers1 = [dude(layer) for layer in tf.split(layers[0], n_filters, axis=2)]
+  layers2 = [dude(layer) for layer in tf.split(layers[1], n_filters, axis=2)]
+  #model_coolness = [layers1, layers2]
+
+  scale = tf.placeholder(tf.float32, shape=layers[0].shape, name='model_scale')
+  layers = [layer * scale for layer in layers]
+
   lefts = [layer1-layer2 for layer1,layer2 in zip(layers1, layers2)]
   rights = [layer2-layer1 for layer1,layer2 in zip(layers1, layers2)]
   lefts = [tf.reshape(left, (-1, 1)) for left in lefts] 
   left = tf.concat(lefts, axis=1)
+  left = tf.reshape(left, (-1, 1, n_features_last_layer))
   rights = [tf.reshape(right, (-1, 1)) for right in rights] 
+  # (?, 52)
   right = tf.concat(rights, axis=1)
+  right = tf.reshape(right, (-1, 1, n_features_last_layer))
+  # (?, 2, 52)
+  layer = tf.concat([left, right], axis=1)
+  #model_coolness = layer
 
-  layer = tf.layers.conv3d(inputs=layer, filters=16, kernel_size=2, padding='same', activation=tf.nn.relu)
-  #layer = tf.layers.max_pooling3d(inputs=layer, pool_size=[2,2,2], strides=2, padding='same')
-  #layer = tf.nn.dropout(layer, keep_prob=model_keep_prob)
-  layer = tf.layers.flatten(layer)
-  #layer = tf.layers.dense(layer, 256, activation=tf.nn.relu)
-  layer = tf.layers.dense(layer, 128, activation=tf.nn.relu)
-  #layer = tf.layers.dense(layer, 64, activation=tf.nn.relu)
-  layer = tf.layers.dense(layer, n_directions, activation=tf.nn.relu)
- 
+  #layer = tf.layers.dense(layer, 1, activation=tf.nn.relu)
+  layer = tf.layers.dense(layer, 1)
+  layer = tf.squeeze(layer, 2)
+
   model_logits = layer
-  return model_logits
+  return model_logits, scale, model_coolness
 
-model_logits = Model3D(model_input)
+#train the target to a smaller standard deviation
+# raise any non-zero pixel to full 255
+model_logits, model_scale, model_coolness = Model3D_LR(model_input)
 #model_softmax = tf.nn.softmax(model_logits)
 #model_predict = tf.argmax(model_softmax, axis=1)
 model_outputs = tf.placeholder(tf.int32, shape=[None, n_directions], name="model_outputs")
@@ -555,6 +614,15 @@ if __name__ == "__main__":
   def one_hots_to_directions(one_hots):
     return [index_to_dir[np.argmax(one_hot)] for one_hot in one_hots]
 
+  def get_scale(batch_size):
+    scale = np.zeros((1, 64, n_features_last_layer))
+    for f in range(n_features_last_layer):
+      i = 1
+      for c in range(64):
+        scale[0][c][f] = i
+        i += 1
+    return scale
+
   def get_accuracy(X, Y): 
     n_batch_size = 32
     n_batches = int(X.shape[0] / n_batch_size)
@@ -563,7 +631,17 @@ if __name__ == "__main__":
     for i in range(n_batches):
       start = i*n_batch_size
       end = start + n_batch_size
-      batch_predictions, batch_loss = session.run([model_predict, model_loss], { model_batch_size: n_batch_size, model_input: X[start:end], model_outputs: Y[start:end], model_keep_prob: 1.0 })
+      
+      placeholders = { 
+          model_batch_size: n_batch_size,  
+          model_input: X[start:end], 
+          model_outputs: Y[start:end], 
+          model_scale: get_scale(n_batch_size),
+          model_keep_prob: 1.0 
+      }
+      #pdb.set_trace()
+      batch_predictions, batch_loss, coolness = session.run([model_predict, model_loss, model_coolness], placeholders)
+      
       total_loss += batch_loss
       predictions += one_hots_to_directions(batch_predictions)
     loss = total_loss / n_batches
@@ -603,7 +681,15 @@ if __name__ == "__main__":
         pdb.set_trace()
         gradients = session.run(model_gradients, { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
         '''
-        loss, _ = session.run([model_loss, model_train_op], { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
+        placeholder = { 
+          model_batch_size: batch_size, 
+          model_input: batch_input, 
+          model_outputs: batch_output,
+          model_scale: get_scale(batch_size)
+        }
+        pdb.set_trace()
+        coolness = np.array(session.run(model_coolness, placeholder))
+        #loss, _ = session.run([model_loss, model_train_op], placeholder) 
         '''
         loss_after = session.run(model_loss, { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
         pdb.set_trace()
