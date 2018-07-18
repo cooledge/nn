@@ -445,7 +445,7 @@ def Model3D_3(model_input):
   model_logits = layer
   return model_logits
 
-n_features_last_layer = 1
+n_features_last_layer = 2
 
 def Model3D_LR(model_input):
   layer = tf.reshape(model_input, (-1, n_files, n_rows, n_cols, 1))
@@ -461,12 +461,13 @@ def Model3D_LR(model_input):
 
   # ?, 2 , 48, 64, 1
  
-  if True: 
-    fake = np.zeros((1, 2, 48, 64, 2))
+  if n_features_last_layer == 1: 
+    fake = np.zeros((1, 2, 48, 64, 1))
     fake[0][0][0][32][0] = 2.0
     fake[0][0][0][31][0] = 1.9
     fake[0][1][0][56][0] = 2.0
-  else:
+    layer = tf.constant(fake, dtype=tf.float32)
+  elif n_features_last_layer == 2: 
     fake = np.zeros((1, 2, 48, 64, 2))
     fake[0][0][0][32][0] = 2.0
     fake[0][0][0][31][0] = 1.9
@@ -475,32 +476,50 @@ def Model3D_LR(model_input):
     fake[0][0][0][12][1] = 1.0
     fake[0][0][0][21][1] = 0.9
     fake[0][1][0][46][1] = 1.0
+
+    '''
+    fake[1][0][0][32][0] = 2.0
+    fake[1][0][0][31][0] = 1.9
+    fake[1][1][0][56][0] = 2.0
+
+    fake[1][0][0][12][1] = 1.0
+    fake[1][0][0][21][1] = 0.9
+    fake[1][1][0][46][1] = 1.0
+    '''
     layer = tf.constant(fake, dtype=tf.float32)
   
   # ([Dimension(None), Dimension(2), Dimension(48), Dimension(64), Dimension(2)]
-  '''
-  pdb.set_trace()
-  model_coolness = tf.split(layer, n_features_last_layer, axis=4)
-  model_coolness = [tf.squeeze(layer, axis=1) for layer in model_coolness]
-  # 1,2,48,64 should be 1,48,64,2
-  #model_coolness = [tf.layers.max_pooling2d(inputs=layer, pool_size=[n_rows/2, 1], strides=1, padding='valid') for layer in model_coolness]
-  '''
-
   layers = tf.split(layer, 2, axis=1)
   layers = [tf.squeeze(layer, axis=1) for layer in layers]
  
-  pdb.set_trace() 
   pages = [tf.split(layer, n_features_last_layer, axis=3) for layer in layers]
   #pages = [[tf.nn.softmax(layer) for layer in page] for page in pages]
   #model_coolness = pages
   pages = [[tf.layers.max_pooling2d(inputs=layer, pool_size=[n_rows/2, 1], strides=1, padding='valid') for layer in page] for page in pages]
-  #pages = [[layer/layer for layer in page] for page in pages]
-  #model_coolness = pages
+  pages = [[(layer / (layer+0.0000001)) for layer in page] for page in pages] 
+
+  scale = tf.placeholder(tf.float32, shape=pages[0][0].shape, name='model_scale')
+  layers = [layer * scale for layer in layers]
+  pages = [[layer * scale for layer in page] for page in pages]
+
+  def get_coolness(pages):
+    pages2 = [[tf.squeeze(layer, axis=3) for layer in page] for page in pages]
+    pages2 = [[layer - tf.reduce_max(layer, axis=2) for layer in page] for page in pages2]
+    pages2 = [[(layer / (layer-0.0000001))*-2+1 for layer in page] for page in pages2]
+    pages2 = [[tf.nn.relu(layer) for layer in page] for page in pages2]
+    pdb.set_trace()
+    pages2 = [[tf.reshape(layer, (-1, 1, 64, 1)) for layer in page] for page in pages2]
+    pages2 = [[layer * scale for layer in page] for page in pages2]
+    pages2 = [[tf.reshape(layer, (-1, 64)) for layer in page] for page in pages2]
+    pages2 = [[tf.reduce_sum(layer) for layer in page] for page in pages2]
+    model_coolness = pages2
+    return model_coolness
+  
+  model_coolness = get_coolness(pages)
 
   layers = [tf.concat(page, axis=3) for page in pages]
   # (?, 1, 64, 52) 
   layers = [tf.squeeze(layer, axis=1) for layer in layers]
-  model_coolness = [layers]
   
   # (?, 64, 52) 
   n_filters = layers[0].shape[2]
@@ -513,8 +532,6 @@ def Model3D_LR(model_input):
   layers2 = [dude(layer) for layer in tf.split(layers[1], n_filters, axis=2)]
   #model_coolness = [layers1, layers2]
 
-  scale = tf.placeholder(tf.float32, shape=layers[0].shape, name='model_scale')
-  layers = [layer * scale for layer in layers]
 
   lefts = [layer1-layer2 for layer1,layer2 in zip(layers1, layers2)]
   rights = [layer2-layer1 for layer1,layer2 in zip(layers1, layers2)]
@@ -614,6 +631,7 @@ if __name__ == "__main__":
   def one_hots_to_directions(one_hots):
     return [index_to_dir[np.argmax(one_hot)] for one_hot in one_hots]
 
+  '''
   def get_scale(batch_size):
     scale = np.zeros((1, 64, n_features_last_layer))
     for f in range(n_features_last_layer):
@@ -622,6 +640,16 @@ if __name__ == "__main__":
         scale[0][c][f] = i
         i += 1
     return scale
+  '''
+
+  def get_scale(batch_size):
+    scale = np.zeros((1, 1, 64, 1))
+    i = 1
+    for c in range(64):
+      scale[0][0][c][0] = i
+      i += 1
+    return scale
+
 
   def get_accuracy(X, Y): 
     n_batch_size = 32
@@ -688,7 +716,7 @@ if __name__ == "__main__":
           model_scale: get_scale(batch_size)
         }
         pdb.set_trace()
-        coolness = np.array(session.run(model_coolness, placeholder))
+        coolness, scale = np.array(session.run([model_coolness, model_scale], placeholder))
         #loss, _ = session.run([model_loss, model_train_op], placeholder) 
         '''
         loss_after = session.run(model_loss, { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
