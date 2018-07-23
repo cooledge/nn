@@ -39,7 +39,7 @@ def show_image_array(ia):
   #for r in range(46):
   for r in range(1):
     for c in range(64):
-      sys.stdout.write("{0:1} ".format(ia[r][c][0]))
+      sys.stdout.write("{0:1} ".format(ia[r][c]))
     print("")
            
 target_predict = Target_Predict()
@@ -53,7 +53,7 @@ def image_to_target(image):
   return decorated
 
 #batch_size = 64
-batch_size = 2
+batch_size = 32
 n_features_last_layer = 3
 
 model_dir = os.path.dirname(os.path.abspath(__file__)) + "/model"
@@ -551,7 +551,7 @@ def Model3D_LR(model_input):
   layers = [layer * scale for layer in layers]
   pages = [[layer * scale for layer in page] for page in pages]
 
-  def get_coolness(layer, scale):
+  def get_layer_features(layer, scale):
     layers = tf.split(layer, 2, axis=1)
     layers = [tf.squeeze(layer, axis=1) for layer in layers]
    
@@ -568,25 +568,22 @@ def Model3D_LR(model_input):
     # (batch, page, features, ? row, col, ?)
     # (2, 2, 1, 1, 1, 64, 1)
     # (2, 2, 2, 1, 1, 64, 1)
-    model_coolness = pages
 
-    pages2 = [[tf.squeeze(layer, axis=3) for layer in page] for page in pages]
-    pages2 = [[layer - tf.reduce_max(layer, axis=2) for layer in page] for page in pages2]
-    pages2 = [[(layer / (layer-0.0000001))*-2+1 for layer in page] for page in pages2]
-    pages2 = [[tf.nn.relu(layer) for layer in page] for page in pages2]
-    
-    pages2 = [[tf.reshape(layer, (-1, 1, 64, 1)) for layer in page] for page in pages2]
-    pages2 = [[layer * scale for layer in page] for page in pages2]
+    pages = [[tf.squeeze(layer, axis=3) for layer in page] for page in pages]
     #pdb.set_trace()
-    pages2 = [[tf.reshape(layer, (-1, 64)) for layer in page] for page in pages2]
-    #pdb.set_trace()
-    #pages2 = [[tf.reduce_sum(layer, axis=1) for layer in page] for page in pages2]
-    #diffs = [l-r for l,r in zip(pages2[0], pages2[1])]
-    #model_coolness = diffs
-    #model_coolness = pages2
+    pages = [[tf.nn.softmax(layer*100, axis=2) for layer in page] for page in pages]
+    pages = [[layer*tf.reshape(scale, (1,1,64)) for layer in page] for page in pages]
+    #pdb.set_trace() # greg
+    pages = [[tf.reduce_sum(layer, axis=2) for layer in page] for page in pages]
+    pages = [[tf.reshape(layer, [1]) for layer in page] for page in pages]
+    pages = [page[0] for page in pages]
+    pages = pages[0] - pages[1]
+    #pdb.set_trace() # greg
+    #pages2 = [[layer * scale for layer in page] for page in pages]
+    model_coolness = pages
     return model_coolness
 
-  pdb.set_trace() 
+  #pdb.set_trace() 
   scale = tf.placeholder(tf.float32, shape=(1,1,64,1), name='model_scale')
   # n=1,f=1 [<tf.Tensor 'split_4:0' shape=(1, 2, 48, 64, 1) dtype=float32>]
   # n=1,f=2 [<tf.Tensor 'split_4:0' shape=(?, 2, 48, 64, 2) dtype=float32>] 
@@ -597,7 +594,17 @@ def Model3D_LR(model_input):
   batch_by_features = [tf.split(element, n_features_last_layer, axis=4) for element in batch]
   # n =1 [[[<tf.Tensor 'mul_6:0' shape=(1, 1, 64, 1) dtype=float32>], [<tf.Tensor 'mul_7:0' shape=(1, 1, 64, 1) dtype=float32>]]]
   # n= 2 [[[<tf.Tensor 'mul_6:0' shape=(1, 1, 64, 1) dtype=float32>], [<tf.Tensor 'mul_7:0' shape=(1, 1, 64, 1) dtype=float32>]], [[<tf.Tensor 'mul_14:0' shape=(1, 1, 64, 1) dtype=float32>], [<tf.Tensor 'mul_15:0' shape=(1, 1, 64, 1) dtype=float32>]]]
-  model_coolness= [[get_coolness(layer, scale) for layer in features] for features in batch_by_features]
+  model_coolness = [[get_layer_features(layer, scale) for layer in features] for features in batch_by_features]
+  model_coolness = [tf.concat(features, (0)) for features in model_coolness]
+  pdb.set_trace()
+  model_coolness = tf.concat(model_coolness, 0)
+  model_coolness = tf.reshape(model_coolness, [-1, n_features_last_layer])
+
+  layer = tf.layers.dense(model_coolness, 2)
+  #layer = tf.squeeze(layer, 2)
+  pdb.set_trace()
+  model_logits = layer
+  return model_logits, scale, model_coolness
   #model_coolness = batch_by_features
   # [[<tf.Tensor 'mul_6:0' shape=(2, 1, 64, 1) dtype=float32>], [<tf.Tensor 'mul_7:0' shape=(2, 1, 64, 1) dtype=float32>]]
   #model_coolness= get_coolness(layer, scale)
@@ -619,7 +626,6 @@ def Model3D_LR(model_input):
   layers2 = [dude(layer) for layer in tf.split(layers[1], n_filters, axis=2)]
   #model_coolness = [layers1, layers2]
 
-
   lefts = [layer1-layer2 for layer1,layer2 in zip(layers1, layers2)]
   rights = [layer2-layer1 for layer1,layer2 in zip(layers1, layers2)]
   lefts = [tf.reshape(left, (-1, 1)) for left in lefts] 
@@ -634,8 +640,7 @@ def Model3D_LR(model_input):
   #model_coolness = layer
 
   #layer = tf.layers.dense(layer, 1, activation=tf.nn.relu)
-  layer = tf.layers.dense(layer, 1)
-  layer = tf.squeeze(layer, 2)
+  layer = tf.layers.dense(layer, 2, activation=tf.nn.relu)
   pdb.set_trace()
   model_logits = layer
   return model_logits, scale, model_coolness
@@ -787,7 +792,8 @@ if __name__ == "__main__":
         batch_output = select(Y_train, indexes, start, end)
         #lds = session.run(layers_dude, { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
         #ss = [ld.shape for ld in lds]
-        '''
+       
+        ''' 
         loss_before = session.run(model_loss, { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
         model_gradients = []
         for (gradient, _) in model_optimizer.compute_gradients(model_loss):
@@ -796,25 +802,37 @@ if __name__ == "__main__":
         pdb.set_trace()
         gradients = session.run(model_gradients, { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
         '''
+        
         placeholder = { 
           model_batch_size: batch_size, 
           model_input: batch_input, 
           model_outputs: batch_output,
           model_scale: get_scale(batch_size)
         }
-        coolness, scale = np.array(session.run([model_coolness, model_scale], placeholder))
-        pdb.set_trace()
+        #coolness, scale = np.array(session.run([model_coolness, model_scale], placeholder))
+        #pdb.set_trace()
+       
         '''
         for b in range(batch_size):
           for f in range(n_features_last_layer):
             for page in range(2):
               show_image_array(coolness[b][f][0][page])
         '''
+        '''
         for b in range(batch_size):
           for f in range(n_features_last_layer):
             for page in range(2):
               show_image_array(coolness[b][f][page][0][0])
-        #loss, _ = session.run([model_loss, model_train_op], placeholder) 
+        '''
+        #print(coolness)
+
+        def softmax(x):
+          """Compute softmax values for each sets of scores in x."""
+          e_x = np.exp(x - np.max(x))
+          return e_x / e_x.sum(axis=0) # only difference
+
+        #pdb.set_trace()
+        loss, _ = session.run([model_loss, model_train_op], placeholder) 
         '''
         loss_after = session.run(model_loss, { model_batch_size: batch_size, model_input: batch_input, model_outputs: batch_output })
         pdb.set_trace()
