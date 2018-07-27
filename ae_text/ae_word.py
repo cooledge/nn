@@ -35,15 +35,16 @@ batch_size_in_chars = batch_size*batch_len
 def load_file(file_dir):
   file = open(os.path.join(file_dir, "input.txt"), "r")
   data = file.read()
+  data = data.lower()
 
+  words = data.split()
   # make the input and target
 
-  counter = collections.Counter(data)
-  number_of_letters = len(counter.keys())
-  ch_to_id_map = {}
-  id_to_ch_map = {}
-  for i, ch in enumerate(counter.keys()):
-    ch_to_id_map[ch] = i
+  number_of_letters = len(words)
+  word_to_id_map = {}
+  id_to_word_map = {}
+  for i, words in enumerate(words):
+    word_to_id_map[ch] = i
     id_to_ch_map[i] = ch
 
   input = []
@@ -54,7 +55,6 @@ def load_file(file_dir):
   targets = input.copy()
   targets[:-1] = input[1:]
   targets[-1] = input[0]
-
 
   number_of_batches = len(input)//batch_size_in_chars
 
@@ -165,51 +165,52 @@ saver.save(session, model_filename)
 
 loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits = model(cell_state_size, rnn_cells_depth, 1, 1, number_of_letters, True)
 
-prime = "MEN"
-result = prime
-state = session.run(decoder_initial_state)
-for ch in prime:
-  id = ch_to_id_map[ch]
-  i = [[id]]
-  t = [[id]]
+def predict_words(prime):
+  #prime = "MEN"
+  result = prime
+  state = session.run(decoder_initial_state)
+  for ch in prime:
+    id = ch_to_id_map[ch]
+    i = [[id]]
+    t = [[id]]
+     
+    feed = {input_placeholder: i, decoder_initial_state: state}
+    #for i, (c, h) in enumerate(decoder_initial_state):
+      #feed[c] = state[i].c
+      #feed[h] = state[i].h
+
+    actual_probs, state = session.run([probs, last_state], feed_dict=feed)
+
+  # now the super hacky part. Generate one character at a time. If we generate
+  # exactly what the RNN says the output is very repetitive so instead of doing
+  # that we get the probabilities for each output and randomly select a character
+  # based on its likelyhood. That makes the output not boring. 
+  # FUTURE WORK: get the hacky bit in the neural network
+
+  def hacky_character_picker( probs ):
+    cs = np.cumsum(probs)
+    t = np.sum(probs)
+    r = np.random.rand(1)
+    cutoff = r * t
+    return int(np.searchsorted(cs, cutoff))
    
-  feed = {input_placeholder: i, decoder_initial_state: state}
-  #for i, (c, h) in enumerate(decoder_initial_state):
-    #feed[c] = state[i].c
-    #feed[h] = state[i].h
+  for i in range(500):
+    id = hacky_character_picker(actual_probs)
+    #id = np.argmax(actual_probs)
+    ch = id_to_ch_map[id]
+    result = result + ch
+    i = [[id]]
+    
+    feed = {input_placeholder: i, decoder_initial_state: state}
+    #feed = {input_placeholder: i}
+    #for i, (c, h) in enumerate(decoder_initial_state):
+      #feed[c] = state[i].c
+      #feed[h] = state[i].h
 
-  actual_probs, state = session.run([probs, last_state], feed_dict=feed)
-
-# now the super hacky part. Generate one character at a time. If we generate
-# exactly what the RNN says the output is very repetitive so instead of doing
-# that we get the probabilities for each output and randomly select a character
-# based on its likelyhood. That makes the output not boring. 
-# FUTURE WORK: get the hacky bit in the neural network
-
-def hacky_character_picker( probs ):
-  cs = np.cumsum(probs)
-  t = np.sum(probs)
-  r = np.random.rand(1)
-  cutoff = r * t
-  return int(np.searchsorted(cs, cutoff))
- 
-for i in range(500):
-  id = hacky_character_picker(actual_probs)
-  #id = np.argmax(actual_probs)
-  ch = id_to_ch_map[id]
-  result = result + ch
-  i = [[id]]
-  
-  feed = {input_placeholder: i, decoder_initial_state: state}
-  #feed = {input_placeholder: i}
-  #for i, (c, h) in enumerate(decoder_initial_state):
-    #feed[c] = state[i].c
-    #feed[h] = state[i].h
-
-  actual_probs, state = session.run([probs, last_state], feed_dict=feed)
+    actual_probs, state = session.run([probs, last_state], feed_dict=feed)
 
 print("AND the result is: ")
-print(result)
+print(predict_words("men"))
 
 
 

@@ -3,8 +3,10 @@
 import os
 import argparse
 import collections
+import random
 import numpy as np
 import tensorflow as tf
+import sys
 from tensorflow.contrib import legacy_seq2seq as seq2seq
 #from tensorflow.python.ops import seq2seq
 import pdb
@@ -15,6 +17,7 @@ parser = argparse.ArgumentParser(description="Program to train a story generator
 parser.add_argument("--data", default="./data", type=str, help="directory with input.txt")
 parser.add_argument("--seq_len", default=50, type=int, help="length of the sequences for the rnn")
 parser.add_argument("--epochs", default=50, type=int, help="nummer of epichs tu run")
+parser.add_argument("--type", default='chars', type=str, help="chars or words")
 batch_size = 60
 batch_len = 50
 cell_state_size = 128 # in cell
@@ -27,35 +30,45 @@ epochs = args.epochs
 model_dir = os.path.dirname(os.path.abspath(__file__)) + "/model"
 if not os.path.exists(model_dir):
   os.makedirs(model_dir)
-model_filename = model_dir + "/model"
+model_filename = model_dir + "/model_ae_{0}".format(args.type)
 
 batch_size_in_chars = batch_size*batch_len
+punctuation = ',!.;:'
 
 # get the input and output data
-def load_file(file_dir):
+def load_file(file_dir, token_type):
   file = open(os.path.join(file_dir, "input.txt"), "r")
   data = file.read()
   data = data.lower()
+  data = data.replace('*', '')
+
+  if token_type == 'chars':
+    # okay
+    0
+  elif token_type == 'words':
+    for p in punctuation:
+      data = data.replace(p, ' {0} '.format(p))
+    data = data.replace('\n', ' <newline> ')
+    data = data.split()
 
   # make the input and target
 
   counter = collections.Counter(data)
-  number_of_letters = len(counter.keys())
-  ch_to_id_map = {}
-  id_to_ch_map = {}
-  for i, ch in enumerate(counter.keys()):
-    ch_to_id_map[ch] = i
-    id_to_ch_map[i] = ch
+  number_of_tokens = len(counter.keys())
+  token_to_id_map = {}
+  id_to_token_map = {}
+  for i, token in enumerate(counter.keys()):
+    token_to_id_map[token] = i
+    id_to_token_map[i] = token
 
   input = []
 
-  for ch in data:
-    input.append(ch_to_id_map[ch])
+  for token in data:
+    input.append(token_to_id_map[token])
   input = np.array(input)
   targets = input.copy()
   targets[:-1] = input[1:]
   targets[-1] = input[0]
-
 
   number_of_batches = len(input)//batch_size_in_chars
 
@@ -70,13 +83,13 @@ def load_file(file_dir):
   # (60, 50)
   targets = setup_inputs(targets)
 
-  return([input, targets, number_of_letters, ch_to_id_map, id_to_ch_map])
+  return([input, targets, number_of_tokens, token_to_id_map, id_to_token_map])
 
-input, targets, number_of_letters, ch_to_id_map, id_to_ch_map = load_file(args.data)
+input, targets, number_of_tokens, token_to_id_map, id_to_token_map = load_file(args.data, args.type)
 
 # setup the model
 
-def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_letters, reuse): 
+def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_tokens, reuse): 
 
   input_placeholder = tf.placeholder(tf.int32, shape=(None, batch_len), name="input")
   target_placeholder = tf.placeholder(tf.int32, shape=(None, batch_len), name="target")
@@ -89,10 +102,10 @@ def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_let
     cell = tf.nn.rnn_cell.BasicLSTMCell(cell_state_size)
     rnn_cell= tf.nn.rnn_cell.MultiRNNCell([cell] * rnn_cells_depth)
 
-    W = tf.get_variable("W", shape=(128, number_of_letters))
-    b = tf.get_variable("b", shape=(number_of_letters))
+    W = tf.get_variable("W", shape=(128, number_of_tokens))
+    b = tf.get_variable("b", shape=(number_of_tokens))
 
-    embedding = tf.get_variable("embedding", [number_of_letters, 128])
+    embedding = tf.get_variable("embedding", [number_of_tokens, 128])
     # (60, 50, 128)
     rnn_input = tf.nn.embedding_lookup(embedding, input_placeholder)
     # 50 of (60, 1, 128)
@@ -110,12 +123,12 @@ def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_let
   outputs = tf.reshape(outputs, [-1, 128])
 
 
-  # (3000, number_of_letters) 
+  # (3000, number_of_tokens) 
   logits = tf.matmul(outputs, W) + b
   #probs = tf.nn.softmax(logits, 1, name="probs")
   probs = tf.nn.softmax(logits, -1, name="probs")
 
-  loss = seq2seq.sequence_loss_by_example([logits], [tf.reshape(target_placeholder, [-1])], [tf.ones([batch_size * batch_len])], number_of_letters)
+  loss = seq2seq.sequence_loss_by_example([logits], [tf.reshape(target_placeholder, [-1])], [tf.ones([batch_size * batch_len])], number_of_tokens)
   return([loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits])
 
 def optimizer(batch_size, batch_len, loss):
@@ -132,7 +145,7 @@ def optimizer(batch_size, batch_len, loss):
 
   return [train_op, cost_op, lr]
 
-loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits = model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_letters, False)
+loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits = model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_tokens, False)
 train_op, cost_op, lr = optimizer(batch_size, batch_len, loss)
 
 # train the model
@@ -145,6 +158,7 @@ saver = tf.train.Saver()
 try:
   saver.restore(session, model_filename)
 except Exception as e:
+  pdb.set_trace()
   0 # ignore 
 
 learning_rate = 0.002
@@ -164,22 +178,26 @@ saver.save(session, model_filename)
 
 # sample the model
 
-loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits = model(cell_state_size, rnn_cells_depth, 1, 1, number_of_letters, True)
+loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits = model(cell_state_size, rnn_cells_depth, 1, 1, number_of_tokens, True)
 
-prime = "men"
-result = prime
-state = session.run(decoder_initial_state)
-for ch in prime:
-  id = ch_to_id_map[ch]
-  i = [[id]]
-  t = [[id]]
-   
-  feed = {input_placeholder: i, decoder_initial_state: state}
-  #for i, (c, h) in enumerate(decoder_initial_state):
-    #feed[c] = state[i].c
-    #feed[h] = state[i].h
+def predict(prime):
+  '''
+  if args.type == 'chars':
+    prime = "men"
+    prime = [ token_to_id_map[t] for t in prime]
+  else:
+    prime = [ random.randint(0, number_of_tokens) for _ in range(3) ]
+  '''
 
-  actual_probs, state = session.run([probs, last_state], feed_dict=feed)
+  result = [ id_to_token_map[i] for i in prime]
+  state = session.run(decoder_initial_state)
+  for id in prime:
+    i = [[id]]
+    t = [[id]]
+     
+    feed = {input_placeholder: i, decoder_initial_state: state}
+
+    actual_probs, state = session.run([probs, last_state], feed_dict=feed)
 
 # now the super hacky part. Generate one character at a time. If we generate
 # exactly what the RNN says the output is very repetitive so instead of doing
@@ -187,30 +205,52 @@ for ch in prime:
 # based on its likelyhood. That makes the output not boring. 
 # FUTURE WORK: get the hacky bit in the neural network
 
-def hacky_character_picker( probs ):
-  cs = np.cumsum(probs)
-  t = np.sum(probs)
-  r = np.random.rand(1)
-  cutoff = r * t
-  return int(np.searchsorted(cs, cutoff))
- 
-for i in range(500):
-  id = hacky_character_picker(actual_probs)
-  #id = np.argmax(actual_probs)
-  ch = id_to_ch_map[id]
-  result = result + ch
-  i = [[id]]
-  
-  feed = {input_placeholder: i, decoder_initial_state: state}
-  #feed = {input_placeholder: i}
-  #for i, (c, h) in enumerate(decoder_initial_state):
-    #feed[c] = state[i].c
-    #feed[h] = state[i].h
+  def hacky_character_picker( probs ):
+    cs = np.cumsum(probs)
+    t = np.sum(probs)
+    r = np.random.rand(1)
+    cutoff = r * t
+    return int(np.searchsorted(cs, cutoff))
+   
+  for i in range(500):
+    id = hacky_character_picker(actual_probs)
+    #id = np.argmax(actual_probs)
+    token = id_to_token_map[id]
+    result.append(token)
+    i = [[id]]
+    
+    feed = {input_placeholder: i, decoder_initial_state: state}
+    #feed = {input_placeholder: i}
+    #for i, (c, h) in enumerate(decoder_initial_state):
+      #feed[c] = state[i].c
+      #feed[h] = state[i].h
 
-  actual_probs, state = session.run([probs, last_state], feed_dict=feed)
+    actual_probs, state = session.run([probs, last_state], feed_dict=feed)
 
-print("AND the result is: ")
-print(result)
+  print("AND the result is: ")
+  if args.type == 'chars':
+    return ''.join(result)
+  else:
+    result = ' '.join(result)
+    result = result.replace('<newline>', '\n')
+    for p in punctuation:
+      result = result.replace(' {0}'.format(p), '.')
+    return result
 
+if args.type == 'chars':
+  input = [ token_to_id_map[t] for t in 'men']
+  print(predict(input))
+else:
+  input = [ random.randint(0, number_of_tokens) for _ in range(3) ] 
+  print(predict(input))
 
+print("Enter some starter text")
+for line in sys.stdin:
+  if line == '\n':
+    break
+  line.replace('\n', '')
+  if args.type == 'chars':
+    input = [ token_to_id_map[t] for t in line]
+  print('-'*80)
+  print(predict(input))
 
