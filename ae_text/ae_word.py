@@ -35,7 +35,6 @@ batch_size_in_chars = batch_size*batch_len
 def load_file(file_dir):
   file = open(os.path.join(file_dir, "input.txt"), "r")
   data = file.read()
-  data = data.lower()
 
   # make the input and target
 
@@ -166,7 +165,7 @@ saver.save(session, model_filename)
 
 loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits = model(cell_state_size, rnn_cells_depth, 1, 1, number_of_letters, True)
 
-prime = "men"
+prime = "MEN"
 result = prime
 state = session.run(decoder_initial_state)
 for ch in prime:
