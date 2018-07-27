@@ -5,7 +5,8 @@ import argparse
 import collections
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.ops import seq2seq
+from tensorflow.contrib import legacy_seq2seq as seq2seq
+#from tensorflow.python.ops import seq2seq
 import pdb
 
 # implement char_rnn_tf 
@@ -13,7 +14,7 @@ import pdb
 parser = argparse.ArgumentParser(description="Program to train a story generator")
 parser.add_argument("--data", default="./data", type=str, help="directory with input.txt")
 parser.add_argument("--seq_len", default=50, type=int, help="length of the sequences for the rnn")
-epochs = 20
+parser.add_argument("--epochs", default=50, type=int, help="nummer of epichs tu run")
 batch_size = 60
 batch_len = 50
 cell_state_size = 128 # in cell
@@ -21,6 +22,12 @@ rnn_cells_depth = 2 # cells in each time step
 
 args = parser.parse_args()
 print(args.data)
+epochs = args.epochs
+
+model_dir = os.path.dirname(os.path.abspath(__file__)) + "/model"
+if not os.path.exists(model_dir):
+  os.makedirs(model_dir)
+model_filename = model_dir + "/model"
 
 batch_size_in_chars = batch_size*batch_len
 
@@ -70,15 +77,16 @@ input, targets, number_of_letters, ch_to_id_map, id_to_ch_map = load_file(args.d
 
 def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_letters, reuse): 
 
-  cell = tf.nn.rnn_cell.BasicLSTMCell(cell_state_size)
-  rnn_cell= tf.nn.rnn_cell.MultiRNNCell([cell] * rnn_cells_depth)
-  input_placeholder = tf.placeholder(tf.int32, shape=(batch_size, batch_len), name="input")
-  target_placeholder = tf.placeholder(tf.int32, shape=(batch_size, batch_len), name="target")
+  input_placeholder = tf.placeholder(tf.int32, shape=(None, batch_len), name="input")
+  target_placeholder = tf.placeholder(tf.int32, shape=(None, batch_len), name="target")
   # make dictionary for letters (60, 128)
 
   with tf.variable_scope("rnn") as scope:
     if reuse:
       scope.reuse_variables()
+
+    cell = tf.nn.rnn_cell.BasicLSTMCell(cell_state_size)
+    rnn_cell= tf.nn.rnn_cell.MultiRNNCell([cell] * rnn_cells_depth)
 
     W = tf.get_variable("W", shape=(128, number_of_letters))
     b = tf.get_variable("b", shape=(number_of_letters))
@@ -87,7 +95,7 @@ def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_let
     # (60, 50, 128)
     rnn_input = tf.nn.embedding_lookup(embedding, input_placeholder)
     # 50 of (60, 1, 128)
-    rnn_input = tf.split(1, batch_len, rnn_input)
+    rnn_input = tf.split(rnn_input, batch_len, axis=1)
     rnn_input = [ tf.squeeze(rni, [1]) for rni in rnn_input ]
 
 
@@ -96,7 +104,7 @@ def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_let
     # outputs list of 50 - (60,128)
     outputs, last_state = seq2seq.rnn_decoder(rnn_input, decoder_initial_state, rnn_cell, scope="rnn")
   # (60, -1)
-  outputs = tf.concat(1, outputs)
+  outputs = tf.concat(outputs, 1)
   # (-1, 128) ie a list of letters
   outputs = tf.reshape(outputs, [-1, 128])
 
@@ -107,6 +115,9 @@ def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_let
   probs = tf.nn.softmax(logits, -1, name="probs")
 
   loss = seq2seq.sequence_loss_by_example([logits], [tf.reshape(target_placeholder, [-1])], [tf.ones([batch_size * batch_len])], number_of_letters)
+  return([loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits])
+
+def optimizer(batch_size, batch_len, loss):
   lr = tf.Variable(0.0, trainable=False)
   tvars = tf.trainable_variables()
 
@@ -118,36 +129,45 @@ def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_let
   grads_and_vars = zip(grads, tvars)
   train_op = optimizer.apply_gradients(grads_and_vars)
 
-  return([train_op, probs, decoder_initial_state, input_placeholder, target_placeholder, cost_op, last_state, logits, lr])
+  return [train_op, cost_op, lr]
 
-train_op, probs, decoder_initial_state, input_placeholder, target_placeholder, cost_op, last_state, logits, lr = model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_letters, False)
+loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits = model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_letters, False)
+train_op, cost_op, lr = optimizer(batch_size, batch_len, loss)
 
 # train the model
 
-sess = tf.Session()
-sess.run(tf.global_variables_initializer())
+session = tf.Session()
+session.run(tf.global_variables_initializer())
+
+saver = tf.train.Saver()
+
+try:
+  saver.restore(session, model_filename)
+except Exception as e:
+  0 # ignore 
 
 learning_rate = 0.002
 decay = 0.97
 for epoch in range(epochs):
   print("Epoch %s" %(epoch+1))
-  sess.run(tf.assign(lr, learning_rate * (decay ** epoch)))
-  state = sess.run(decoder_initial_state)
+  session.run(tf.assign(lr, learning_rate * (decay ** epoch)))
+  state = session.run(decoder_initial_state)
   for i, t in zip(input, targets):
-    #pdb.set_trace()
     feed = {input_placeholder: i, target_placeholder: t}
     for i, (c, h) in enumerate(decoder_initial_state):
       feed[c] = state[i].c
       feed[h] = state[i].h
-    cost, _, state = sess.run([cost_op, train_op, last_state], feed_dict=feed)
+    cost, _, state = session.run([cost_op, train_op, last_state], feed_dict=feed)
+
+saver.save(session, model_filename)
 
 # sample the model
 
-train_op, probs, decoder_initial_state, input_placeholder, target_placeholder, cost_op, last_state, logits, lr = model(cell_state_size, rnn_cells_depth, 1, 1, number_of_letters, True)
+loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits = model(cell_state_size, rnn_cells_depth, 1, 1, number_of_letters, True)
 
 prime = "MEN"
 result = prime
-state = sess.run(decoder_initial_state)
+state = session.run(decoder_initial_state)
 for ch in prime:
   id = ch_to_id_map[ch]
   i = [[id]]
@@ -158,7 +178,7 @@ for ch in prime:
     #feed[c] = state[i].c
     #feed[h] = state[i].h
 
-  actual_probs, state = sess.run([probs, last_state], feed_dict=feed)
+  actual_probs, state = session.run([probs, last_state], feed_dict=feed)
 
 # now the super hacky part. Generate one character at a time. If we generate
 # exactly what the RNN says the output is very repetitive so instead of doing
@@ -186,7 +206,7 @@ for i in range(500):
     #feed[c] = state[i].c
     #feed[h] = state[i].h
 
-  actual_probs, state = sess.run([probs, last_state], feed_dict=feed)
+  actual_probs, state = session.run([probs, last_state], feed_dict=feed)
 
 print("AND the result is: ")
 print(result)

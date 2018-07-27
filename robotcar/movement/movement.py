@@ -53,8 +53,8 @@ def image_to_target(image):
   return decorated
 
 #batch_size = 64
-batch_size = 32
-n_features_last_layer = 3
+batch_size = 55
+n_features_last_layer = 16
 
 model_dir = os.path.dirname(os.path.abspath(__file__)) + "/model"
 
@@ -590,59 +590,23 @@ def Model3D_LR(model_input):
   # n=2,f=1 [<tf.Tensor 'split_4:0' shape=(1, 2, 48, 64, 1) dtype=float32>, <tf.Tensor 'split_4:1' shape=(1, 2, 48, 64, 1) dtype=float32>]
   # n=2,f=2 [<tf.Tensor 'split_4:0' shape=(?, 2, 48, 64, 2) dtype=float32>, <tf.Tensor 'split_4:1' shape=(?, 2, 48, 64, 2) dtype=float32>]
 
+  pdb.set_trace()
   batch = tf.split(layer, batch_size, axis=0)
   batch_by_features = [tf.split(element, n_features_last_layer, axis=4) for element in batch]
   # n =1 [[[<tf.Tensor 'mul_6:0' shape=(1, 1, 64, 1) dtype=float32>], [<tf.Tensor 'mul_7:0' shape=(1, 1, 64, 1) dtype=float32>]]]
   # n= 2 [[[<tf.Tensor 'mul_6:0' shape=(1, 1, 64, 1) dtype=float32>], [<tf.Tensor 'mul_7:0' shape=(1, 1, 64, 1) dtype=float32>]], [[<tf.Tensor 'mul_14:0' shape=(1, 1, 64, 1) dtype=float32>], [<tf.Tensor 'mul_15:0' shape=(1, 1, 64, 1) dtype=float32>]]]
   model_coolness = [[get_layer_features(layer, scale) for layer in features] for features in batch_by_features]
   model_coolness = [tf.concat(features, (0)) for features in model_coolness]
-  pdb.set_trace()
+  #pdb.set_trace()
   model_coolness = tf.concat(model_coolness, 0)
   model_coolness = tf.reshape(model_coolness, [-1, n_features_last_layer])
 
+  layer = tf.layers.dense(model_coolness, 64, activation=tf.nn.relu)
   layer = tf.layers.dense(model_coolness, 2)
   #layer = tf.squeeze(layer, 2)
-  pdb.set_trace()
+  #pdb.set_trace()
   model_logits = layer
-  return model_logits, scale, model_coolness
-  #model_coolness = batch_by_features
-  # [[<tf.Tensor 'mul_6:0' shape=(2, 1, 64, 1) dtype=float32>], [<tf.Tensor 'mul_7:0' shape=(2, 1, 64, 1) dtype=float32>]]
-  #model_coolness= get_coolness(layer, scale)
-  #model_coolness = tf.reshape(tf.concat([tf.concat(single, 0) for single in model_coolness], 0), (-1, 2))
-  #model_coolness = tf.layers.dense(model_coolness, 2)
 
-  layers = [tf.concat(page, axis=3) for page in pages]
-  # (?, 1, 64, 52) 
-  layers = [tf.squeeze(layer, axis=1) for layer in layers]
-  
-  # (?, 64, 52) 
-  n_filters = layers[0].shape[2]
-
-  def dude(layer):
-    layer = tf.squeeze(layer, axis=2)
-    return tf.reduce_sum(tf.nn.softmax(layer*100)*layer, axis=1)
-
-  layers1 = [dude(layer) for layer in tf.split(layers[0], n_filters, axis=2)]
-  layers2 = [dude(layer) for layer in tf.split(layers[1], n_filters, axis=2)]
-  #model_coolness = [layers1, layers2]
-
-  lefts = [layer1-layer2 for layer1,layer2 in zip(layers1, layers2)]
-  rights = [layer2-layer1 for layer1,layer2 in zip(layers1, layers2)]
-  lefts = [tf.reshape(left, (-1, 1)) for left in lefts] 
-  left = tf.concat(lefts, axis=1)
-  left = tf.reshape(left, (-1, 1, n_features_last_layer))
-  rights = [tf.reshape(right, (-1, 1)) for right in rights] 
-  # (?, 52)
-  right = tf.concat(rights, axis=1)
-  right = tf.reshape(right, (-1, 1, n_features_last_layer))
-  # (?, 2, 52)
-  layer = tf.concat([left, right], axis=1)
-  #model_coolness = layer
-
-  #layer = tf.layers.dense(layer, 1, activation=tf.nn.relu)
-  layer = tf.layers.dense(layer, 2, activation=tf.nn.relu)
-  pdb.set_trace()
-  model_logits = layer
   return model_logits, scale, model_coolness
 
 #train the target to a smaller standard deviation
