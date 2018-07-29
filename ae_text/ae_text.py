@@ -18,19 +18,26 @@ parser.add_argument("--data", default="./data", type=str, help="directory with i
 parser.add_argument("--seq_len", default=50, type=int, help="length of the sequences for the rnn")
 parser.add_argument("--epochs", default=50, type=int, help="nummer of epichs tu run")
 parser.add_argument("--type", default='chars', type=str, help="chars or words")
-batch_size = 60
-batch_len = 50
-cell_state_size = 128 # in cell
-rnn_cells_depth = 2 # cells in each time step
+parser.add_argument("--no-load", default=False, help="load the saved model", action='store_true')
+parser.add_argument("--repeat", default=25, type=int, help="how many times to repeat the input data")
 
 args = parser.parse_args()
 print(args.data)
+if args.type == 'chars':
+  batch_len = 3
+else:
+  batch_len = 2
+
+batch_size = 16
+cell_state_size = 128 # in cell
+rnn_cells_depth = 1 # cells in each time step
+
 epochs = args.epochs
 
-model_dir = os.path.dirname(os.path.abspath(__file__)) + "/model"
+model_dir = os.path.dirname(os.path.abspath(__file__)) + "/model_{0}".format(args.type)
 if not os.path.exists(model_dir):
   os.makedirs(model_dir)
-model_filename = model_dir + "/model_ae_{0}".format(args.type)
+model_filename = model_dir + "/model"
 
 batch_size_in_chars = batch_size*batch_len
 punctuation = ',!.;:'
@@ -40,8 +47,8 @@ def load_file(file_dir, token_type):
   file = open(os.path.join(file_dir, "input.txt"), "r")
   data = file.read()
   data = data.lower()
+  data = data*25
   data = data.replace('*', '')
-
   if token_type == 'chars':
     # okay
     0
@@ -60,7 +67,6 @@ def load_file(file_dir, token_type):
   for i, token in enumerate(counter.keys()):
     token_to_id_map[token] = i
     id_to_token_map[i] = token
-
   input = []
 
   for token in data:
@@ -100,7 +106,11 @@ def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_tok
       scope.reuse_variables()
 
     cell = tf.nn.rnn_cell.BasicLSTMCell(cell_state_size)
-    rnn_cell= tf.nn.rnn_cell.MultiRNNCell([cell] * rnn_cells_depth)
+    #cell = tf.nn.rnn_cell.BasicRNNCell(cell_state_size)
+    #cell = tf.contrib.rnn.IntersectionRNNCell(cell_state_size)
+    #cell = tf.contrib.rnn.LSTMCell(cell_state_size)
+    #cell = tf.contrib.rnn.TimeFreqLSTMCell(cell_state_size)
+    rnn_cell = tf.nn.rnn_cell.MultiRNNCell([cell] * rnn_cells_depth)
 
     W = tf.get_variable("W", shape=(128, number_of_tokens))
     b = tf.get_variable("b", shape=(number_of_tokens))
@@ -111,7 +121,6 @@ def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_tok
     # 50 of (60, 1, 128)
     rnn_input = tf.split(rnn_input, batch_len, axis=1)
     rnn_input = [ tf.squeeze(rni, [1]) for rni in rnn_input ]
-
 
     # map input from id numbers to rnn states
     decoder_initial_state = rnn_cell.zero_state(batch_size, tf.float32)
@@ -132,10 +141,10 @@ def model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_tok
   return([loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits])
 
 def optimizer(batch_size, batch_len, loss):
-  lr = tf.Variable(0.0, trainable=False)
+  model_lr = tf.Variable(0.0, trainable=False)
   tvars = tf.trainable_variables()
 
-  optimizer = tf.train.AdamOptimizer(lr)
+  optimizer = tf.train.AdamOptimizer(model_lr)
   cost_op = tf.reduce_sum(loss) / batch_size / batch_len
   grads= tf.gradients(cost_op, tvars)
   grad_clip = 5
@@ -143,10 +152,10 @@ def optimizer(batch_size, batch_len, loss):
   grads_and_vars = zip(grads, tvars)
   train_op = optimizer.apply_gradients(grads_and_vars)
 
-  return [train_op, cost_op, lr]
+  return [train_op, cost_op, model_lr]
 
 loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits = model(cell_state_size, rnn_cells_depth, batch_size, batch_len, number_of_tokens, False)
-train_op, cost_op, lr = optimizer(batch_size, batch_len, loss)
+train_op, cost_op, model_lr = optimizer(batch_size, batch_len, loss)
 
 # train the model
 
@@ -155,24 +164,23 @@ session.run(tf.global_variables_initializer())
 
 saver = tf.train.Saver()
 
-try:
-  saver.restore(session, model_filename)
-except Exception as e:
-  pdb.set_trace()
-  0 # ignore 
+if not args.no_load:
+  try:
+    saver.restore(session, model_filename)
+  except Exception as e:
+    0 # ignore 
 
 learning_rate = 0.002
-decay = 0.97
+#decay = 0.97
+decay = 1.0
 for epoch in range(epochs):
-  print("Epoch %s" %(epoch+1))
-  session.run(tf.assign(lr, learning_rate * (decay ** epoch)))
+  sys.stdout.write("Epoch {0}".format(epoch+1))
+  session.run(tf.assign(model_lr, learning_rate * (decay ** epoch)))
   state = session.run(decoder_initial_state)
   for i, t in zip(input, targets):
-    feed = {input_placeholder: i, target_placeholder: t}
-    for i, (c, h) in enumerate(decoder_initial_state):
-      feed[c] = state[i].c
-      feed[h] = state[i].h
-    cost, _, state = session.run([cost_op, train_op, last_state], feed_dict=feed)
+    feed = {input_placeholder: i, target_placeholder: t, decoder_initial_state: state}
+    cost, _, state, lr = session.run([cost_op, train_op, last_state, model_lr], feed_dict=feed)
+  print(" {0} lr({1})".format(cost, lr))
 
 saver.save(session, model_filename)
 
@@ -180,15 +188,7 @@ saver.save(session, model_filename)
 
 loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits = model(cell_state_size, rnn_cells_depth, 1, 1, number_of_tokens, True)
 
-def predict(prime):
-  '''
-  if args.type == 'chars':
-    prime = "men"
-    prime = [ token_to_id_map[t] for t in prime]
-  else:
-    prime = [ random.randint(0, number_of_tokens) for _ in range(3) ]
-  '''
-
+def predict(prime, n_samples):
   result = [ id_to_token_map[i] for i in prime]
   state = session.run(decoder_initial_state)
   for id in prime:
@@ -212,18 +212,13 @@ def predict(prime):
     cutoff = r * t
     return int(np.searchsorted(cs, cutoff))
    
-  for i in range(500):
+  for i in range(n_samples):
     id = hacky_character_picker(actual_probs)
-    #id = np.argmax(actual_probs)
     token = id_to_token_map[id]
     result.append(token)
     i = [[id]]
     
     feed = {input_placeholder: i, decoder_initial_state: state}
-    #feed = {input_placeholder: i}
-    #for i, (c, h) in enumerate(decoder_initial_state):
-      #feed[c] = state[i].c
-      #feed[h] = state[i].h
 
     actual_probs, state = session.run([probs, last_state], feed_dict=feed)
 
@@ -237,20 +232,28 @@ def predict(prime):
       result = result.replace(' {0}'.format(p), '.')
     return result
 
+input = [ random.randint(0, number_of_tokens-1) for _ in range(3) ] 
 if args.type == 'chars':
-  input = [ token_to_id_map[t] for t in 'men']
-  print(predict(input))
+  print(predict(input, 500))
 else:
-  input = [ random.randint(0, number_of_tokens) for _ in range(3) ] 
-  print(predict(input))
+  print(predict(input, 100))
 
 print("Enter some starter text")
 for line in sys.stdin:
   if line == '\n':
     break
-  line.replace('\n', '')
+  line = line.replace('\n', '')
   if args.type == 'chars':
     input = [ token_to_id_map[t] for t in line]
+    n_samples = 500
+  elif args.type == 'words':
+    words = line.split()
+    input = []
+    for word in words:
+      if word in token_to_id_map:
+        input.append(token_to_id_map[word])
+    n_samples = 100
   print('-'*80)
-  print(predict(input))
+  print(predict(input, n_samples))
+  print("Enter some starter text")
 
