@@ -13,21 +13,23 @@ import pdb
 
 # implement char_rnn_tf 
 
+# this works: python ae_text.py --epochs 100 --stop_at 0.001 --type words --batch_len 20 --beam_len 10 --no-load
 parser = argparse.ArgumentParser(description="Program to train a story generator")
 parser.add_argument("--data", default="./data", type=str, help="directory with input.txt")
 parser.add_argument("--seq_len", default=50, type=int, help="length of the sequences for the rnn")
 parser.add_argument("--epochs", default=50, type=int, help="nummer of epichs tu run")
+parser.add_argument("--stop_at", default=0.0, type=float, help="stops training when loss is less than this value")
 parser.add_argument("--type", default='chars', type=str, help="chars or words")
+parser.add_argument("--batch_len", default=5, type=int, help="length of the rnn")
+parser.add_argument("--predict_len", default=5, type=int, help="length of the generated output")
+parser.add_argument("--beam_len", default=1, type=int, help="size of beam for prediction")
 parser.add_argument("--no-load", default=False, help="load the saved model", action='store_true')
 parser.add_argument("--repeat", default=25, type=int, help="how many times to repeat the input data")
 
 args = parser.parse_args()
 print(args.data)
-if args.type == 'chars':
-  batch_len = 3
-else:
-  batch_len = 2
 
+batch_len = args.batch_len
 batch_size = 16
 cell_state_size = 128 # in cell
 rnn_cells_depth = 1 # cells in each time step
@@ -181,6 +183,8 @@ for epoch in range(epochs):
     feed = {input_placeholder: i, target_placeholder: t, decoder_initial_state: state}
     cost, _, state, lr = session.run([cost_op, train_op, last_state, model_lr], feed_dict=feed)
   print(" {0} lr({1})".format(cost, lr))
+  if cost < args.stop_at:
+    break
 
 saver.save(session, model_filename)
 
@@ -188,7 +192,67 @@ saver.save(session, model_filename)
 
 loss, probs, decoder_initial_state, input_placeholder, target_placeholder, last_state, logits = model(cell_state_size, rnn_cells_depth, 1, 1, number_of_tokens, True)
 
-def predict(prime, n_samples):
+def predict(predictions, n_samples, beam_size):
+# now the super hacky part. Generate one character at a time. If we generate
+# exactly what the RNN says the output is very repetitive so instead of doing
+# that we get the probabilities for each output and randomly select a character
+# based on its likelyhood. That makes the output not boring. 
+# FUTURE WORK: get the hacky bit in the neural network
+
+  def hacky_character_picker( probs, beam_size ):
+    #beam_size = 3
+    if beam_size == 1:
+      cs = np.cumsum(probs)
+      t = np.sum(probs)
+      r = np.random.rand(1)
+      cutoff = r * t
+      return [(int(np.searchsorted(cs, cutoff)), 1.0)]
+    else:
+      tokens = [(i, probs[0][i]) for i in range(len(probs[0]))]
+      tokens = sorted(tokens, key=lambda data: -data[1])
+      tokens = tokens[:beam_size]
+      return tokens
+  
+  def get_next(result, state, result_prob, actual_probs):
+    tokens = hacky_character_picker(actual_probs, beam_size)
+    nexts = []
+    for id, token_prob in tokens:
+      token = id_to_token_map[id]
+      next_result = result.copy()
+      next_result.append(token)
+      i = [[id]]
+      
+      feed = {input_placeholder: i, decoder_initial_state: state}
+
+      next_actual_probs, next_state = session.run([probs, last_state], feed_dict=feed)
+      nexts.append((next_result, next_state, result_prob*token_prob, next_actual_probs))
+    return nexts
+  
+  result, state, prob, actual_probs = predictions[0]
+
+  for i in range(n_samples):
+    next_p = []
+    for p in predictions:
+      next_p += get_next(*p)
+    predictions = sorted(next_p, key=lambda p: -p[2])
+    predictions = predictions[:beam_size]
+
+  #result, state, prob, actual_probs = predictions[0]
+
+  if args.type == 'chars':
+    return [''.join(result) for result,_,_,_ in predictions]
+  else:
+    def to_result(prediction):
+      result = prediction[0]
+      result = ' '.join(result)
+      result = result.replace('<newline>', '\n')
+      for p in punctuation:
+        result = result.replace(' {0}'.format(p), '.')
+      return result
+    return [to_result(p) for p in predictions]
+
+# result, state, token
+def setup_predictions(prime):
   result = [ id_to_token_map[i] for i in prime]
   state = session.run(decoder_initial_state)
   for id in prime:
@@ -198,45 +262,17 @@ def predict(prime, n_samples):
     feed = {input_placeholder: i, decoder_initial_state: state}
 
     actual_probs, state = session.run([probs, last_state], feed_dict=feed)
+  prob = 1.0
+  return [(result, state, prob, actual_probs)]
 
-# now the super hacky part. Generate one character at a time. If we generate
-# exactly what the RNN says the output is very repetitive so instead of doing
-# that we get the probabilities for each output and randomly select a character
-# based on its likelyhood. That makes the output not boring. 
-# FUTURE WORK: get the hacky bit in the neural network
-
-  def hacky_character_picker( probs ):
-    cs = np.cumsum(probs)
-    t = np.sum(probs)
-    r = np.random.rand(1)
-    cutoff = r * t
-    return int(np.searchsorted(cs, cutoff))
-   
-  for i in range(n_samples):
-    id = hacky_character_picker(actual_probs)
-    token = id_to_token_map[id]
-    result.append(token)
-    i = [[id]]
-    
-    feed = {input_placeholder: i, decoder_initial_state: state}
-
-    actual_probs, state = session.run([probs, last_state], feed_dict=feed)
-
-  print("AND the result is: ")
-  if args.type == 'chars':
-    return ''.join(result)
-  else:
-    result = ' '.join(result)
-    result = result.replace('<newline>', '\n')
-    for p in punctuation:
-      result = result.replace(' {0}'.format(p), '.')
-    return result
 
 input = [ random.randint(0, number_of_tokens-1) for _ in range(3) ] 
+predictions = setup_predictions(input)
+print("AND the result is: ")
 if args.type == 'chars':
-  print(predict(input, 500))
+  print(predict(predictions, 500, 1))
 else:
-  print(predict(input, 100))
+  print(predict(predictions, 100, 1))
 
 print("Enter some starter text")
 for line in sys.stdin:
@@ -245,15 +281,18 @@ for line in sys.stdin:
   line = line.replace('\n', '')
   if args.type == 'chars':
     input = [ token_to_id_map[t] for t in line]
-    n_samples = 500
+    n_samples = 100
   elif args.type == 'words':
     words = line.split()
     input = []
     for word in words:
       if word in token_to_id_map:
         input.append(token_to_id_map[word])
-    n_samples = 100
+    n_samples = 10
   print('-'*80)
-  print(predict(input, n_samples))
+  predictions = setup_predictions(input)
+  predictions = predict(predictions, n_samples, args.beam_len)
+  for i, prediction in enumerate(predictions):
+    print("{0}. {1}".format(i,prediction))
   print("Enter some starter text")
 
