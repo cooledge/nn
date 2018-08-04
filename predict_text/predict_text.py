@@ -87,7 +87,6 @@ def load_file(file_dir, token_type):
   def setup_inputs(input):
     input = input[0:(number_of_batches*batch_size_in_chars)]
     input = np.reshape(input, [batch_size, -1])
-    pdb.set_trace()
     input = np.split(input, number_of_batches, 1)
     return input
 
