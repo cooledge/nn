@@ -24,6 +24,7 @@ parser.add_argument("--batch_len", default=5, type=int, help="length of the rnn"
 parser.add_argument("--predict_len", default=5, type=int, help="length of the generated output")
 parser.add_argument("--beam_len", default=1, type=int, help="size of beam for prediction")
 parser.add_argument("--no-load", default=False, help="load the saved model", action='store_true')
+parser.add_argument("--auto_encoder", default=False, help="run as an autoencoder as opposed to a predicter", action='store_true')
 parser.add_argument("--repeat", default=25, type=int, help="how many times to repeat the input data")
 
 args = parser.parse_args()
@@ -75,14 +76,18 @@ def load_file(file_dir, token_type):
     input.append(token_to_id_map[token])
   input = np.array(input)
   targets = input.copy()
-  targets[:-1] = input[1:]
-  targets[-1] = input[0]
+  if args.auto_encoder:
+    targets = input
+  else:
+    targets[:-1] = input[1:]
+    targets[-1] = input[0]
 
   number_of_batches = len(input)//batch_size_in_chars
 
   def setup_inputs(input):
     input = input[0:(number_of_batches*batch_size_in_chars)]
     input = np.reshape(input, [batch_size, -1])
+    pdb.set_trace()
     input = np.split(input, number_of_batches, 1)
     return input
 
@@ -265,14 +270,28 @@ def setup_predictions(prime):
   prob = 1.0
   return [(result, state, prob, actual_probs)]
 
+def autoencoder_predict(prime):
+  state = session.run(decoder_initial_state)
+  predict = []
+  for id in prime:
+    i = [[id]]
+    t = [[id]]
+     
+    feed = {input_placeholder: i, decoder_initial_state: state}
 
-input = [ random.randint(0, number_of_tokens-1) for _ in range(3) ] 
-predictions = setup_predictions(input)
-print("AND the result is: ")
-if args.type == 'chars':
-  print(predict(predictions, 500, 1))
-else:
-  print(predict(predictions, 100, 1))
+    actual_probs, state = session.run([probs, last_state], feed_dict=feed)
+    char = np.argmax(actual_probs)
+    predict.append(id_to_token_map[char])
+  return predict
+
+if not args.auto_encoder:
+  input = [ random.randint(0, number_of_tokens-1) for _ in range(3) ] 
+  predictions = setup_predictions(input)
+  print("AND the result is: ")
+  if args.type == 'chars':
+    print(predict(predictions, 500, 1))
+  else:
+    print(predict(predictions, 100, 1))
 
 print("Enter some starter text")
 for line in sys.stdin:
@@ -290,9 +309,14 @@ for line in sys.stdin:
         input.append(token_to_id_map[word])
     n_samples = 10
   print('-'*80)
-  predictions = setup_predictions(input)
-  predictions = predict(predictions, n_samples, args.beam_len)
-  for i, prediction in enumerate(predictions):
-    print("{0}. {1}".format(i,prediction))
+  if args.auto_encoder:
+    prediction = autoencoder_predict(input)
+    print(prediction)
+  else:
+    predictions = setup_predictions(input)
+    predictions = predict(predictions, n_samples, args.beam_len)
+
+    for i, prediction in enumerate(predictions):
+      print("{0}. {1}".format(i,prediction))
   print("Enter some starter text")
 
