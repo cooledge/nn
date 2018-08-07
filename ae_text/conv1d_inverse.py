@@ -5,32 +5,23 @@ import pdb
 # n_filters: number of features to output
 # kernel_size: how many nodes in source to combine
 # strides: usual
-def conv1d_inverse(layer, n_filters=1, kernel_size=2, strides=1, initializer=tf.contrib.layers.xavier_initializer()):
-  n_seq_len = int(layer.get_shape()[1])
+def conv1d_inverse(layer, n_filters_out=1, kernel_size=2, strides=1, initializer=tf.contrib.layers.xavier_initializer()):
+  seq_len = int(layer.get_shape()[1])
   n_filters_in = int(layer.get_shape()[2])
-  
-  extra = int((n_seq_len + kernel_size - 1) / kernel_size)*kernel_size - n_seq_len
-  layer = tf.pad(layer, tf.constant([[0,0], [0,extra], [0,0]]), 'CONSTANT')
-  features = tf.split(layer, layer.get_shape()[2], axis=2)
-  features = [tf.squeeze(f, axis=2) for f in features]
 
-  #initializer = tf.contrib.layers.xavier_initializer()
-  #initializer = tf.constant_initializer(1.0)
-  #kernel = tf.ones([1, kernel_size, n_filters])
-  kernel = initializer([1, kernel_size, n_filters])
-  kernels = tf.split(kernel, n_filters, axis=2)
+  steps = tf.split(layer, seq_len, axis=1)
+  steps = [tf.squeeze(step, axis=1) for step in steps]
+
+  kernel = initializer([n_filters_in, kernel_size, n_filters_out])
+  kernels = tf.split(kernel, n_filters_out, axis=2)
   kernels = [tf.squeeze(kernel, axis=2) for kernel in kernels]
- 
-  # feature(batch_size, seq_len)
-  def apply_filter(feature, kernel):
-   splits = tf.split(feature, feature.get_shape()[1], axis=1)[0:n_seq_len]
-   outputs = [tf.matmul(split, kernel) for split in splits]
-   output = tf.concat(outputs, axis=1)
-   return output
 
-  outputs = [apply_filter(feature, kernel) for feature, kernel in zip(features, kernels)]
-  outputs = [tf.reshape(output, (-1, n_seq_len*kernel_size, 1)) for output in outputs]
+  pdb.set_trace()
+  outputs = [[tf.matmul(step, kernel) for step in steps] for kernel in kernels]
+  outputs = [tf.concat(steps, axis=1) for steps in outputs]
+  outputs = [tf.reshape(feature, (-1, seq_len*kernel_size, 1)) for feature in outputs]
   output = tf.concat(outputs, axis=2)
+
   return output
 
 if __name__ == '__main__':
@@ -45,7 +36,7 @@ if __name__ == '__main__':
   '''
 
   def test1():
-    n_filters = 2
+    n_filters = 1
     model_inputs = tf.placeholder(tf.float32, [1,5,n_filters])
     model_conv = tf.layers.conv1d(model_inputs, n_filters, 2, padding='same')
     'conv1d/kernel:0'
@@ -63,12 +54,14 @@ if __name__ == '__main__':
     maxpool = session.run(model_maxpool, feed_dict=feed)
     print("maxpool {0}".format(maxpool))
 
-    model_upsample = conv1d_inverse(model_maxpool, 2, 2, initializer=tf.constant_initializer(1.0))
+    model_upsample = conv1d_inverse(model_maxpool, 1, kernel_size=2, initializer=tf.constant_initializer(1.0))
     upsample = session.run(model_upsample, feed_dict=feed)
     print("upsample {0}".format(upsample))
 
     pdb.set_trace()
     pdb.set_trace()
+
+  test1()
 
   n_filters = 1
   model_inputs = tf.placeholder(tf.float32, [1,5,n_filters])
