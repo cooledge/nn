@@ -12,10 +12,26 @@ def conv1d_inverse(layer, n_filters_out=1, kernel_size=2, strides=1, initializer
   steps = tf.split(layer, seq_len, axis=1)
   steps = [tf.squeeze(step, axis=1) for step in steps]
 
-  kernel = initializer([n_filters_in, kernel_size, n_filters_out])
+  kernel = initializer([kernel_size, 1, n_filters_out])
   kernels = tf.split(kernel, n_filters_out, axis=2)
   kernels = [tf.squeeze(kernel, axis=2) for kernel in kernels]
 
+  pdb.set_trace()
+  zeros = tf.zeros(steps[0].get_shape())
+
+  def apply_kernel(kernel)
+    applied = []
+    for i in range(len(steps)):
+      group = []
+      if i == 0:
+        group.append(zeros)
+      else:
+        group.append(steps[i-1])
+      group.append(steps[i])
+      group = tf.concat(group, axis=1)
+      applied.append(tf.matmul(group, kernel))
+    return applied
+      
   outputs = [[tf.matmul(step, kernel) for step in steps] for kernel in kernels]
   outputs = [tf.concat(steps, axis=1) for steps in outputs]
   outputs = [tf.reshape(feature, (-1, seq_len*kernel_size, 1)) for feature in outputs]
@@ -53,8 +69,8 @@ if __name__ == '__main__':
     maxpool = session.run(model_maxpool, feed_dict=feed)
     print("maxpool {0}".format(maxpool))
 
-    n_filters_out = 2
-    kernel_size_out = 1
+    n_filters_out = 1
+    kernel_size_out = 2
     model_upsample = conv1d_inverse(model_maxpool, n_filters_out, kernel_size=kernel_size_out, initializer=tf.constant_initializer(1.0))
     upsample = session.run(model_upsample, feed_dict=feed)
     print("upsample greg {0}".format(upsample))
@@ -65,7 +81,7 @@ if __name__ == '__main__':
     l1_filter = tf.constant_initializer(1.0)((kernel_size_out, n_filters_out, n_filters))
     model_upsample_ref = tf.contrib.nn.conv1d_transpose(model_maxpool, l1_filter, output_shape, stride=1)
     upsample_ref = session.run(model_upsample_ref, feed_dict=feed)
-    print("upsample def {0}".format(upsample_ref))
+    print("upsample ref {0}".format(upsample_ref))
 
     pdb.set_trace()
     pdb.set_trace()
