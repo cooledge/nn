@@ -15,15 +15,12 @@ import pdb
 
 # implement char_rnn_tf 
 
-# this works: python ae_text.py --epochs 100 --stop_at 0.001 --type words --batch_len 20 --beam_len 10 --no-load
+# this works: python ae_text.py --epochs 100 --type words --batch_len 20 --no-load
 parser = argparse.ArgumentParser(description="Program to train a story generator")
 parser.add_argument("--data", default="./data", type=str, help="directory with input.txt")
 parser.add_argument("--seq_len", default=10, type=int, help="length of the sequences for the rnn")
 parser.add_argument("--epochs", default=50, type=int, help="nummer of epichs tu run")
-parser.add_argument("--stop_at", default=0.0, type=float, help="stops training when loss is less than this value")
 parser.add_argument("--batch_len", default=20, type=int, help="length of the rnn")
-parser.add_argument("--predict_len", default=5, type=int, help="length of the generated output")
-parser.add_argument("--beam_len", default=1, type=int, help="size of beam for prediction")
 parser.add_argument("--no-load", default=False, help="load the saved model", action='store_true')
 parser.add_argument("--repeat", default=25, type=int, help="how many times to repeat the input data")
 
@@ -92,16 +89,18 @@ def model(batch_size, batch_len, number_of_tokens, reuse):
   model = keras.Sequential()
   model.add(keras.layers.Embedding(number_of_tokens, embedding_size))
   model.add(keras.layers.Conv1D(64, 2, padding='same'))
-  model.add(keras.layers.MaxPool1D(2, 1, padding='same'))
+  model.add(keras.layers.Dropout(0.25))
+  model.add(keras.layers.Conv1D(64, 3, padding='same'))
+  model.add(keras.layers.Dropout(0.25))
+  #model.add(keras.layers.MaxPool1D(2, 2, padding='same'))
+  #model.add(keras.layers.UpSampling1D(2))
   model.add(keras.layers.Dense(embedding_size, name='to_emdedding', activation='relu'))
   model.add(keras.layers.Dense(number_of_tokens, name='to_tokens', activation='softmax'))
-  #model.add(keras.layers.Reshape((number_of_tokens,)))
   model.compile(optimizer='adam', metrics=['accuracy'], loss='categorical_crossentropy')  
   return model
 
 model = model(batch_size, batch_len, number_of_tokens, False)
 
-pdb.set_trace()
 ctargets = tf.keras.utils.to_categorical(targets, num_classes=number_of_tokens)
 #ctargets = np.reshape(ctargets, (-1, batch_len*number_of_tokens))
 model.fit([targets], [ctargets], epochs=args.epochs, batch_size=batch_size)
@@ -114,9 +113,9 @@ for line in sys.stdin:
   input = [ token_to_id_map[t] for t in line]
   n_samples = 100
   print('-'*80)
-  pdb.set_trace()
   prediction = model.predict([[input]], batch_size=1)
-  prediction = np.argmax(prediction, axis=1)
-  print(prediction)
+  prediction = np.argmax(prediction, axis=2)[0]
+  prediction = [id_to_token_map[id] for id in prediction]
+  print(''.join(prediction))
   print("Enter some starter text")
 
