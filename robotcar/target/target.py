@@ -102,7 +102,7 @@ def show_field(field):
   utils.si(img)
 
 def label_to_normal_field(row, col):
-  scale = 1
+  scale = 3
   nd = multivariate_normal(mean=[row,col], cov=[[n_rows/scale,0],[0,n_cols/scale]])
   field = np.zeros((n_rows, n_cols))
   for r in range(n_rows):
