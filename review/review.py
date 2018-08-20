@@ -23,4 +23,6 @@ words = counter.most_common()
 id_to_word_map = [word for (word, count) in words]
 word_to_id_map = { word:index for (word, index) in enumerate(id_to_word_map) }
 pdb.set_trace()
+questions = [ [word_to_id_map[word] for word in question] for question in questions ]
+pdb.set_trace()
 pdb.set_trace()
