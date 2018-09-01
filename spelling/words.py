@@ -4,7 +4,25 @@ import pdb
 
 import numpy as np
 
-words = [list("abcd")] # list of words made up of ids
+filename = './data/warandpeace.txt'
+max_len = 20
+
+lines = []
+with open(filename) as f:
+  lines = [line for line in f.readlines()]
+
+words = set([])
+chars = set([])
+for line in lines:
+  for word in tf.keras.preprocessing.text.text_to_word_sequence(line):
+    for ch in word:
+      chars.add(ch)
+    words.add(word)
+
+id_to_char = [' '] + list(chars)
+char_to_id = { char:id for (id, char) in enumerate(id_to_char) }
+
+words = [list(word)[0:max_len] for word in words]
 
 def word_remove_letter(word, i):
   word = word[:]
@@ -48,7 +66,20 @@ def words_to_io(words):
   return (inputs, outputs)
 
 inputs, outputs = words_to_io(words)
-print(inputs)
-print(outputs)
 
+def word_chars_to_ids(word):
+  return [char_to_id[char] for char in word]
+
+inputs = [word_chars_to_ids(word) for word in inputs]
+outputs = [word_chars_to_ids(word) for word in outputs]
+
+inputs = tf.keras.preprocessing.sequence.pad_sequences(inputs, maxlen=max_len, padding='post', value=char_to_id[" "])
+outputs = tf.keras.preprocessing.sequence.pad_sequences(outputs, maxlen=max_len, padding='post', value=char_to_id[" "])
+
+pdb.set_trace()
 # word -> correct word
+'''
+model = keras.Sequential()
+model = model.add(keras.layers.Embedding(vocab_size, 16))
+model = model.add(keras.layers.
+'''
