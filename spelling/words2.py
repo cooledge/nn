@@ -1,12 +1,15 @@
-import tensorflow as tf
+#import tensorflow as tf
 from tensorflow import keras
+#import keras
 import math
+import random
 import pdb
+import os
 
 import numpy as np
 
 filename = './data/warandpeace.txt'
-#filename = './data/small.txt'
+filename = './data/small.txt'
 max_len = 20
 
 lines = []
@@ -16,7 +19,7 @@ with open(filename) as f:
 words = set([])
 chars = set([])
 for line in lines:
-  for word in tf.keras.preprocessing.text.text_to_word_sequence(line):
+  for word in keras.preprocessing.text.text_to_word_sequence(line):
     for ch in word:
       chars.add(ch)
     words.add(word)
@@ -74,11 +77,17 @@ def words_to_io(words):
     for w in words_transpose_letter(word):
       inputs.append(w)
       outputs.append(word_id)
-  return (inputs, outputs)
+  return (np.array(inputs), np.array(outputs))
 
 
 print("Making input len(words)={}".format(len(words)))
 inputs, outputs = words_to_io(words)
+
+indexes = [i for i in range(len(inputs))]
+random.shuffle(indexes)
+inputs = inputs[indexes]
+outputs = outputs[indexes]
+
 print("Done making input")
 def word_chars_to_ids(word):
   return [char_to_id[char] for char in word]
@@ -86,17 +95,18 @@ def word_chars_to_ids(word):
 #inputs_words = inputs
 
 inputs = [word_chars_to_ids(word) for word in inputs]
-inputs = tf.keras.preprocessing.sequence.pad_sequences(inputs, maxlen=max_len, padding='post', value=char_to_id[" "])
-
+inputs = keras.preprocessing.sequence.pad_sequences(inputs, maxlen=max_len, padding='post', value=char_to_id[" "])
 # word -> correct word
 
-model = keras.Sequential()
+def model():
+  model = keras.Sequential()
 # produce output of 128 
-model.add(keras.layers.LSTM(128, input_shape=(max_len, vocab_size)))
-model.add(keras.layers.Dense(num_words))
-model.add(keras.layers.Activation('softmax'))
+  model.add(keras.layers.LSTM(128, input_shape=(max_len, vocab_size)))
+  model.add(keras.layers.Dense(num_words))
+  model.add(keras.layers.Activation('softmax'))
 
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+  model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+  return model
 
 def id_to_one_hot(tid, size):
   one_hot = np.zeros((size,))
@@ -127,43 +137,36 @@ class WordSequence(keras.utils.Sequence):
     batch_y = np.array([id_to_one_hot(id, num_words) for id in self.y[start:end]])
     return (np.array(batch_x), np.array(batch_y))
 
-generator = WordSequence(inputs, outputs, batch_size)
-'''
-inputs = to_one_hot(inputs, vocab_size)
-outputs_words = outputs
-outputs = np.array([id_to_one_hot(id, num_words) for id in outputs])
-pdb.set_trace()
-model.fit(inputs, outputs, epochs=50, batch_size=16)
-'''
-pdb.set_trace()
+def split_percents(values, percentages):
+  n = len(values)
+  numbers = [int(0.01*percentage*n) for percentage in percentages]
+  splits = []
+  start = 0
+         
+  for number in numbers:
+    splits.append(values[start:start+number])
+    start += number
+  return splits
+  
+train_x, validation_x, test_x = split_percents(inputs, [80, 10, 10])                      
+train_y, validation_y, test_y = split_percents(outputs, [80, 10, 10])                  
 
-model.fit_generator(generator, epochs=50)
+#train_x, validation_x, text_x = [inputs, inputs, inputs]
+#train_y, validation_y, test_y = [outputs, outputs, outputs]
+generator_train = WordSequence(train_x, train_y, batch_size)
+generator_validation = WordSequence(validation_x, validation_y, batch_size)
+generator_test = WordSequence(test_x, test_y, batch_size)
 
-predictions = model.predict_classes(inputs)
+checkpoint_path = "words2/model.h5py"
 
-def from_categorical(batch, id_to_token_map):
-  return [id_to_word[word_id] for word_id in batch]
+try:
+  model = keras.models.load_model(checkpoint_path)
+  score, acc = model.evaluate_generator(generator_test)
+  print("After load weights Score: {} Accuracy: {}".format(score, acc))
+except:
+  model = model()
+  model.fit_generator(generator_train, epochs=10, validation_data=generator_validation)
+  score, acc = model.evaluate_generator(generator_test)
+  print("Score: {} Accuracy: {}".format(score, acc))
+  keras.models.save_model(model, checkpoint_path)
 
-predictions = from_categorical(predictions, id_to_word)
-expectations = [id_to_word[word_id] for word_id in outputs_words]
-
-diff = [(expected, predicted) for (expected, predicted) in zip(expectations, predictions) if not expected == predicted]
-if len(diff) > 0:
-  print("The different is {}".format(diff))
-else:
-  print("All Okay")
-'''
-def one_hot_to_id(one_hot):
-  pdb.set_trace()
-  return np.argmax(one_hot)
-
-def one_hot_output_to_ids(output):
-  return [one_hot_to_id(one_hot) for one_hot in output]
-predictions = [ one_hot_output_to_ids(output) for output in predictions]
-'''
-
-'''
-model = model.add(keras.layers.LSTM(32))
-model = model.add(keras.layers.LSTM(8))
-model = model.add(keras.layers.TimeDistributed(Dense(32))
-'''
