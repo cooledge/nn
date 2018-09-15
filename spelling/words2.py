@@ -1,5 +1,6 @@
 #import tensorflow as tf
 from tensorflow import keras
+import pickle
 #import keras
 import math
 import random
@@ -8,9 +9,9 @@ import os
 
 import numpy as np
 
-filename = './data/warandpeace.txt'
+#filename = './data/warandpeace.txt'
 filename = './data/small.txt'
-max_len = 20
+max_len_word = 20
 
 lines = []
 with open(filename) as f:
@@ -18,16 +19,22 @@ with open(filename) as f:
 
 words = set([])
 chars = set([])
+
 for line in lines:
   for word in keras.preprocessing.text.text_to_word_sequence(line):
     for ch in word:
       chars.add(ch)
     words.add(word)
 
+# make sure the id's are the same between runs
+
+words = sorted(words)
+chars = sorted(chars) 
+
 id_to_char = [' '] + list(chars)
 char_to_id = { char:id for (id, char) in enumerate(id_to_char) }
 vocab_size = len(id_to_char)
-words = [list(word)[0:max_len] for word in words]
+words = [list(word)[0:max_len_word] for word in words]
 
 id_to_word = []
 word_to_id = {}
@@ -64,21 +71,26 @@ def words_transpose_letter(word):
 
 assert [list("bacd"), list("acbd"), list("abdc")] == words_transpose_letter(list("abcd"))
 
-def words_to_io(words):
+def word_chars_to_ids(word):
+  return [char_to_id[char] for char in word]
+
+def words_to_io(words, include_misspellings=True):
   inputs = []
   outputs = []
   for word in words:
     inputs.append(word)
     word_id = word_to_id[''.join(word)]
     outputs.append(word_id)
-    for w in words_remove_letter(word):
-      inputs.append(w)
-      outputs.append(word_id)
-    for w in words_transpose_letter(word):
-      inputs.append(w)
-      outputs.append(word_id)
+    if include_misspellings:
+      for w in words_remove_letter(word):
+        inputs.append(w)
+        outputs.append(word_id)
+      for w in words_transpose_letter(word):
+        inputs.append(w)
+        outputs.append(word_id)
+  inputs = [word_chars_to_ids(word) for word in inputs]
+  inputs = keras.preprocessing.sequence.pad_sequences(inputs, maxlen=max_len_word, padding='post', value=char_to_id[" "])
   return (np.array(inputs), np.array(outputs))
-
 
 print("Making input len(words)={}".format(len(words)))
 inputs, outputs = words_to_io(words)
@@ -89,24 +101,10 @@ inputs = inputs[indexes]
 outputs = outputs[indexes]
 
 print("Done making input")
-def word_chars_to_ids(word):
-  return [char_to_id[char] for char in word]
 
 #inputs_words = inputs
 
-inputs = [word_chars_to_ids(word) for word in inputs]
-inputs = keras.preprocessing.sequence.pad_sequences(inputs, maxlen=max_len, padding='post', value=char_to_id[" "])
 # word -> correct word
-
-def model():
-  model = keras.Sequential()
-# produce output of 128 
-  model.add(keras.layers.LSTM(128, input_shape=(max_len, vocab_size)))
-  model.add(keras.layers.Dense(num_words))
-  model.add(keras.layers.Activation('softmax'))
-
-  model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-  return model
 
 def id_to_one_hot(tid, size):
   one_hot = np.zeros((size,))
@@ -151,22 +149,51 @@ def split_percents(values, percentages):
 train_x, validation_x, test_x = split_percents(inputs, [80, 10, 10])                      
 train_y, validation_y, test_y = split_percents(outputs, [80, 10, 10])                  
 
-#train_x, validation_x, text_x = [inputs, inputs, inputs]
-#train_y, validation_y, test_y = [outputs, outputs, outputs]
+train_x, validation_x, test_x = [inputs, inputs, inputs]
+train_y, validation_y, test_y = [outputs, outputs, outputs]
+
+def ids_to_string(chars):
+  return ''.join([id_to_char[id] for id in chars]).strip()
+
+def x_to_words(xs):
+  return [ids_to_string(x) for x in xs]
+
+def y_to_words(ys):
+  return [id_to_word[y] for y in ys]
+
 generator_train = WordSequence(train_x, train_y, batch_size)
 generator_validation = WordSequence(validation_x, validation_y, batch_size)
 generator_test = WordSequence(test_x, test_y, batch_size)
 
 checkpoint_path = "words2/model.h5py"
 
+def character_to_word_model():
+  model = keras.Sequential()
+  # produce output of 128 
+  model.add(keras.layers.LSTM(128, input_shape=(max_len_word, vocab_size)))
+  model.add(keras.layers.Dense(num_words))
+  model.add(keras.layers.Activation('softmax'))
+
+  model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+  return model
+
+def word_to_phrase_model():
+  model = keras.Sequential()
+  model.add(keras.layers.LSTM(128, input_shape=(max_len_phrase, number_of_words)))
+  model.add(keras.layers.RepeatVector(max_len_phrase))
+  model.add(keras.layers.LSTM(128, return_sequences=True))
+  model.add(keras.layers.TimeDistributed(keras.layers.Dense(number_of_words)))
+  model.add(keras.layers.Activation("softmax"))
+  model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+  
 try:
   model = keras.models.load_model(checkpoint_path)
   score, acc = model.evaluate_generator(generator_test)
   print("After load weights Score: {} Accuracy: {}".format(score, acc))
 except:
-  model = model()
-  model.fit_generator(generator_train, epochs=10, validation_data=generator_validation)
+  model = character_to_word_model()
+  model.fit_generator(generator_train, epochs=5, validation_data=generator_validation)
+  keras.models.save_model(model, checkpoint_path)
   score, acc = model.evaluate_generator(generator_test)
   print("Score: {} Accuracy: {}".format(score, acc))
-  keras.models.save_model(model, checkpoint_path)
 
