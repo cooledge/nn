@@ -12,6 +12,7 @@ import numpy as np
 #filename = './data/warandpeace.txt'
 filename = './data/small.txt'
 max_len_word = 20
+max_len_phrase = 5
 
 lines = []
 with open(filename) as f:
@@ -43,6 +44,15 @@ for id,word in enumerate(words):
   id_to_word.append(word)
   word_to_id[word] = id
 num_words = len(id_to_word)
+
+phrases = []
+phrase = []
+for line in lines:
+  for word in keras.preprocessing.text.text_to_word_sequence(line):
+    phrase.append(word_to_id[word])
+    if len(phrase) == max_len_phrase:
+      phrases.append(phrase.copy())
+      phrase.pop(0)
 
 def word_remove_letter(word, i):
   word = word[:]
@@ -162,7 +172,7 @@ generator_train_words = WordSequence(train_x_words, train_y_words, batch_size)
 generator_validation_words = WordSequence(validation_x, validation_y_words, batch_size)
 generator_test_words = WordSequence(test_x_words, test_y_words, batch_size)
 
-checkpoint_path = "words2/model.h5py"
+words_model_path = "models/words.h5py"
 
 def character_to_word_model():
   model = keras.Sequential()
@@ -182,15 +192,16 @@ def word_to_phrase_model():
   model.add(keras.layers.TimeDistributed(keras.layers.Dense(number_of_words)))
   model.add(keras.layers.Activation("softmax"))
   model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+  return model
   
 try:
-  model = keras.models.load_model(checkpoint_path)
+  model = keras.models.load_model(words_model_path)
   score, acc = model.evaluate_generator(generator_test_words)
   print("After load weights Score: {} Accuracy: {}".format(score, acc))
 except:
   model = character_to_word_model()
   model.fit_generator(generator_train_words, epochs=50, validation_data=generator_validation_words)
-  keras.models.save_model(model, checkpoint_path)
+  keras.models.save_model(model, words_model_path)
   score, acc = model.evaluate_generator(generator_test_words)
   print("Score: {} Accuracy: {}".format(score, acc))
 
