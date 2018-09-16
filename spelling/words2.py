@@ -146,11 +146,8 @@ def split_percents(values, percentages):
     start += number
   return splits
   
-train_x, validation_x, test_x = split_percents(inputs, [80, 10, 10])                      
-train_y, validation_y, test_y = split_percents(outputs, [80, 10, 10])                  
-
-train_x, validation_x, test_x = [inputs, inputs, inputs]
-train_y, validation_y, test_y = [outputs, outputs, outputs]
+train_x_words, validation_x, test_x_words = split_percents(inputs, [80, 10, 10])                      
+train_y_words, validation_y_words, test_y_words = split_percents(outputs, [80, 10, 10])                  
 
 def ids_to_string(chars):
   return ''.join([id_to_char[id] for id in chars]).strip()
@@ -161,9 +158,9 @@ def x_to_words(xs):
 def y_to_words(ys):
   return [id_to_word[y] for y in ys]
 
-generator_train = WordSequence(train_x, train_y, batch_size)
-generator_validation = WordSequence(validation_x, validation_y, batch_size)
-generator_test = WordSequence(test_x, test_y, batch_size)
+generator_train_words = WordSequence(train_x_words, train_y_words, batch_size)
+generator_validation_words = WordSequence(validation_x, validation_y_words, batch_size)
+generator_test_words = WordSequence(test_x_words, test_y_words, batch_size)
 
 checkpoint_path = "words2/model.h5py"
 
@@ -188,12 +185,12 @@ def word_to_phrase_model():
   
 try:
   model = keras.models.load_model(checkpoint_path)
-  score, acc = model.evaluate_generator(generator_test)
+  score, acc = model.evaluate_generator(generator_test_words)
   print("After load weights Score: {} Accuracy: {}".format(score, acc))
 except:
   model = character_to_word_model()
-  model.fit_generator(generator_train, epochs=5, validation_data=generator_validation)
+  model.fit_generator(generator_train_words, epochs=50, validation_data=generator_validation_words)
   keras.models.save_model(model, checkpoint_path)
-  score, acc = model.evaluate_generator(generator_test)
+  score, acc = model.evaluate_generator(generator_test_words)
   print("Score: {} Accuracy: {}".format(score, acc))
 
