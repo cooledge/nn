@@ -45,7 +45,6 @@ for id,word in enumerate(words):
   word_to_id[word] = id
 num_words = len(id_to_word)
 
-'''
 phrases = []
 phrase = []
 for line in lines:
@@ -54,10 +53,6 @@ for line in lines:
     if len(phrase) == max_len_phrase:
       phrases.append(phrase.copy())
       phrase.pop(0)
-'''
-
-print("id_to_word {}".format(id_to_word))
-print("id_to_char {}".format(id_to_char))
 
 def word_remove_letter(word, i):
   word = word[:]
@@ -109,9 +104,6 @@ def words_to_io(words, include_misspellings=False):
 
 print("Making input len(words)={}".format(len(words)))
 inputs, outputs = words_to_io(words)
-
-print("inputs: {}".format(inputs))
-print("outputs: {}".format(outputs))
 
 indexes = [i for i in range(len(inputs))]
 random.shuffle(indexes)
