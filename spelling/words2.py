@@ -45,6 +45,7 @@ for id,word in enumerate(words):
   word_to_id[word] = id
 num_words = len(id_to_word)
 
+'''
 phrases = []
 phrase = []
 for line in lines:
@@ -53,6 +54,10 @@ for line in lines:
     if len(phrase) == max_len_phrase:
       phrases.append(phrase.copy())
       phrase.pop(0)
+'''
+
+print("id_to_word {}".format(id_to_word))
+print("id_to_char {}".format(id_to_char))
 
 def word_remove_letter(word, i):
   word = word[:]
@@ -84,7 +89,7 @@ assert [list("bacd"), list("acbd"), list("abdc")] == words_transpose_letter(list
 def word_chars_to_ids(word):
   return [char_to_id[char] for char in word]
 
-def words_to_io(words, include_misspellings=True):
+def words_to_io(words, include_misspellings=False):
   inputs = []
   outputs = []
   for word in words:
@@ -104,6 +109,9 @@ def words_to_io(words, include_misspellings=True):
 
 print("Making input len(words)={}".format(len(words)))
 inputs, outputs = words_to_io(words)
+
+print("inputs: {}".format(inputs))
+print("outputs: {}".format(outputs))
 
 indexes = [i for i in range(len(inputs))]
 random.shuffle(indexes)
@@ -128,7 +136,7 @@ def to_one_hot(values, size):
   return np.array([output_to_one_hot(value, size) for value in values])
 
 batch_size = 16
-class WordSequence(keras.utils.Sequence):
+class TokenSequence(keras.utils.Sequence):
 
   def __init__(self, x, y, batch_size):
     self.x = x
@@ -168,9 +176,9 @@ def x_to_words(xs):
 def y_to_words(ys):
   return [id_to_word[y] for y in ys]
 
-generator_train_words = WordSequence(train_x_words, train_y_words, batch_size)
-generator_validation_words = WordSequence(validation_x, validation_y_words, batch_size)
-generator_test_words = WordSequence(test_x_words, test_y_words, batch_size)
+generator_train_words = TokenSequence(train_x_words, train_y_words, batch_size)
+generator_validation_words = TokenSequence(validation_x, validation_y_words, batch_size)
+generator_test_words = TokenSequence(test_x_words, test_y_words, batch_size)
 
 words_model_path = "models/words.h5py"
 
