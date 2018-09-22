@@ -9,8 +9,9 @@ import os
 
 import numpy as np
 
-#filename = './data/warandpeace.txt'
-filename = './data/small.txt'
+filename = './data/warandpeace.txt'
+#filename = './data/small.txt'
+#filename = './data/regina.txt'
 max_len_word = 20
 max_len_phrase = 5
 
@@ -54,6 +55,22 @@ for line in lines:
       phrases.append(phrase.copy())
       phrase.pop(0)
 
+phrases_in = phrases.copy()[:-1]
+phrases_out = phrases
+phrases_out.pop(0)
+
+'''
+pin = [[id_to_word[id] for id in phrase] for phrase in phrases_in]
+pout = [[id_to_word[id] for id in phrase] for phrase in phrases_out]
+for idx in range(len(pin)):
+  if pin[idx][0] == 'regina':
+    print(pin[idx])
+    print(pout[idx])
+    print("")
+
+pdb.set_trace()
+'''
+
 def word_remove_letter(word, i):
   word = word[:]
   del(word[i])
@@ -84,7 +101,7 @@ assert [list("bacd"), list("acbd"), list("abdc")] == words_transpose_letter(list
 def word_chars_to_ids(word):
   return [char_to_id[char] for char in word]
 
-def words_to_io(words, include_misspellings=False):
+def words_to_io(words, include_misspellings=True):
   inputs = []
   outputs = []
   for word in words:
@@ -130,10 +147,11 @@ def to_one_hot(values, size):
 batch_size = 16
 class TokenSequence(keras.utils.Sequence):
 
-  def __init__(self, x, y, batch_size):
+  def __init__(self, x, y, n_tokens, batch_size):
     self.x = x
     self.y = y
     self.batch_size = batch_size
+    self.n_tokens = n_tokens
 
   def __len__(self):
     return math.ceil(len(self.x) /self.batch_size)
@@ -141,7 +159,8 @@ class TokenSequence(keras.utils.Sequence):
   def __getitem__(self, idx):
     start = idx*self.batch_size
     end = start + self.batch_size
-    batch_x = to_one_hot(self.x[start:end], vocab_size)
+    #batch_x = to_one_hot(self.x[start:end], vocab_size)
+    batch_x = to_one_hot(self.x[start:end], self.n_tokens)
     batch_y = np.array([id_to_one_hot(id, num_words) for id in self.y[start:end]])
     return (np.array(batch_x), np.array(batch_y))
 
@@ -168,9 +187,9 @@ def x_to_words(xs):
 def y_to_words(ys):
   return [id_to_word[y] for y in ys]
 
-generator_train_words = TokenSequence(train_x_words, train_y_words, batch_size)
-generator_validation_words = TokenSequence(validation_x, validation_y_words, batch_size)
-generator_test_words = TokenSequence(test_x_words, test_y_words, batch_size)
+generator_train_words = TokenSequence(train_x_words, train_y_words, vocab_size, batch_size)
+generator_validation_words = TokenSequence(validation_x, validation_y_words, vocab_size, batch_size)
+generator_test_words = TokenSequence(test_x_words, test_y_words, vocab_size, batch_size)
 
 words_model_path = "models/words.h5py"
 
@@ -184,16 +203,11 @@ def character_to_word_model():
   model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
   return model
 
-def word_to_phrase_model():
-  model = keras.Sequential()
-  model.add(keras.layers.LSTM(128, input_shape=(max_len_phrase, number_of_words)))
-  model.add(keras.layers.RepeatVector(max_len_phrase))
-  model.add(keras.layers.LSTM(128, return_sequences=True))
-  model.add(keras.layers.TimeDistributed(keras.layers.Dense(number_of_words)))
-  model.add(keras.layers.Activation("softmax"))
-  model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-  return model
-  
+def check_all():
+  generator = TokenSequence(inputs, outputs, vocab_size, batch_size)
+  score, acc = model.evaluate_generator(generator)
+  print("Check All Score: {} Accuracy: {}".format(score, acc))
+
 try:
   model = keras.models.load_model(words_model_path)
   score, acc = model.evaluate_generator(generator_test_words)
@@ -204,4 +218,77 @@ except:
   keras.models.save_model(model, words_model_path)
   score, acc = model.evaluate_generator(generator_test_words)
   print("Score: {} Accuracy: {}".format(score, acc))
+
+check_all()
+
+def word_to_phrase_model():
+  model = keras.Sequential()
+  model.add(keras.layers.LSTM(128, input_shape=(max_len_phrase, num_words)))
+  model.add(keras.layers.RepeatVector(max_len_phrase))
+  model.add(keras.layers.LSTM(128, return_sequences=True))
+  #model.add(keras.layers.TimeDistributed(keras.layers.Dense(256, activation=keras.activations.relu)))
+  model.add(keras.layers.TimeDistributed(keras.layers.Dense(num_words)))
+  model.add(keras.layers.Activation("softmax"))
+  model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+  return model
+
+model = word_to_phrase_model()
+ 
+'''
+phrases_model_path = "models/phrases.h5py"
+try:
+  model = keras.models.load_model(phrases_model_path)
+except:
+  phrases_in_one_hot = np.array(to_one_hot(phrases_in, num_words))
+  phrases_out_one_hot = np.array(to_one_hot(phrases_out, num_words))
+  model.fit(phrases_in_one_hot, phrases_out_one_hot, epochs=100, batch_size=8) 
+  keras.models.save_model(model, phrases_model_path)
+'''
+phrases_in_one_hot = np.array(to_one_hot(phrases_in, num_words))
+phrases_out_one_hot = np.array(to_one_hot(phrases_out, num_words))
+model.fit(phrases_in_one_hot, phrases_out_one_hot, epochs=100, verbose=0, batch_size=8) 
+
+'''
+#phrase = ['one', 'two', 'three', 'four', 'five']
+phrase = ['one', 'three', 'two', 'four', 'five']
+x_pred = np.zeros((1, max_len_phrase, num_words))
+for t, word in enumerate(phrase):
+  x_pred[0, t, word_to_id[word]] = 1.
+'''
+
+def predict_add_one(phrase):
+  if len(phrase) >= max_len_phrase:
+    return phrase
+
+  x_pred = np.zeros((1, max_len_phrase, num_words))
+  for t, word in enumerate(phrase):
+    if word in word_to_id:
+      x_pred[0, t, word_to_id[word]] = 1.
+  preds = model.predict(x_pred, verbose=0)[0]
+  preds = [np.argmax(one_hot_char) for one_hot_char in preds]
+  return phrase + [id_to_word[preds[len(phrase)-1]]]
+
+def predict_extend(phrase):
+  while len(phrase) < max_len_phrase:
+    phrase = predict_add_one(phrase)
+  return phrase
+
+while True:
+  line = input('Enter a phrase: ')
+  if line == '':
+    break
+  phrase = keras.preprocessing.text.text_to_word_sequence(line)
+  predict = predict_extend(phrase)
+  print("Prediction: {}".format(predict))
+
+'''
+pdb.set_trace()
+phrase = ['one', 'three', 'two', 'four', 'five']
+phrase = predict_extend(phrase[0:1])
+
+preds = model.predict(x_pred, verbose=0)[0]
+preds = [np.argmax(one_hot_char) for one_hot_char in preds]
+preds = [id_to_word[id] for id in preds]
+print(preds)
+'''
 
