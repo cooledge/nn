@@ -6,7 +6,7 @@ import numpy as np
 
 #filename = './data/warandpeace.txt'
 filename = './data/small.txt'
-max_len = 20
+max_len = 1
 
 lines = []
 with open(filename) as f:
@@ -71,7 +71,9 @@ inputs, outputs = words_to_io(words)
 def word_chars_to_ids(word):
   return [char_to_id[char] for char in word]
 
+inputs_words = inputs
 inputs = [word_chars_to_ids(word) for word in inputs]
+outputs_words = outputs
 outputs = [word_chars_to_ids(word) for word in outputs]
 
 inputs = tf.keras.preprocessing.sequence.pad_sequences(inputs, maxlen=max_len, padding='post', value=char_to_id[" "])
@@ -109,7 +111,7 @@ def to_one_hot(values):
 
 outputs = to_one_hot(outputs)
 inputs = to_one_hot(inputs)
-model.fit(inputs, outputs, epochs=50, batch_size=4)
+model.fit(inputs, outputs, epochs=50, batch_size=64)
 
 predictions = model.predict_classes(inputs)
 
@@ -118,8 +120,10 @@ def from_categorical(batch, id_to_token_map):
     return [id_to_token_map[id] for id in sequence]
   return [sequence_from_categorical(sequence) for sequence in batch]
 
-pdb.set_trace()
-predictions = from_categorical(predictions, id_to_char)
+predictions = [''.join(chars).strip() for chars in from_categorical(predictions, id_to_char)]
+expectations = [''.join(chars) for chars in outputs_words]
+
+diff = [(expected, predicted) for (expected, predicted) in zip(expectations, predictions) if not expected == predicted]
 '''
 def one_hot_to_id(one_hot):
   pdb.set_trace()

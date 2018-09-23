@@ -9,11 +9,11 @@ import os
 
 import numpy as np
 
-filename = './data/warandpeace.txt'
+#filename = './data/warandpeace.txt'
 #filename = './data/small.txt'
-#filename = './data/regina.txt'
+filename = './data/regina.txt'
 max_len_word = 20
-max_len_phrase = 5
+max_len_phrase = 1
 
 lines = []
 with open(filename) as f:
@@ -246,7 +246,7 @@ except:
 '''
 phrases_in_one_hot = np.array(to_one_hot(phrases_in, num_words))
 phrases_out_one_hot = np.array(to_one_hot(phrases_out, num_words))
-model.fit(phrases_in_one_hot, phrases_out_one_hot, epochs=100, verbose=0, batch_size=8) 
+model.fit(phrases_in_one_hot, phrases_out_one_hot, epochs=100, batch_size=8) 
 
 '''
 #phrase = ['one', 'two', 'three', 'four', 'five']
@@ -256,21 +256,19 @@ for t, word in enumerate(phrase):
   x_pred[0, t, word_to_id[word]] = 1.
 '''
 
-def predict_add_one(phrase):
-  if len(phrase) >= max_len_phrase:
-    return phrase
-
+def predict_add_one(phrase, expected_len):
+  pred_phrase = phrase[-max_len_phrase:]
   x_pred = np.zeros((1, max_len_phrase, num_words))
-  for t, word in enumerate(phrase):
+  for t, word in enumerate(pred_phrase):
     if word in word_to_id:
       x_pred[0, t, word_to_id[word]] = 1.
   preds = model.predict(x_pred, verbose=0)[0]
   preds = [np.argmax(one_hot_char) for one_hot_char in preds]
-  return phrase + [id_to_word[preds[len(phrase)-1]]]
+  return phrase + [id_to_word[preds[len(pred_phrase)-1]]]
 
-def predict_extend(phrase):
-  while len(phrase) < max_len_phrase:
-    phrase = predict_add_one(phrase)
+def predict_extend(phrase, expected_len):
+  while len(phrase) < expected_len:
+    phrase = predict_add_one(phrase, expected_len)
   return phrase
 
 while True:
@@ -278,7 +276,7 @@ while True:
   if line == '':
     break
   phrase = keras.preprocessing.text.text_to_word_sequence(line)
-  predict = predict_extend(phrase)
+  predict = predict_extend(phrase, 5)
   print("Prediction: {}".format(predict))
 
 '''
