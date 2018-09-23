@@ -13,7 +13,7 @@ import numpy as np
 #filename = './data/small.txt'
 filename = './data/regina.txt'
 max_len_word = 20
-max_len_phrase = 1
+max_len_phrase = 3
 
 lines = []
 with open(filename) as f:
@@ -45,31 +45,6 @@ for id,word in enumerate(words):
   id_to_word.append(word)
   word_to_id[word] = id
 num_words = len(id_to_word)
-
-phrases = []
-phrase = []
-for line in lines:
-  for word in keras.preprocessing.text.text_to_word_sequence(line):
-    phrase.append(word_to_id[word])
-    if len(phrase) == max_len_phrase:
-      phrases.append(phrase.copy())
-      phrase.pop(0)
-
-phrases_in = phrases.copy()[:-1]
-phrases_out = phrases
-phrases_out.pop(0)
-
-'''
-pin = [[id_to_word[id] for id in phrase] for phrase in phrases_in]
-pout = [[id_to_word[id] for id in phrase] for phrase in phrases_out]
-for idx in range(len(pin)):
-  if pin[idx][0] == 'regina':
-    print(pin[idx])
-    print(pout[idx])
-    print("")
-
-pdb.set_trace()
-'''
 
 def word_remove_letter(word, i):
   word = word[:]
@@ -221,48 +196,57 @@ except:
 
 check_all()
 
-def word_to_phrase_model():
-  model = keras.Sequential()
-  model.add(keras.layers.LSTM(128, input_shape=(max_len_phrase, num_words)))
-  model.add(keras.layers.RepeatVector(max_len_phrase))
-  model.add(keras.layers.LSTM(128, return_sequences=True))
-  #model.add(keras.layers.TimeDistributed(keras.layers.Dense(256, activation=keras.activations.relu)))
-  model.add(keras.layers.TimeDistributed(keras.layers.Dense(num_words)))
-  model.add(keras.layers.Activation("softmax"))
-  model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-  return model
+class PhraseModel: 
 
-model = word_to_phrase_model()
- 
-'''
-phrases_model_path = "models/phrases.h5py"
-try:
-  model = keras.models.load_model(phrases_model_path)
-except:
-  phrases_in_one_hot = np.array(to_one_hot(phrases_in, num_words))
-  phrases_out_one_hot = np.array(to_one_hot(phrases_out, num_words))
-  model.fit(phrases_in_one_hot, phrases_out_one_hot, epochs=100, batch_size=8) 
-  keras.models.save_model(model, phrases_model_path)
-'''
-phrases_in_one_hot = np.array(to_one_hot(phrases_in, num_words))
-phrases_out_one_hot = np.array(to_one_hot(phrases_out, num_words))
-model.fit(phrases_in_one_hot, phrases_out_one_hot, epochs=100, batch_size=8) 
+  def setup_phrases(max_len):
+    phrases = []
+    phrase = []
+    for line in lines:
+      for word in keras.preprocessing.text.text_to_word_sequence(line):
+        phrase.append(word_to_id[word])
+        if len(phrase) == max_len:
+          phrases.append(phrase.copy())
+          phrase.pop(0)
 
-'''
-#phrase = ['one', 'two', 'three', 'four', 'five']
-phrase = ['one', 'three', 'two', 'four', 'five']
-x_pred = np.zeros((1, max_len_phrase, num_words))
-for t, word in enumerate(phrase):
-  x_pred[0, t, word_to_id[word]] = 1.
-'''
+    phrases_in = phrases.copy()[:-1]
+    phrases_out = phrases
+    phrases_out.pop(0)
+    return (phrases_in, phrases_out)
+
+
+  def word_to_phrase_model(max_len):
+    model = keras.Sequential()
+    model.add(keras.layers.LSTM(128, input_shape=(max_len, num_words)))
+    model.add(keras.layers.RepeatVector(max_len))
+    model.add(keras.layers.LSTM(128, return_sequences=True))
+    #model.add(keras.layers.TimeDistributed(keras.layers.Dense(256, activation=keras.activations.relu)))
+    model.add(keras.layers.TimeDistributed(keras.layers.Dense(num_words)))
+    model.add(keras.layers.Activation("softmax"))
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    return model
+
+  def __init__(self, max_len):
+    phrases_in, phrases_out = PhraseModel.setup_phrases(max_len)
+    self.model = PhraseModel.word_to_phrase_model(max_len)
+     
+    phrases_in_one_hot = np.array(to_one_hot(phrases_in, num_words))
+    phrases_out_one_hot = np.array(to_one_hot(phrases_out, num_words))
+    self.model.fit(phrases_in_one_hot, phrases_out_one_hot, epochs=50, batch_size=8) 
+
+  def predict(self, x):
+    return self.model.predict(x, verbose=0)
+
+phrase_models = [PhraseModel(i+1) for i in range(max_len_phrase)]
 
 def predict_add_one(phrase, expected_len):
-  pred_phrase = phrase[-max_len_phrase:]
-  x_pred = np.zeros((1, max_len_phrase, num_words))
+  max_len = min(len(phrase), max_len_phrase)
+  model = phrase_models[max_len-1]
+  pred_phrase = phrase[-max_len:]
+  x_pred = np.zeros((1, max_len, num_words))
   for t, word in enumerate(pred_phrase):
     if word in word_to_id:
       x_pred[0, t, word_to_id[word]] = 1.
-  preds = model.predict(x_pred, verbose=0)[0]
+  preds = model.predict(x_pred)[0]
   preds = [np.argmax(one_hot_char) for one_hot_char in preds]
   return phrase + [id_to_word[preds[len(pred_phrase)-1]]]
 
@@ -278,15 +262,4 @@ while True:
   phrase = keras.preprocessing.text.text_to_word_sequence(line)
   predict = predict_extend(phrase, 5)
   print("Prediction: {}".format(predict))
-
-'''
-pdb.set_trace()
-phrase = ['one', 'three', 'two', 'four', 'five']
-phrase = predict_extend(phrase[0:1])
-
-preds = model.predict(x_pred, verbose=0)[0]
-preds = [np.argmax(one_hot_char) for one_hot_char in preds]
-preds = [id_to_word[id] for id in preds]
-print(preds)
-'''
 
