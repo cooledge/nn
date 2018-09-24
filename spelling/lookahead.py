@@ -231,7 +231,7 @@ class PhraseModel:
      
     phrases_in_one_hot = np.array(to_one_hot(phrases_in, num_words))
     phrases_out_one_hot = np.array(to_one_hot(phrases_out, num_words))
-    self.model.fit(phrases_in_one_hot, phrases_out_one_hot, epochs=50, batch_size=8) 
+    self.model.fit(phrases_in_one_hot, phrases_out_one_hot, epochs=100, batch_size=8) 
 
   def predict(self, x):
     return self.model.predict(x, verbose=0)
@@ -250,6 +250,36 @@ def predict_add_one(phrase, expected_len):
   preds = [np.argmax(one_hot_char) for one_hot_char in preds]
   return phrase + [id_to_word[preds[len(pred_phrase)-1]]]
 
+def predicts_add_one(phrase, prob, n_choices, expected_len):
+  max_len = min(len(phrase), max_len_phrase)
+  model = phrase_models[max_len-1]
+  pred_phrase = phrase[-max_len:]
+  x_pred = np.zeros((1, max_len, num_words))
+  for t, word in enumerate(pred_phrase):
+    if word in word_to_id:
+      x_pred[0, t, word_to_id[word]] = 1.
+  preds = model.predict(x_pred)[0]
+
+  # get the top n_choices
+  max_preds = np.argsort(preds, 1)
+  phrase_idx = len(pred_phrase)-1
+  next_words = max_preds[phrase_idx][-n_choices:]
+  return [(prob*preds[phrase_idx][idx], phrase + [id_to_word[idx]]) for idx in next_words]
+
+# phrases like of (prob, phrase)
+def predicts_extend_one(phrases, n_choices, expected_len):
+  next_phrases = []
+  for (prob, phrase) in phrases:
+    next_phrases += predicts_add_one(phrase, prob, n_choices, expected_len)
+  return next_phrases
+
+def predicts_extend(phrase, n_choices, expected_len):
+  phrases = [(1., phrase)]
+  for i in range(expected_len):
+    phrases = predicts_extend_one(phrases, n_choices, expected_len)
+    phrases = [pair for pair in phrases if pair[0] > 0.01]
+  return phrases
+   
 def predict_extend(phrase, expected_len):
   while len(phrase) < expected_len:
     phrase = predict_add_one(phrase, expected_len)
@@ -262,4 +292,8 @@ while True:
   phrase = keras.preprocessing.text.text_to_word_sequence(line)
   predict = predict_extend(phrase, 5)
   print("Prediction: {}".format(predict))
+  phrases = predicts_extend(phrase, 2, 3)
+  phrases = sorted(phrases, key=lambda phrase: phrase[0])
+  print(phrases)
+
 
