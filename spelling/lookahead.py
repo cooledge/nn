@@ -22,14 +22,18 @@ with open(filename) as f:
 words = set([])
 chars = set([])
 
-for line in lines:
+def line_to_words(line):
+  words = []
   for word in keras.preprocessing.text.text_to_word_sequence(line):
     for ch in word:
       chars.add(ch)
-    words.add(word)
+    words.append(word)
+  return words
+
+for line in lines:
+  words |= set(line_to_words(line))
 
 # make sure the id's are the same between runs
-
 words = sorted(words)
 chars = sorted(chars) 
 
@@ -104,8 +108,6 @@ outputs = outputs[indexes]
 
 print("Done making input")
 
-#inputs_words = inputs
-
 # word -> correct word
 
 def id_to_one_hot(tid, size):
@@ -167,6 +169,7 @@ generator_validation_words = TokenSequence(validation_x, validation_y_words, voc
 generator_test_words = TokenSequence(test_x_words, test_y_words, vocab_size, batch_size)
 
 words_model_path = "models/words.h5py"
+phrases_model_path = "models/phrase{0}.h5py"
 
 def character_to_word_model():
   model = keras.Sequential()
@@ -178,23 +181,43 @@ def character_to_word_model():
   model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
   return model
 
-def check_all():
-  generator = TokenSequence(inputs, outputs, vocab_size, batch_size)
-  score, acc = model.evaluate_generator(generator)
-  print("Check All Score: {} Accuracy: {}".format(score, acc))
+class WordModel:
 
-try:
-  model = keras.models.load_model(words_model_path)
-  score, acc = model.evaluate_generator(generator_test_words)
-  print("After load weights Score: {} Accuracy: {}".format(score, acc))
-except:
-  model = character_to_word_model()
-  model.fit_generator(generator_train_words, epochs=50, validation_data=generator_validation_words)
-  keras.models.save_model(model, words_model_path)
-  score, acc = model.evaluate_generator(generator_test_words)
-  print("Score: {} Accuracy: {}".format(score, acc))
+  def __init__(self):
+    try:
+      self.word_model = keras.models.load_model(words_model_path)
+      score, acc = self.word_model.evaluate_generator(generator_test_words)
+      print("After load weights Score: {} Accuracy: {}".format(score, acc))
+    except:
+      self.word_model = character_to_word_model()
+      self.word_model.fit_generator(generator_train_words, epochs=50, validation_data=generator_validation_words)
+      keras.models.save_model(self.word_model, words_model_path)
+      score, acc = self.word_model.evaluate_generator(generator_test_words)
+      print("Score: {} Accuracy: {}".format(score, acc))
 
-check_all()
+  def check_all(self):
+    generator = TokenSequence(inputs, outputs, vocab_size, batch_size)
+    score, acc = self.word_model.evaluate_generator(generator)
+    print("Check All Score: {} Accuracy: {}".format(score, acc))
+
+  def line_to_input(self, line):
+    words = []
+    for word in keras.preprocessing.text.text_to_word_sequence(line):
+      words.append(word)
+
+    inputs = [word_chars_to_ids(word) for word in words]
+    inputs = keras.preprocessing.sequence.pad_sequences(inputs, maxlen=max_len_word, padding='post', value=char_to_id[" "])
+    inputs = to_one_hot(inputs, vocab_size)
+    return inputs
+
+  def predict(self, line):
+    inputs = self.line_to_input(line)
+    preds = self.word_model.predict([inputs])
+    return [id_to_word[np.argmax(pred)] for pred in preds]
+
+word_model = WordModel()
+word_model.check_all()
+#pred = word_model.predict("reina wascnaa")
 
 class PhraseModel: 
 
@@ -227,16 +250,22 @@ class PhraseModel:
 
   def __init__(self, max_len):
     phrases_in, phrases_out = PhraseModel.setup_phrases(max_len)
-    self.model = PhraseModel.word_to_phrase_model(max_len)
      
     phrases_in_one_hot = np.array(to_one_hot(phrases_in, num_words))
     phrases_out_one_hot = np.array(to_one_hot(phrases_out, num_words))
-    self.model.fit(phrases_in_one_hot, phrases_out_one_hot, epochs=100, batch_size=8) 
+
+    try:
+      self.model = keras.models.load_model(phrases_model_path.format(max_len))
+    except:
+      self.model = PhraseModel.word_to_phrase_model(max_len)
+      self.model.fit(phrases_in_one_hot, phrases_out_one_hot, epochs=100, batch_size=8) 
+      keras.models.save_model(self.model, phrases_model_path.format(max_len))
 
   def predict(self, x):
     return self.model.predict(x, verbose=0)
 
 phrase_models = [PhraseModel(i+1) for i in range(max_len_phrase)]
+word_to_phrase_models = [phrase_models[i].model(keras.layers.RepeatVector(i+1)(word_model.output)) for i in range(len(phrase_models))]
 
 def predict_add_one(phrase, expected_len):
   max_len = min(len(phrase), max_len_phrase)
