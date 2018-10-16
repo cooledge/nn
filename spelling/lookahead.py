@@ -265,7 +265,7 @@ class PhraseModel:
     return self.model.predict(x, verbose=0)
 
 phrase_models = [PhraseModel(i+1) for i in range(max_len_phrase)]
-word_to_phrase_models = [phrase_models[i].model(keras.layers.RepeatVector(i+1)(word_model.output)) for i in range(len(phrase_models))]
+#word_to_phrase_models = [phrase_models[i].model(keras.layers.RepeatVector(i+1)(word_model.output)) for i in range(len(phrase_models))]
 
 def predict_add_one(phrase, expected_len):
   max_len = min(len(phrase), max_len_phrase)
@@ -318,7 +318,7 @@ while True:
   line = input('Enter a phrase: ')
   if line == '':
     break
-  phrase = keras.preprocessing.text.text_to_word_sequence(line)
+  phrase = word_model.predict(line)
   predict = predict_extend(phrase, 5)
   print("Prediction: {}".format(predict))
   phrases = predicts_extend(phrase, 2, 3)
