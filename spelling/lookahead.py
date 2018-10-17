@@ -188,19 +188,19 @@ class WordModel:
 
   def __init__(self):
     try:
-      self.word_model = keras.models.load_model(words_model_path)
-      score, acc = self.word_model.evaluate_generator(generator_test_words)
+      self.model = keras.models.load_model(words_model_path)
+      score, acc = self.model.evaluate_generator(generator_test_words)
       print("After load weights Score: {} Accuracy: {}".format(score, acc))
     except:
-      self.word_model = character_to_word_model()
-      self.word_model.fit_generator(generator_train_words, epochs=50, validation_data=generator_validation_words)
-      keras.models.save_model(self.word_model, words_model_path)
-      score, acc = self.word_model.evaluate_generator(generator_test_words)
+      self.model = character_to_word_model()
+      self.model.fit_generator(generator_train_words, epochs=50, validation_data=generator_validation_words)
+      keras.models.save_model(self.model, words_model_path)
+      score, acc = self.model.evaluate_generator(generator_test_words)
       print("Score: {} Accuracy: {}".format(score, acc))
 
   def check_all(self):
     generator = TokenSequence(inputs, outputs, vocab_size, batch_size)
-    score, acc = self.word_model.evaluate_generator(generator)
+    score, acc = self.model.evaluate_generator(generator)
     print("Check All Score: {} Accuracy: {}".format(score, acc))
 
   def line_to_input(self, line):
@@ -215,7 +215,7 @@ class WordModel:
 
   def predict(self, line):
     inputs = self.line_to_input(line)
-    preds = self.word_model.predict([inputs])
+    preds = self.model.predict([inputs])
     return [id_to_word[np.argmax(pred)] for pred in preds]
 
 word_model = WordModel()
@@ -268,6 +268,7 @@ class PhraseModel:
     return self.model.predict(x, verbose=0)
 
 phrase_models = [PhraseModel(i+1) for i in range(max_len_phrase)]
+pdb.set_trace()
 #word_to_phrase_models = [phrase_models[i].model(keras.layers.RepeatVector(i+1)(word_model.output)) for i in range(len(phrase_models))]
 
 def predict_add_one(phrase, expected_len):
