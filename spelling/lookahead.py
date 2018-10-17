@@ -15,6 +15,9 @@ filename = './data/regina.txt'
 max_len_word = 20
 max_len_phrase = 3
 
+if not os.path.exists('models'):
+  os.makedirs('models')
+
 lines = []
 with open(filename) as f:
   lines = [line for line in f.readlines()]
