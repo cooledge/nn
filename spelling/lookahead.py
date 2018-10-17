@@ -270,6 +270,8 @@ class PhraseModel:
 phrase_models = [PhraseModel(i+1) for i in range(max_len_phrase)]
 pdb.set_trace()
 #word_to_phrase_models = [phrase_models[i].model(keras.layers.RepeatVector(i+1)(word_model.output)) for i in range(len(phrase_models))]
+#phrase_models[0].model(keras.layers.Reshape((1,321))(phrase_models[0].model.inputs[0]))
+#phrase_models[0].model(keras.layers.RepeatVector(1)(keras.layers.Reshape((1,321))(phrase_models[0].model.inputs[0])))
 
 def predict_add_one(phrase, expected_len):
   max_len = min(len(phrase), max_len_phrase)
