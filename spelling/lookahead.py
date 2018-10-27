@@ -174,17 +174,17 @@ generator_test_words = TokenSequence(test_x_words, test_y_words, vocab_size, bat
 words_model_path = "models/words.h5py"
 phrases_model_path = "models/phrase{0}.h5py"
 
-def character_to_word_model():
-  model = keras.Sequential()
-  # produce output of 128 
-  model.add(keras.layers.LSTM(128, input_shape=(max_len_word, vocab_size)))
-  model.add(keras.layers.Dense(num_words))
-  model.add(keras.layers.Activation('softmax'))
-
-  model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-  return model
-
 class WordModel:
+
+  def character_to_word_model():
+    model = keras.Sequential()
+    # produce output of 128 
+    model.add(keras.layers.LSTM(128, input_shape=(max_len_word, vocab_size)))
+    model.add(keras.layers.Dense(num_words))
+    model.add(keras.layers.Activation('softmax'))
+
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    return model
 
   def __init__(self):
     try:
