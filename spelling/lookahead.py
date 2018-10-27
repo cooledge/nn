@@ -192,7 +192,7 @@ class WordModel:
       score, acc = self.model.evaluate_generator(generator_test_words)
       print("After load weights Score: {} Accuracy: {}".format(score, acc))
     except:
-      self.model = character_to_word_model()
+      self.model = WordModel.character_to_word_model()
       self.model.fit_generator(generator_train_words, epochs=50, validation_data=generator_validation_words)
       keras.models.save_model(self.model, words_model_path)
       score, acc = self.model.evaluate_generator(generator_test_words)
