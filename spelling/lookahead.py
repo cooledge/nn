@@ -268,10 +268,18 @@ class PhraseModel:
     return self.model.predict(x, verbose=0)
 
 phrase_models = [PhraseModel(i+1) for i in range(max_len_phrase)]
-pdb.set_trace()
+'''
 #word_to_phrase_models = [phrase_models[i].model(keras.layers.RepeatVector(i+1)(word_model.output)) for i in range(len(phrase_models))]
-#phrase_models[0].model(keras.layers.Reshape((1,321))(phrase_models[0].model.inputs[0]))
-#phrase_models[0].model(keras.layers.RepeatVector(1)(keras.layers.Reshape((1,321))(phrase_models[0].model.inputs[0])))
+wm_output = word_model.model.outputs
+wm_output = keras.layers.Reshape((1,num_words))(wm_output)
+try1 = phrase_models[0].model(wm_output)
+repeat = keras.layers.RepeatVector(2)(word_model.model.outputs[0])
+try2 = phrase_models[1].model(repeat)
+pdb.set_trace()
+model = keras.Model(inputs=word_model.model.inputs[0], outputs=try2)
+#phrase_models[0].model(keras.layers.Reshape((1,num_words))(phrase_models[0].model.inputs[0]))
+#phrase_models[0].model(keras.layers.RepeatVector(1)(keras.layers.Reshape((1,num_words))(phrase_models[0].model.inputs[0])))
+'''
 
 def predict_add_one(phrase, expected_len):
   max_len = min(len(phrase), max_len_phrase)
