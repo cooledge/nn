@@ -176,10 +176,15 @@ phrases_model_path = "models/phrase{0}.h5py"
 
 class WordModel:
 
+  def embedding_size():
+    return 64
+
   def character_to_word_model():
     model = keras.Sequential()
-    # produce output of 128 
-    model.add(keras.layers.LSTM(128, input_shape=(max_len_word, vocab_size), name='embedding'))
+    model.add(keras.layers.LSTM(WordModel.embedding_size(), input_shape=(max_len_word, vocab_size), name='embedding'))
+    #model.add(keras.layers.LSTM(128, input_shape=(max_len_word, vocab_size)))
+    #model.add(keras.layers.Dense(WordModel.embedding_size(), name='embedding'))
+    #model.add(keras.layers.ReLU())
     model.add(keras.layers.Dense(num_words))
     model.add(keras.layers.Activation('softmax'))
 
@@ -193,7 +198,7 @@ class WordModel:
       print("After load weights Score: {} Accuracy: {}".format(score, acc))
     except:
       self.model = WordModel.character_to_word_model()
-      self.model.fit_generator(generator_train_words, epochs=100, validation_data=generator_validation_words)
+      self.model.fit_generator(generator_train_words, epochs=50, validation_data=generator_validation_words)
       keras.models.save_model(self.model, words_model_path)
       score, acc = self.model.evaluate_generator(generator_test_words)
       print("Score: {} Accuracy: {}".format(score, acc))
@@ -227,8 +232,10 @@ class WordModel:
     model_e = keras.Model(self.model.inputs, self.model.get_layer('embedding').output)
     return model_e.predict([inputs])
 
+  '''
   def embedding_size(self):
     return self.model.get_layer('embedding').output.shape[1]
+  '''
 
   def predict(self, line):
     inputs = self.line_to_input(line)
@@ -247,7 +254,7 @@ word_model.check_all()
 #pdb.set_trace()
 #pred = word_model.predict_embedding("reina wascnaa")
 #em = word_model.to_embedded(['regina wascana'])
-embedding_size = word_model.embedding_size()
+#embedding_size = word_model.embedding_size()
 
 class PhraseModel: 
 
@@ -273,7 +280,7 @@ class PhraseModel:
 
   def word_to_phrase_model(max_len):
     model = keras.Sequential()
-    model.add(keras.layers.LSTM(128, input_shape=(max_len, embedding_size)))
+    model.add(keras.layers.LSTM(128, input_shape=(max_len, WordModel.embedding_size())))
     model.add(keras.layers.RepeatVector(max_len))
     model.add(keras.layers.LSTM(128, return_sequences=True))
     #model.add(keras.layers.TimeDistributed(keras.layers.Dense(256, activation=keras.activations.relu)))
@@ -288,7 +295,7 @@ class PhraseModel:
       self.model = keras.models.load_model(phrases_model_path.format(max_len))
     except:
       self.model = PhraseModel.word_to_phrase_model(max_len)
-      self.model.fit(phrases_in_embedded, phrases_out_one_hot, epochs=500, batch_size=16) 
+      self.model.fit(phrases_in_embedded, phrases_out_one_hot, epochs=100, batch_size=16) 
       pdb.set_trace()
       keras.models.save_model(self.model, phrases_model_path.format(max_len))
 
