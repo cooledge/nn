@@ -290,13 +290,12 @@ class PhraseModel:
     return model
 
   def __init__(self, max_len):
-    phrases_in_embedded, phrases_out_one_hot = PhraseModel.setup_phrases(max_len)
     try:
       self.model = keras.models.load_model(phrases_model_path.format(max_len))
     except:
+      phrases_in_embedded, phrases_out_one_hot = PhraseModel.setup_phrases(max_len)
       self.model = PhraseModel.word_to_phrase_model(max_len)
       self.model.fit(phrases_in_embedded, phrases_out_one_hot, epochs=100, batch_size=16) 
-      pdb.set_trace()
       keras.models.save_model(self.model, phrases_model_path.format(max_len))
 
   def predict(self, x):
@@ -304,62 +303,65 @@ class PhraseModel:
 
 phrase_models = [PhraseModel(i+1) for i in range(max_len_phrase)]
 
-def predict_add_one(phrase, expected_len):
-  max_len = min(len(phrase), max_len_phrase)
+def predict_add_one(phrase_embedded, phrase, expected_len):
+  max_len = min(len(phrase_embedded), max_len_phrase)
   model = phrase_models[max_len-1]
-  pred_phrase = phrase[-max_len:]
-  x_pred = np.zeros((1, max_len, num_words))
-  for t, word in enumerate(pred_phrase):
-    if word in word_to_id:
-      x_pred[0, t, word_to_id[word]] = 1.
-  preds = model.predict(x_pred)[0]
+  pred_phrase_embedded = np.expand_dims(phrase_embedded[-max_len:], axis=0)
+  preds = model.predict(pred_phrase_embedded)[0]
   preds = [np.argmax(one_hot_char) for one_hot_char in preds]
-  return phrase + [id_to_word[preds[len(pred_phrase)-1]]]
+  preds_embedded = [word_model.predict_embedding(id_to_word[pred])[0] for pred in preds]
+  return phrase_embedded + preds_embedded, phrase + [id_to_word[preds[max_len-1]]]
 
-def predicts_add_one(phrase, prob, n_choices, expected_len):
+def predicts_add_one(phrase_embedded, phrase, prob, n_choices, expected_len):
   max_len = min(len(phrase), max_len_phrase)
   model = phrase_models[max_len-1]
   pred_phrase = phrase[-max_len:]
-  x_pred = np.zeros((1, max_len, num_words))
-  for t, word in enumerate(pred_phrase):
-    if word in word_to_id:
-      x_pred[0, t, word_to_id[word]] = 1.
-  preds = model.predict(x_pred)[0]
+  pred_phrase_embedded = np.expand_dims(phrase_embedded[-max_len:], axis=0)
+  preds = model.predict(pred_phrase_embedded)[0]
 
   # get the top n_choices
   max_preds = np.argsort(preds, 1)
   phrase_idx = len(pred_phrase)-1
   next_words = max_preds[phrase_idx][-n_choices:]
-  return [(prob*preds[phrase_idx][idx], phrase + [id_to_word[idx]]) for idx in next_words]
+  return [
+    (
+      prob*preds[phrase_idx][idx], 
+      [i for i in phrase_embedded] + [i for i in word_model.predict_embedding(id_to_word[idx])],
+      phrase + [id_to_word[idx]]
+    ) 
+    for idx in next_words
+  ]
 
 # phrases like of (prob, phrase)
 def predicts_extend_one(phrases, n_choices, expected_len):
   next_phrases = []
-  for (prob, phrase) in phrases:
-    next_phrases += predicts_add_one(phrase, prob, n_choices, expected_len)
+  for (prob, phrase_embedded, phrase) in phrases:
+    next_phrases += predicts_add_one(phrase_embedded, phrase, prob, n_choices, expected_len)
   return next_phrases
 
-def predicts_extend(phrase, n_choices, expected_len):
-  phrases = [(1., phrase)]
+def predicts_extend(phrase_embedded, phrase, n_choices, expected_len):
+  phrases = [(1., phrase_embedded, phrase)]
   for i in range(expected_len):
     phrases = predicts_extend_one(phrases, n_choices, expected_len)
-    phrases = [pair for pair in phrases if pair[0] > 0.01]
+    phrases = [node for node in phrases if node[0] > 0.01]
   return phrases
    
-def predict_extend(phrase, expected_len):
+def predict_extend(phrase_embedded, phrase, expected_len):
   while len(phrase) < expected_len:
-    phrase = predict_add_one(phrase, expected_len)
+    phrase_embedded, phrase = predict_add_one(phrase_embedded, phrase, expected_len)
   return phrase
 
 while True:
   line = input('Enter a phrase: ')
   if line == '':
     break
+  phrase_embedded = word_model.predict_embedding(line)
   phrase = word_model.predict(line)
-  predict = predict_extend(phrase, 5)
+  predict = predict_extend(phrase_embedded, phrase, 5)
   print("Prediction: {}".format(predict))
-  phrases = predicts_extend(phrase, 2, 3)
+  phrases = predicts_extend(phrase_embedded, phrase, 2, 3)
   phrases = sorted(phrases, key=lambda phrase: phrase[0])
-  print(phrases)
+  for phrase in phrases:
+    print(phrase[2])
 
 
