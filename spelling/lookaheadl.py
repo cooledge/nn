@@ -171,6 +171,7 @@ generator_train_words = TokenSequence(train_x_words, train_y_words, vocab_size, 
 generator_validation_words = TokenSequence(validation_x, validation_y_words, vocab_size, batch_size)
 generator_test_words = TokenSequence(test_x_words, test_y_words, vocab_size, batch_size)
 
+word_model_path = "models/word.h5py"
 words_model_path = "models/words.h5py"
 phrases_model_path = "models/phrase{0}.h5py"
 
@@ -179,15 +180,9 @@ class WordModel:
   def embedding_size():
     return 64
 
-  def character_to_word_model(word_model):
-    if word_model:
-      pdb.set_trace()
-      model = keras.layers.Input(word_model.model.input.shape)
-      #model = keras.Model(input_shape=word_model.model.input.shape)
-      model = word_model.model.get_layer('embedding')(model)
-    else:
-      model = keras.Sequential()
-      model.add(keras.layers.LSTM(WordModel.embedding_size(), input_shape=(max_len_word, vocab_size), name='embedding'))
+  def character_to_word_model():
+    model = keras.Sequential()
+    model.add(keras.layers.LSTM(WordModel.embedding_size(), input_shape=(max_len_word, vocab_size), name='embedding'))
     #model.add(keras.layers.LSTM(128, input_shape=(max_len_word, vocab_size)))
     #model.add(keras.layers.Dense(WordModel.embedding_size(), name='embedding'))
     #model.add(keras.layers.ReLU())
@@ -197,17 +192,18 @@ class WordModel:
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
     return model
 
-  def __init__(self, word_model=None):
-    if word_model is None and os.path.isfile(words_model_path):    
-      self.model = keras.models.load_model(words_model_path)
+  def __init__(self, train=True):
+    if train and os.path.isfile(word_model_path):    
+      self.model = keras.models.load_model(word_model_path)
       score, acc = self.model.evaluate_generator(generator_test_words)
       print("After load weights Score: {} Accuracy: {}".format(score, acc))
     else:
-      self.model = WordModel.character_to_word_model(word_model)
-      self.model.fit_generator(generator_train_words, epochs=1, validation_data=generator_validation_words)
-      keras.models.save_model(self.model, words_model_path)
-      score, acc = self.model.evaluate_generator(generator_test_words)
-      print("Score: {} Accuracy: {}".format(score, acc))
+      self.model = WordModel.character_to_word_model()
+      if (train):
+        self.model.fit_generator(generator_train_words, epochs=1, validation_data=generator_validation_words)
+        keras.models.save_model(self.model, word_model_path)
+        score, acc = self.model.evaluate_generator(generator_test_words)
+        print("Score: {} Accuracy: {}".format(score, acc))
 
   def check_all(self):
     generator = TokenSequence(inputs, outputs, vocab_size, batch_size)
@@ -254,17 +250,16 @@ class WordsModel:
 
   def __init__(self, max_len):
     pdb.set_trace()
-    self.word_model = WordModel();
+    self.word_model = WordModel(train=False);
     input_shape = self.word_model.model.input.shape
     inputs_shape = (max_len,) + tuple(input_shape)[1:]
     input_words = keras.layers.Input(shape=inputs_shape)
     self.model = keras.layers.TimeDistributed(self.word_model.model)(input_words)
-    '''
-    first = WordModel()
-    rest = [WordModel(first) for _ in range(max_len)]
-    pdb.set_trace()
-    self.model = keras.Model([first.model.input]+[m.model.input for m in rest], [first.model.output]+[m.model.output for m in rest])
-    '''
+
+    self.model.fit_generator(generator_train_words, epochs=1, validation_data=generator_validation_words)
+    keras.models.save_model(self.model, words_model_path)
+    score, acc = self.model.evaluate_generator(generator_test_words)
+    print("Score: {} Accuracy: {}".format(score, acc))
 
 #word_model = WordModel()
 #pdb.set_trace()
