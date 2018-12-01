@@ -134,14 +134,46 @@ class TokenSequence(keras.utils.Sequence):
     self.n_tokens = n_tokens
 
   def __len__(self):
-    return math.ceil(len(self.x) /self.batch_size)
+    return math.floor(len(self.x) /self.batch_size)
 
   def __getitem__(self, idx):
     start = idx*self.batch_size
     end = start + self.batch_size
-    #batch_x = to_one_hot(self.x[start:end], vocab_size)
     batch_x = to_one_hot(self.x[start:end], self.n_tokens)
     batch_y = np.array([id_to_one_hot(id, num_words) for id in self.y[start:end]])
+    return (np.array(batch_x), np.array(batch_y))
+
+class TokensSequence(keras.utils.Sequence):
+
+  def __init__(self, x, y, n_tokens, seq_len, batch_size):
+    self.x = x
+    self.y = y
+    self.batch_size = batch_size
+    self.seq_len = seq_len
+    self.chunk_size = batch_size*seq_len
+    self.n_tokens = n_tokens
+
+  def __len__(self):
+    return math.floor(len(self.x)/(self.chunk_size))
+
+  def __getitem__(self, idx):
+    start = idx*self.chunk_size
+    # 16,20,43 -> batch_size, max_len_word, vocab_size
+    # wanted -> 16, 3, 20, 43
+    batch_x = np.zeros((self.batch_size, self.seq_len, max_len_word, self.n_tokens))
+    for batch_no in range(self.batch_size):
+      for word_no in range(self.seq_len):
+        batch_x[batch_no, word_no] = output_to_one_hot(self.x[start], self.n_tokens)
+        start += 1
+    
+    # 16, 262 -> batch_size, num_words
+    # wanted -> 16, 3, 262
+    start = idx*self.chunk_size
+    batch_y = np.zeros((self.batch_size, self.seq_len, num_words))
+    for batch_no in range(self.batch_size):
+      for word_no in range(self.seq_len):
+        batch_y[batch_no, word_no] = id_to_one_hot(self.y[start], num_words)
+        start += 1
     return (np.array(batch_x), np.array(batch_y))
 
 def split_percents(values, percentages):
@@ -170,6 +202,13 @@ def y_to_words(ys):
 generator_train_words = TokenSequence(train_x_words, train_y_words, vocab_size, batch_size)
 generator_validation_words = TokenSequence(validation_x, validation_y_words, vocab_size, batch_size)
 generator_test_words = TokenSequence(test_x_words, test_y_words, vocab_size, batch_size)
+
+generator_train_wordss = TokensSequence(train_x_words, train_y_words, vocab_size, max_len_phrase, batch_size)
+generator_validation_wordss = TokensSequence(validation_x, validation_y_words, vocab_size, max_len_phrase, batch_size)
+generator_test_wordss = TokensSequence(test_x_words, test_y_words, vocab_size, max_len_phrase, batch_size)
+#pdb.set_trace()
+#len23 = generator_train_wordss.__len__()
+#generator_train_wordss.__getitem__(len23-1)
 
 word_model_path = "models/word.h5py"
 words_model_path = "models/words.h5py"
@@ -204,6 +243,9 @@ class WordModel:
         keras.models.save_model(self.model, word_model_path)
         score, acc = self.model.evaluate_generator(generator_test_words)
         print("Score: {} Accuracy: {}".format(score, acc))
+
+  def save(self):
+    keras.models.save_model(self.model, word_model_path)
 
   def check_all(self):
     generator = TokenSequence(inputs, outputs, vocab_size, batch_size)
@@ -249,22 +291,38 @@ class WordModel:
 class WordsModel:
 
   def __init__(self, max_len):
-    pdb.set_trace()
-    self.word_model = WordModel(train=False);
-    input_shape = self.word_model.model.input.shape
-    inputs_shape = (max_len,) + tuple(input_shape)[1:]
-    input_words = keras.layers.Input(shape=inputs_shape)
-    self.model = keras.layers.TimeDistributed(self.word_model.model)(input_words)
+    if os.path.isfile(word_model_path):    
+      self.word_model = WordModel(train=False);
+      self.model = keras.models.load_model(words_model_path)
+      score, acc = self.model.evaluate_generator(generator_test_wordss)
+      print("After load weights Score: {} Accuracy: {}".format(score, acc))
+    else:
+      self.word_model = WordModel(train=False);
+      input_shape = self.word_model.model.input.shape
+      inputs_shape = (max_len,) + tuple(input_shape)[1:]
+      input_words = keras.layers.Input(shape=inputs_shape)
+      output_words = keras.layers.TimeDistributed(self.word_model.model)(input_words)
+      self.model = keras.Model(input_words, output_words)
+      self.model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
-    self.model.fit_generator(generator_train_words, epochs=1, validation_data=generator_validation_words)
-    keras.models.save_model(self.model, words_model_path)
-    score, acc = self.model.evaluate_generator(generator_test_words)
-    print("Score: {} Accuracy: {}".format(score, acc))
+      self.model.fit_generator(generator_train_wordss, epochs=100, validation_data=generator_validation_wordss)
+      self.word_model.save()
+      keras.models.save_model(self.model, words_model_path)
+      score, acc = self.model.evaluate_generator(generator_test_wordss)
+      print("Score: {} Accuracy: {}".format(score, acc))
+
+  def check_all(self):
+    generator = TokensSequence(inputs, outputs, vocab_size, max_len_phrase, batch_size)
+    score, acc = self.model.evaluate_generator(generator)
+    print("Check All Score: {} Accuracy: {}".format(score, acc))
+    print("Original word model")
+    self.word_model.check_all()
 
 #word_model = WordModel()
 #pdb.set_trace()
 words_model = WordsModel(max_len_phrase)
-word_model.check_all()
+pdb.set_trace()
+words_model.check_all()
 #pdb.set_trace()
 #pred = word_model.predict_embedding("reina wascnaa")
 #em = word_model.to_embedded(['regina wascana'])
