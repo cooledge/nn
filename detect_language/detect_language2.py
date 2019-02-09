@@ -18,7 +18,7 @@ from os.path import isfile, join
 def files_in_dir(path):
   return [join(path, f) for f in listdir(path)]
 
-vocab_size = 10000
+vocab_size = 20000
 max_len = 10
 percent_training = 0.8
 percent_test = 0.1
@@ -55,11 +55,7 @@ tokenizer.fit_on_texts(sample_text)
 
 def to_sequences(sample_text):
   sequences = tokenizer.texts_to_sequences(sample_text)
-  for s,t in zip(sequences, sample_text):
-    if sum(s) == 0:
-      pdb.set_trace()
-      pdb.set_trace()
-  sequences= keras.preprocessing.sequence.pad_sequences(sequences, padding='post', maxlen=max_len)
+  sequences = keras.preprocessing.sequence.pad_sequences(sequences, padding='post', maxlen=max_len)
   return sequences
 
 sample_text = to_sequences(sample_text)
