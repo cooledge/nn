@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import sys
 from tensorflow import keras
 from collections import Counter
 
@@ -36,15 +37,19 @@ language_dirs = files_in_dir(path)
 def word_to_ngrams(word):
   return [word[i:i+ngrams] for i in range(int(len(word)-ngrams+1))]
 
+def line_to_ngrams(line):
+  ngrams = []
+  for word in line.lower().split():
+    if word.isalpha():
+      for ngram in word_to_ngrams(word):
+        ngrams.append(ngram)
+  return ngrams
+
 def get_lines(filename, lines_of_ngrams):
   with open(filename) as f :
     lines = f.readlines()
     for line in lines:
-      ngrams = []
-      for word in line.lower().split():
-        if word.isalpha():
-          for ngram in word_to_ngrams(word):
-            ngrams.append(ngram)
+      ngrams = line_to_ngrams(line)
       if len(ngrams) > 0:
         lines_of_ngrams.append(ngrams)
 
@@ -67,7 +72,6 @@ def to_sequences(sample_text):
   sequences = tokenizer.texts_to_sequences(sample_text)
   sequences = keras.preprocessing.sequence.pad_sequences(sequences, padding='post', maxlen=max_len)
   return sequences
-
 sample_text = to_sequences(sample_text)
 model = keras.Sequential()
 model.add(keras.layers.Embedding(vocab_size, 32))
@@ -76,7 +80,7 @@ model.add(keras.layers.Dense(128, activation=tf.nn.relu))
 model.add(keras.layers.Dense(n_languages, activation=tf.nn.sigmoid))
 
 model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-model.fit(sample_text, sample_language, epochs=50, batch_size=100, verbose=1)
+model.fit(sample_text, sample_language, epochs=20, batch_size=100, verbose=1)
 
 counter = 0
 for text in sample_text:
@@ -85,11 +89,28 @@ for text in sample_text:
 print(counter)
 
 predictions = model.predict(sample_text)
+
+'''
 pdb.set_trace()
 for prediction, text, language in zip(predictions, sample_text, sample_language):
   if np.argmax(prediction) != language:
     pdb.set_trace()
     print(tokenizer.sequences_to_texts([text]))
+'''
+
+print("Enter some text")
+for line in sys.stdin:
+  if line == '\n':
+    break
+  
+  line = line.replace('\n', '')
+  line_of_ngrams = line_to_ngrams(line)
+  inputs = to_sequences([line_of_ngrams])
+  print('-'*80)
+  prediction = model.predict(inputs, batch_size=1)
+  prediction = np.argmax(prediction[0])
+  print('The prediction is {0}'.format(id_to_language[prediction]))
+  print("Enter some starter text")
 
 
 pdb.set_trace()
