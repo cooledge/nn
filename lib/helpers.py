@@ -6,7 +6,7 @@ def select_by_indexes(values, indexes):
 
 def split_by_percentage(values, percentages):
   split = []
-  sizes = [percentage*len(values)/100 for percentage in percentages]
+  sizes = [int(percentage*len(values)/100) for percentage in percentages]
   start = 0
   for size in sizes:
     split.append(values[start:start+size])
