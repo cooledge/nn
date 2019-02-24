@@ -14,6 +14,10 @@ load
 import pdb
 from os import listdir
 from os.path import isfile, join
+import sys
+sys.path.append("../lib")
+from helpers import splits_by_percentages
+
 
 def files_in_dir(path):
   return [join(path, f) for f in listdir(path)]
@@ -65,8 +69,12 @@ model.add(keras.layers.GlobalAveragePooling1D())
 model.add(keras.layers.Dense(128, activation=tf.nn.relu))
 model.add(keras.layers.Dense(n_languages, activation=tf.nn.sigmoid))
 
+sample_text_splits, sample_language_splits = splits_by_percentages([sample_text, sample_language], [80,10,10])
+sample_text_training, sample_text_validation, sample_text_test = sample_text_splits
+sample_language_training, sample_language_validation, sample_language_test = sample_language_splits
+
 model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-model.fit(sample_text, sample_language, epochs=100, batch_size=2000, verbose=1)
+model.fit(sample_text_training, sample_language_training, epochs=20, batch_size=100, verbose=1, validation_data=(sample_text_validation, sample_language_validation))
 
 counter = 0
 for text in sample_text:
