@@ -82,14 +82,27 @@ for text in sample_text:
     counter += 1
 print(counter)
 
-pdb.set_trace()
 predictions = model.predict(sample_text)
 for prediction, text, language in zip(predictions, sample_text, sample_language):
   if np.argmax(prediction) != language:
-    pdb.set_trace()
     print(tokenizer.sequences_to_texts([text]))
 
 
-pdb.set_trace()
-pdb.set_trace()
+score = model.evaluate(sample_text_test, sample_language_test)
+print('Test Loss: ', score[0])
+print('Test accuracy: ', score[1])
+
+print("Enter some text")
+for line in sys.stdin:
+  if line == '\n':
+    break
+
+  line = line.replace('\n', '')
+  line_of_ngrams = line_to_ngrams(line)
+  inputs = to_sequences([line_of_ngrams])
+  print('-'*80)
+  prediction = model.predict(inputs, batch_size=1)
+  prediction = np.argmax(prediction[0])
+  print('The prediction is {0}'.format(id_to_language[prediction]))
+  print("Enter some starter text")
 

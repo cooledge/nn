@@ -89,9 +89,7 @@ sample_text_splits, sample_language_splits = splits_by_percentages([sample_text,
 sample_text_training, sample_text_validation, sample_text_test = sample_text_splits
 sample_language_training, sample_language_validation, sample_language_test = sample_language_splits
 
-pdb.set_trace()
 model.fit(sample_text_training, sample_language_training, epochs=20, batch_size=100, verbose=1, validation_data=(sample_text_validation, sample_language_validation))
-#model.fit(sample_text_training, sample_language_training, epochs=20, batch_size=100, verbose=1)
 
 counter = 0
 for text in sample_text:
@@ -109,6 +107,16 @@ for prediction, text, language in zip(predictions, sample_text, sample_language)
     print(tokenizer.sequences_to_texts([text]))
 '''
 
+predictions = model.predict(sample_text)
+for prediction, text, language in zip(predictions, sample_text, sample_language):
+  if np.argmax(prediction) != language:
+    print(tokenizer.sequences_to_texts([text]))
+
+
+score = model.evaluate(sample_text_test, sample_language_test)
+print('Test Loss: ', score[0])
+print('Test accuracy: ', score[1])
+
 print("Enter some text")
 for line in sys.stdin:
   if line == '\n':
@@ -123,7 +131,4 @@ for line in sys.stdin:
   print('The prediction is {0}'.format(id_to_language[prediction]))
   print("Enter some starter text")
 
-
-pdb.set_trace()
-pdb.set_trace()
 
