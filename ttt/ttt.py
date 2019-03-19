@@ -7,7 +7,11 @@ X = 1
 O = 2
 TIE = 3
 
-def select_move(state):
+OUTCOME_WIN = 0
+OUTCOME_LOSS = 1
+OUTCOME_TIE = 2
+
+dek select_move(state):
   positions = [i for i,v in enumerate(state) if v == None]
   selection = random.randint(1, len(positions))-1
   return positions[selection]
@@ -30,24 +34,50 @@ def calculate_winner(game):
     a, b, c = lines[i]
     if game[a] is not None and game[a] == game[b] and game[a] == game[c]:
       return game[a]
+  
+  if all(sq is not None for sq in game):
+    return TIE;
 
-  return TIE;
+  return None
 
-def make_game():
+def get_game():
   next_player = random.randint(1,2)
   state = [None for i in range(9)]
+
+  transitions_X = [] 
+  transitions_O = []
+  last_state = None
   while not calculate_winner(state):
     state[select_move(state)] = next_player
     if next_player == X:
+      if last_state is not None:
+        transitions_X.append(last_state + state)
       next_player = O
     else:
+      if last_state is not None:
+        transitions_O.append(last_state + state)
       next_player = X
-  return state
+    last_state = [] + state
+  return (calculate_winner(state), transitions_X, transitions_O)
+
+training_move = []
+training_outcome = []
+
+winner, t_x, t_o = get_game()
+
+if winner == X:
+  outcome = OUTCOME_WIN
+else winner == Y:
+  outcome = OUTCOME_LOSS
+else:
+  outcome = OUTCOME_TIE
+training_move.append(transition)
+training_outcome.append(outcome)
 
 #print(select_move([None, None, None]))
 #print(select_move([None, 1, None]))
 #winner = calculate_winner([X, O, N, N, X, N, N, O, X])
-print(make_game())
+print(get_game())
 pdb.set_trace()
 pdb.set_trace()
 
