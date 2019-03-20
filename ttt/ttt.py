@@ -13,7 +13,7 @@ OUTCOME_WIN = 0
 OUTCOME_LOSS = 1
 OUTCOME_TIE = 2
 
-N_GAMES = 500
+N_GAMES = 50000
 
 def select_move(state):
   positions = [i for i,v in enumerate(state) if v == N]
@@ -112,6 +112,8 @@ training_outcomes = np.array(data_outcomes)
 model = keras.Sequential()
 # 3 == X O None
 model.add(keras.layers.Embedding(3, 32, input_length=2*9))
+
+# Try 1
 model.add(keras.layers.Flatten())
 model.add(keras.layers.Dense(256))
 # 3 == X O Tie
@@ -120,8 +122,6 @@ model.add(keras.layers.Dense(3, activation='softmax'))
 model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
 model.fit(training_moves, training_outcomes, epochs=20, batch_size=20)
-
-state = [N]*9
 
 def pick_move(state, player):
   current_tie_prediction = 0.0
@@ -144,16 +144,30 @@ def pick_move(state, player):
 
   return (current_tie_prediction, current_tie_next_state, current_win_prediction, current_win_next_state)
 
-current_player = X
-pdb.set_trace()
-while calculate_winner(state) is None:
-  pick_move(state, X)
-  tie_pred, tie_state, win_pred, win_state = pick_move(state, current_player)
-  current_player = other_player(current_player)
-  if win_pred > tie_pred:
-    state = win_state
+def state_to_char(state):
+  if state == X:
+    return "X"
+  elif state == O:
+    return "O"
   else:
-    state = tie_state
+    return " "
 
+def state_to_line(state):
+  state = [state_to_char(s) for s in state]
+  return "{0}{1}{2}".format(state[0], state[1], state[2])
 
+def play_game():
+  state = [N]*9
 
+  current_player = X
+  while calculate_winner(state) is None:
+    pick_move(state, X)
+    tie_pred, tie_state, win_pred, win_state = pick_move(state, current_player)
+    if win_pred > tie_pred:
+      state = win_state
+    else:
+      state = tie_state
+    print("{0}: {1}\n   {2}\n   {3}\n".format(current_player, state_to_line(state[0:3]), state_to_line(state[3:6]), state_to_line(state[6:9])))
+    current_player = other_player(current_player)
+
+play_game()
