@@ -1,8 +1,10 @@
 import pdb
 import random
 import tensorflow as tf
+import tensorflow.keras as keras
+import numpy as np
 
-N = None
+N = 0
 X = 1
 O = 2
 TIE = 3
@@ -11,8 +13,10 @@ OUTCOME_WIN = 0
 OUTCOME_LOSS = 1
 OUTCOME_TIE = 2
 
-dek select_move(state):
-  positions = [i for i,v in enumerate(state) if v == None]
+N_GAMES = 500
+
+def select_move(state):
+  positions = [i for i,v in enumerate(state) if v == N]
   selection = random.randint(1, len(positions))-1
   return positions[selection]
 
@@ -32,54 +36,72 @@ def calculate_winner(game):
   ];
   for i in range(len(lines)):
     a, b, c = lines[i]
-    if game[a] is not None and game[a] == game[b] and game[a] == game[c]:
+    if game[a] is not N and game[a] == game[b] and game[a] == game[c]:
       return game[a]
   
-  if all(sq is not None for sq in game):
+  if all(sq is not N for sq in game):
     return TIE;
 
   return None
 
 def get_game():
   next_player = random.randint(1,2)
-  state = [None for i in range(9)]
+  state = [N for i in range(9)]
 
   transitions_X = [] 
   transitions_O = []
-  last_state = None
+  last_state = N
   while not calculate_winner(state):
     state[select_move(state)] = next_player
     if next_player == X:
-      if last_state is not None:
+      if last_state is not N:
         transitions_X.append(last_state + state)
       next_player = O
     else:
-      if last_state is not None:
+      if last_state is not N:
         transitions_O.append(last_state + state)
       next_player = X
     last_state = [] + state
   return (calculate_winner(state), transitions_X, transitions_O)
 
-training_move = []
-training_outcome = []
+def other_player(player):
+  if player == X:
+    return O
+  else:
+    return X
 
-winner, t_x, t_o = get_game()
+def state_to_one_hot(state):
+  one_hot = []
+  for s in state:
+    oh = [0, 0, 0]
+    oh[s] = 1
+    one_hot += oh
+  return one_hot
 
-if winner == X:
-  outcome = OUTCOME_WIN
-else winner == Y:
-  outcome = OUTCOME_LOSS
-else:
-  outcome = OUTCOME_TIE
-training_move.append(transition)
-training_outcome.append(outcome)
+def get_data(winner, current_player, transitions, data_moves, data_outcomes):
+  if winner == current_player:
+    outcome = OUTCOME_WIN
+  elif winner == other_player(current_player):
+    outcome = OUTCOME_LOSS
+  else:
+    outcome = OUTCOME_TIE
+  #data_moves += [state_to_one_hot(t) for t in transitions]
+  data_moves += transitions
+  data_outcomes += [outcome] * len(transitions)
 
-#print(select_move([None, None, None]))
-#print(select_move([None, 1, None]))
-#winner = calculate_winner([X, O, N, N, X, N, N, O, X])
-print(get_game())
-pdb.set_trace()
-pdb.set_trace()
+data_moves = []
+data_outcomes = []
+for _ in range(N_GAMES):
+  winner, moves_x, moves_o = get_game()
+  get_data(winner, X, moves_x, data_moves, data_outcomes)
+  get_data(winner, O, moves_o, data_moves, data_outcomes)
+
+#pdb.set_trace() 
+#data_moves = data_moves[0:10]
+#data_outcomes = data_outcomes[0:10]
+
+training_moves = np.array(data_moves)
+training_outcomes = np.array(data_outcomes)
 
 '''
   S1+S2 -> X O Tie
@@ -89,12 +111,49 @@ pdb.set_trace()
 
 model = keras.Sequential()
 # 3 == X O None
-model.add(keras.layers.Embedding(3, 32))
-model.add(keras.layers.Dense(128))
+model.add(keras.layers.Embedding(3, 32, input_length=2*9))
+model.add(keras.layers.Flatten())
+model.add(keras.layers.Dense(256))
 # 3 == X O Tie
-model.add(keras.layers.Dense(3))
+model.add(keras.layers.Dense(3, activation='softmax'))
 
 model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-model.fit(training_move, training_outcome, epochs=20, batch_size=100)
+print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
+model.fit(training_moves, training_outcomes, epochs=20, batch_size=20)
+
+state = [N]*9
+
+def pick_move(state, player):
+  current_tie_prediction = 0.0
+  current_win_prediction = 0.0
+  current_tie_next_state = []
+  current_win_next_state = []
+  for i in range(len(state)):
+    if state[i] == N: 
+      next_state = [s for s in state]
+      next_state[i] = player
+      prediction = model.predict(np.array([state+next_state]))[0]
+
+      if prediction[OUTCOME_WIN] > current_win_prediction:
+        current_win_prediction = prediction[OUTCOME_WIN]
+        current_win_next_state = next_state
+
+      if prediction[OUTCOME_TIE] > current_tie_prediction:
+        current_tie_prediction = prediction[OUTCOME_TIE]
+        current_tie_next_state = next_state
+
+  return (current_tie_prediction, current_tie_next_state, current_win_prediction, current_win_next_state)
+
+current_player = X
+pdb.set_trace()
+while calculate_winner(state) is None:
+  pick_move(state, X)
+  tie_pred, tie_state, win_pred, win_state = pick_move(state, current_player)
+  current_player = other_player(current_player)
+  if win_pred > tie_pred:
+    state = win_state
+  else:
+    state = tie_state
+
 
 
