@@ -13,12 +13,43 @@ OUTCOME_WIN = 0
 OUTCOME_LOSS = 1
 OUTCOME_TIE = 2
 
-N_GAMES = 50000
+N_GAMES = 2000
 
-def select_move(state):
+def pick_move_nn(model, state, next_player):
+  current_tie_prediction = 0.0
+  current_win_prediction = 0.0
+  current_tie_i = None
+  current_win_i = None
+  for i in range(len(state)):
+    if state[i] == N: 
+      next_state = [s for s in state]
+      next_state[i] = next_player
+      prediction = model.predict(np.array([state+next_state]))[0]
+
+      if prediction[OUTCOME_WIN] > current_win_prediction:
+        current_win_prediction = prediction[OUTCOME_WIN]
+        current_win_i = i
+
+      if prediction[OUTCOME_TIE] > current_tie_prediction:
+        current_tie_prediction = prediction[OUTCOME_TIE]
+        current_tie_i = i
+
+  if current_win_prediction > current_tie_prediction:
+    return current_win_i
+  else:
+    return  current_tie_i
+
+def pick_move_rand(state):
   positions = [i for i,v in enumerate(state) if v == N]
   selection = random.randint(1, len(positions))-1
   return positions[selection]
+
+def do_move(model, state, next_player):
+  if model:
+    move = pick_move_nn(model, state, next_player)
+  else:
+    move = pick_move_rand(state)
+  state[move] = next_player
 
 def game_get(game, i, j):
   game[i*3+j]
@@ -44,7 +75,7 @@ def calculate_winner(game):
 
   return None
 
-def get_game():
+def get_game(model):
   next_player = random.randint(1,2)
   state = [N for i in range(9)]
 
@@ -52,7 +83,7 @@ def get_game():
   transitions_O = []
   last_state = N
   while not calculate_winner(state):
-    state[select_move(state)] = next_player
+    do_move(model, state, next_player)
     if next_player == X:
       if last_state is not N:
         transitions_X.append(last_state + state)
@@ -89,19 +120,31 @@ def get_data(winner, current_player, transitions, data_moves, data_outcomes):
   data_moves += transitions
   data_outcomes += [outcome] * len(transitions)
 
-data_moves = []
-data_outcomes = []
-for _ in range(N_GAMES):
-  winner, moves_x, moves_o = get_game()
-  get_data(winner, X, moves_x, data_moves, data_outcomes)
-  get_data(winner, O, moves_o, data_moves, data_outcomes)
+def generate_data(model):
+  data_moves = []
+  data_outcomes = []
+  for _ in range(N_GAMES):
+    winner, moves_x, moves_o = get_game(model)
+    get_data(winner, X, moves_x, data_moves, data_outcomes)
+    get_data(winner, O, moves_o, data_moves, data_outcomes)
 
-#pdb.set_trace() 
-#data_moves = data_moves[0:10]
-#data_outcomes = data_outcomes[0:10]
+  return np.array(data_moves), np.array(data_outcomes)
 
-training_moves = np.array(data_moves)
-training_outcomes = np.array(data_outcomes)
+training_moves, training_outcomes = generate_data(None)
+
+def data_stats(moves, outcomes):
+  win, loss, tie = 0, 0, 0
+  for outcome in outcomes:
+    if outcome == OUTCOME_WIN:
+      win += 1
+    elif outcome == OUTCOME_LOSS:
+      loss += 1
+    else:
+      tie += 1 
+  total = win + loss + tie
+  print("Data: {0}/{1}/{2}\n".format(win/total*100, loss/total*100, tie/total*100))
+
+data_stats(training_moves, training_outcomes)
 
 '''
   S1+S2 -> X O Tie
@@ -111,18 +154,52 @@ training_outcomes = np.array(data_outcomes)
 
 model = keras.Sequential()
 # 3 == X O None
-model.add(keras.layers.Embedding(3, 32, input_length=2*9))
 
 # Try 1
-model.add(keras.layers.Flatten())
-model.add(keras.layers.Dense(256))
+if False:
+  model.add(keras.layers.Embedding(3, 32, input_length=2*9))
+  model.add(keras.layers.Flatten())
+  model.add(keras.layers.Dense(256))
+
+# Try 2
+N_FILTERS = 64
+
+model.add(keras.layers.Embedding(3, 32, input_length=2*9))
+# (18, 32)
+model.add(keras.layers.Reshape((2, 3, 3, 32)))
+# (2, 9, 32)
+model.add(keras.layers.Conv3D(N_FILTERS, (1,3,3)))
+# (2, 1, 1, 64)
+model.add(keras.layers.Reshape((N_FILTERS*2,)))
+# (128)
 # 3 == X O Tie
-model.add(keras.layers.Dense(3, activation='softmax'))
+#model.add(keras.layers.Dense(3, activation='softmax'))
+model.add(keras.layers.Dense(3, activation=tf.nn.sigmoid))
 
 model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
 model.fit(training_moves, training_outcomes, epochs=20, batch_size=20)
 
+pdb.set_trace()
+training_moves, training_outcomes = generate_data(model)
+data_stats(training_moves, training_outcomes)
+model.fit(training_moves, training_outcomes, epochs=20, batch_size=20)
+
+def find_outcome(state, next_state):
+  win = 0
+  loss = 0
+  tie = 0
+
+  for i, move in enumerate(training_moves):
+    if np.array_equal(move, state+next_state):
+      if training_outcomes[i] == OUTCOME_WIN:
+        win += 1
+      elif training_outcomes[i] == OUTCOME_LOSS:
+        loss += 1
+      else:
+        tie += 1
+  return (win, loss, tie)
+        
 def pick_move(state, player):
   current_tie_prediction = 0.0
   current_win_prediction = 0.0
@@ -156,18 +233,31 @@ def state_to_line(state):
   state = [state_to_char(s) for s in state]
   return "{0}{1}{2}".format(state[0], state[1], state[2])
 
-def play_game():
+def play_game(first_move_is_rand = False):
   state = [N]*9
 
   current_player = X
   while calculate_winner(state) is None:
-    pick_move(state, X)
-    tie_pred, tie_state, win_pred, win_state = pick_move(state, current_player)
-    if win_pred > tie_pred:
-      state = win_state
+    if first_move_is_rand:
+      move = random.randint(1, len(state))-1
+      next_state = [s for s in state]
+      next_state[move] = current_player
+       
+      first_move_is_rand = false
+      win_pred = 0
+      tie_pred = 0
     else:
-      state = tie_state
-    print("{0}: {1}\n   {2}\n   {3}\n".format(current_player, state_to_line(state[0:3]), state_to_line(state[3:6]), state_to_line(state[6:9])))
+      pick_move(state, X)
+      tie_pred, tie_state, win_pred, win_state = pick_move(state, current_player)
+      prev_state = state
+      if win_pred > tie_pred:
+        state = win_state
+      else:
+        state = tie_state
+   
+    win, loss, tie = find_outcome(prev_state, state)
+    print("{0}: {1} {4}/{5}/{6} {7}/_/{8}\n   {2}\n   {3}\n".format(current_player, state_to_line(state[0:3]), state_to_line(state[3:6]), state_to_line(state[6:9]), win, loss, tie, win_pred, tie_pred))
     current_player = other_player(current_player)
 
 play_game()
+
