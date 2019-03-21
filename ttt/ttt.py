@@ -1,7 +1,7 @@
 import pdb
 import random
 import tensorflow as tf
-import tensorflow.keras as keras
+from tensorflow import keras
 import numpy as np
 
 N = 0
@@ -13,8 +13,12 @@ OUTCOME_WIN = 0
 OUTCOME_LOSS = 1
 OUTCOME_TIE = 2
 
-N_GAMES_1 = 200000
-N_GAMES_2 = 20000
+if False:
+  N_GAMES_1 = 100
+  N_GAMES_2 = 100
+else:
+  N_GAMES_1 = 50000
+  N_GAMES_2 = 10000
 
 def pick_move_nn(model, state, next_player):
   current_tie_prediction = 0.0
@@ -35,10 +39,12 @@ def pick_move_nn(model, state, next_player):
         current_tie_prediction = prediction[OUTCOME_TIE]
         current_tie_i = i
 
+  if current_win_i is None or current_tie_i is None:
+    pdb.set_trace()
   if current_win_prediction > current_tie_prediction:
     return current_win_i
   else:
-    return  current_tie_i
+    return current_tie_i
 
 def pick_move_rand(state):
   positions = [i for i,v in enumerate(state) if v == N]
@@ -171,7 +177,13 @@ model.add(keras.layers.Reshape((2, 3, 3, 32)))
 # (2, 9, 32)
 model.add(keras.layers.Conv3D(N_FILTERS, (1,3,3)))
 # (2, 1, 1, 64)
-model.add(keras.layers.Reshape((N_FILTERS*2,)))
+
+if True:
+  model.add(keras.layers.Reshape((N_FILTERS*2,)))
+else:
+  model.add(keras.layers.Reshape((2, N_FILTERS,)))
+  model.add(keras.layers.GlobalAveragePooling1D())
+
 # (128)
 # 3 == X O Tie
 #model.add(keras.layers.Dense(3, activation='softmax'))
@@ -191,14 +203,17 @@ def find_outcome(state, next_state):
   loss = 0
   tie = 0
 
+  expected_state = state+next_state
   for i, move in enumerate(training_moves):
-    if np.array_equal(move, state+next_state):
+    if np.array_equal(move, expected_state):
       if training_outcomes[i] == OUTCOME_WIN:
         win += 1
       elif training_outcomes[i] == OUTCOME_LOSS:
         loss += 1
       else:
         tie += 1
+  if win == 0 and loss == 0 and tie == 0:
+    pdb.set_trace()
   return (win, loss, tie)
         
 def pick_move(state, player):
