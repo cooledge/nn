@@ -13,7 +13,8 @@ OUTCOME_WIN = 0
 OUTCOME_LOSS = 1
 OUTCOME_TIE = 2
 
-N_GAMES = 2000
+N_GAMES_1 = 200000
+N_GAMES_2 = 20000
 
 def pick_move_nn(model, state, next_player):
   current_tie_prediction = 0.0
@@ -120,17 +121,17 @@ def get_data(winner, current_player, transitions, data_moves, data_outcomes):
   data_moves += transitions
   data_outcomes += [outcome] * len(transitions)
 
-def generate_data(model):
+def generate_data(model, n_games):
   data_moves = []
   data_outcomes = []
-  for _ in range(N_GAMES):
+  for _ in range(n_games):
     winner, moves_x, moves_o = get_game(model)
     get_data(winner, X, moves_x, data_moves, data_outcomes)
     get_data(winner, O, moves_o, data_moves, data_outcomes)
 
   return np.array(data_moves), np.array(data_outcomes)
 
-training_moves, training_outcomes = generate_data(None)
+training_moves, training_outcomes = generate_data(None, N_GAMES_1)
 
 def data_stats(moves, outcomes):
   win, loss, tie = 0, 0, 0
@@ -181,7 +182,7 @@ print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, t
 model.fit(training_moves, training_outcomes, epochs=20, batch_size=20)
 
 pdb.set_trace()
-training_moves, training_outcomes = generate_data(model)
+training_moves, training_outcomes = generate_data(model, N_GAMES_2)
 data_stats(training_moves, training_outcomes)
 model.fit(training_moves, training_outcomes, epochs=20, batch_size=20)
 
@@ -202,7 +203,9 @@ def find_outcome(state, next_state):
         
 def pick_move(state, player):
   current_tie_prediction = 0.0
+  current_tie_loss_prediction = 1.0
   current_win_prediction = 0.0
+  current_win_loss_prediction = 1.0
   current_tie_next_state = []
   current_win_next_state = []
   for i in range(len(state)):
@@ -211,12 +214,14 @@ def pick_move(state, player):
       next_state[i] = player
       prediction = model.predict(np.array([state+next_state]))[0]
 
-      if prediction[OUTCOME_WIN] > current_win_prediction:
+      if prediction[OUTCOME_WIN] > current_win_prediction and prediction[OUTCOME_LOSS] < current_win_loss_prediction:
         current_win_prediction = prediction[OUTCOME_WIN]
+        current_win_loss_prediction = prediction[OUTCOME_LOSS]
         current_win_next_state = next_state
 
-      if prediction[OUTCOME_TIE] > current_tie_prediction:
+      if prediction[OUTCOME_TIE] > current_tie_prediction and prediction[OUTCOME_LOSS] < current_tie_loss_prediction:
         current_tie_prediction = prediction[OUTCOME_TIE]
+        current_tie_loss_prediction = prediction[OUTCOME_LOSS]
         current_tie_next_state = next_state
 
   return (current_tie_prediction, current_tie_next_state, current_win_prediction, current_win_next_state)
