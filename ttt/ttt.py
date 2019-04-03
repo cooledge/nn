@@ -13,6 +13,8 @@ OUTCOME_WIN = 0
 OUTCOME_LOSS = 1
 OUTCOME_TIE = 2
 
+EPOCHS = 1
+
 if False:
   N_GAMES_1 = 100
   N_GAMES_2 = 100
@@ -116,6 +118,54 @@ def state_to_one_hot(state):
     one_hot += oh
   return one_hot
 
+def get_games(player, games, game = [0 for _ in range(18)], cells = [0,1,2,3,4,5,6,7,8,9]):
+  if cells == []:
+    games += [game]
+    return
+
+  for cell in cells:
+    next_cells = cells.copy()
+    next_cells.remove(cell)
+
+    next_state = game[:-1].copy()
+    next_state[cell] = player
+    game += [next_state]
+
+    get_games(other_player(player), games, game, next_cells)
+    
+def get_complete_game(game):
+  next_player = X
+
+  transitions_X = [] 
+  transitions_O = []
+  last_state = N
+  for state in game:
+    if next_player == X:
+      if last_state is not N:
+        transitions_X.append(last_state + state)
+      next_player = O
+    else:
+      if last_state is not N:
+        transitions_O.append(last_state + state)
+      next_player = X
+    last_state = [] + state
+  return (calculate_winner(state), transitions_X, transitions_O)
+
+def generate_complete_data(model, n_games):
+  data_moves = []
+  data_outcomes = []
+  games = []
+  pdb.set_trace()
+  get_games(X, games)
+  pdb.set_trace()
+
+  for game in games:
+    winner, moves_x, moves_o = get_complete_game()
+    get_data(winner, X, moves_x, data_moves, data_outcomes)
+    get_data(winner, O, moves_o, data_moves, data_outcomes)
+
+  return np.array(data_moves), np.array(data_outcomes)
+
 def get_data(winner, current_player, transitions, data_moves, data_outcomes):
   if winner == current_player:
     outcome = OUTCOME_WIN
@@ -137,7 +187,15 @@ def generate_data(model, n_games):
 
   return np.array(data_moves), np.array(data_outcomes)
 
+training_moves, training_outcomes = generate_complete_data(None, N_GAMES_1)
 training_moves, training_outcomes = generate_data(None, N_GAMES_1)
+ndtm = []
+for tm in training_moves:
+  tm = list(tm)
+  if tm not in ndtm:
+    ndtm += [tm]
+
+pdb.set_trace()
 
 def data_stats(moves, outcomes):
   win, loss, tie = 0, 0, 0
@@ -191,7 +249,7 @@ model.add(keras.layers.Dense(3, activation=tf.nn.sigmoid))
 
 model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
-model.fit(training_moves, training_outcomes, epochs=20, batch_size=20)
+model.fit(training_moves, training_outcomes, epochs=EPOCHS, batch_size=20)
 
 pdb.set_trace()
 training_moves, training_outcomes = generate_data(model, N_GAMES_2)
@@ -279,5 +337,7 @@ def play_game(first_move_is_rand = False):
     print("{0}: {1} {4}/{5}/{6} {7}/_/{8}\n   {2}\n   {3}\n".format(current_player, state_to_line(state[0:3]), state_to_line(state[3:6]), state_to_line(state[6:9]), win, loss, tie, win_pred, tie_pred))
     current_player = other_player(current_player)
 
+play_game()
+play_game()
 play_game()
 
