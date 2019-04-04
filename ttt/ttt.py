@@ -118,8 +118,8 @@ def state_to_one_hot(state):
     one_hot += oh
   return one_hot
 
-def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,5,6,7,8]):
-#def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1]):
+#def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,5,6,7,8]):
+def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1]):
   if cells == []:
     games += [game]
     return
@@ -253,10 +253,12 @@ model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_cross
 print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
 model.fit(training_moves, training_outcomes, epochs=EPOCHS, batch_size=20)
 
-pdb.set_trace()
+'''
+pdkb.set_trace()
 training_moves, training_outcomes = generate_data(model, N_GAMES_2)
 data_stats(training_moves, training_outcomes)
 model.fit(training_moves, training_outcomes, epochs=20, batch_size=20)
+'''
 
 def find_outcome(state, next_state):
   win = 0
@@ -339,7 +341,5 @@ def play_game(first_move_is_rand = False):
     print("{0}: {1} {4}/{5}/{6} {7}/_/{8}\n   {2}\n   {3}\n".format(current_player, state_to_line(state[0:3]), state_to_line(state[3:6]), state_to_line(state[6:9]), win, loss, tie, win_pred, tie_pred))
     current_player = other_player(current_player)
 
-play_game()
-play_game()
 play_game()
 
