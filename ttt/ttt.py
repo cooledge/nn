@@ -3,6 +3,7 @@ import random
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
+import pickle
 
 N = 0
 X = 1
@@ -13,7 +14,7 @@ OUTCOME_WIN = 0
 OUTCOME_LOSS = 1
 OUTCOME_TIE = 2
 
-EPOCHS = 10
+EPOCHS = 1
 
 if False:
   N_GAMES_1 = 100
@@ -118,8 +119,8 @@ def state_to_one_hot(state):
     one_hot += oh
   return one_hot
 
-#def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,5,6,7,8]):
-def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1]):
+def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,5,6,7,8]):
+#def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1]):
   if cells == []:
     games += [game]
     return
@@ -187,14 +188,27 @@ def generate_data(model, n_games):
 
   return np.array(data_moves), np.array(data_outcomes)
 
-training_moves, training_outcomes = generate_complete_data(None, N_GAMES_1)
+try:
+  with open('data', 'rb') as data_file:
+    data = pickle.load(data_file)
+    training_moves = data['training_moves']
+    training_outcomes = data['training_outcomes']
+except:
+  training_moves, training_outcomes = generate_complete_data(None, N_GAMES_1)
+  #training_moves, training_outcomes = generate_data(None, N_GAMES_1)
+
+  with open('data', 'wb') as data_file:
+    pickle.dump({'training_moves': training_moves, 'training_outcomes': training_outcomes}, data_file)
+
 '''
-training_moves, training_outcomes = generate_data(None, N_GAMES_1)
 ndtm = []
 for tm in training_moves:
   tm = list(tm)
   if tm not in ndtm:
     ndtm += [tm]
+  else:
+    pdb.set_trace()
+    pdb.set_trace()
 
 pdb.set_trace()
 '''
@@ -254,7 +268,7 @@ print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, t
 model.fit(training_moves, training_outcomes, epochs=EPOCHS, batch_size=20)
 
 '''
-pdkb.set_trace()
+pdb.set_trace()
 training_moves, training_outcomes = generate_data(model, N_GAMES_2)
 data_stats(training_moves, training_outcomes)
 model.fit(training_moves, training_outcomes, epochs=20, batch_size=20)
@@ -329,7 +343,6 @@ def play_game(first_move_is_rand = False):
       win_pred = 0
       tie_pred = 0
     else:
-      pick_move(state, X)
       tie_pred, tie_state, win_pred, win_state = pick_move(state, current_player)
       prev_state = state
       if win_pred > tie_pred:
