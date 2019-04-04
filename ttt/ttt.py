@@ -13,7 +13,7 @@ OUTCOME_WIN = 0
 OUTCOME_LOSS = 1
 OUTCOME_TIE = 2
 
-EPOCHS = 1
+EPOCHS = 10
 
 if False:
   N_GAMES_1 = 100
@@ -118,7 +118,8 @@ def state_to_one_hot(state):
     one_hot += oh
   return one_hot
 
-def get_games(player, games, game = [0 for _ in range(18)], cells = [0,1,2,3,4,5,6,7,8,9]):
+def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,5,6,7,8]):
+#def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1]):
   if cells == []:
     games += [game]
     return
@@ -127,19 +128,20 @@ def get_games(player, games, game = [0 for _ in range(18)], cells = [0,1,2,3,4,5
     next_cells = cells.copy()
     next_cells.remove(cell)
 
-    next_state = game[:-1].copy()
+    next_state = game[-1].copy()
     next_state[cell] = player
-    game += [next_state]
+    next_game = game.copy()
+    next_game += [next_state]
 
-    get_games(other_player(player), games, game, next_cells)
+    get_games(other_player(player), games, next_game, next_cells)
     
 def get_complete_game(game):
   next_player = X
 
   transitions_X = [] 
   transitions_O = []
-  last_state = N
-  for state in game:
+  last_state = game[0]
+  for state in game[1:]:
     if next_player == X:
       if last_state is not N:
         transitions_X.append(last_state + state)
@@ -155,12 +157,10 @@ def generate_complete_data(model, n_games):
   data_moves = []
   data_outcomes = []
   games = []
-  pdb.set_trace()
   get_games(X, games)
-  pdb.set_trace()
 
   for game in games:
-    winner, moves_x, moves_o = get_complete_game()
+    winner, moves_x, moves_o = get_complete_game(game)
     get_data(winner, X, moves_x, data_moves, data_outcomes)
     get_data(winner, O, moves_o, data_moves, data_outcomes)
 
@@ -188,6 +188,7 @@ def generate_data(model, n_games):
   return np.array(data_moves), np.array(data_outcomes)
 
 training_moves, training_outcomes = generate_complete_data(None, N_GAMES_1)
+'''
 training_moves, training_outcomes = generate_data(None, N_GAMES_1)
 ndtm = []
 for tm in training_moves:
@@ -196,6 +197,7 @@ for tm in training_moves:
     ndtm += [tm]
 
 pdb.set_trace()
+'''
 
 def data_stats(moves, outcomes):
   win, loss, tie = 0, 0, 0
