@@ -119,8 +119,8 @@ def state_to_one_hot(state):
     one_hot += oh
   return one_hot
 
-#def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,5,6,7,8]):
-def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1]):
+def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,5,6,7,8]):
+#def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1]):
   if cells == []:
     games += [game]
     return
@@ -159,6 +159,15 @@ def generate_complete_data(model, n_games):
   data_outcomes = []
   games = []
   get_games(X, games)
+
+  '''
+  move O: state1 = [X, N, N, N, X, O, N, N, O]
+  move X: state2 = [X, N, N, N, X, O, X, N, O]
+  move O: state3 = [X, N, O, N, X, O, X, N, O]
+  pdb.set_trace()
+  win, loss, tie = find_outcome(state2, state3)
+  look for this game [..., state1, state2, state3, ...] in games and check for loss
+  '''
 
   for game in games:
     winner, moves_x, moves_o = get_complete_game(game)
@@ -233,39 +242,44 @@ data_stats(training_moves, training_outcomes)
   What about input the difference?
 '''
 
-model = keras.Sequential()
+try: 
+  model = keras.models.load_model('model')
+except:
+  model = keras.Sequential()
 # 3 == X O None
 
 # Try 1
-if False:
-  model.add(keras.layers.Embedding(3, 32, input_length=2*9))
-  model.add(keras.layers.Flatten())
-  model.add(keras.layers.Dense(256))
+  if False:
+    model.add(keras.layers.Embedding(3, 32, input_length=2*9))
+    model.add(keras.layers.Flatten())
+    model.add(keras.layers.Dense(256))
 
 # Try 2
-N_FILTERS = 64
+  N_FILTERS = 64
 
-model.add(keras.layers.Embedding(3, 32, input_length=2*9))
+  model.add(keras.layers.Embedding(3, 32, input_length=2*9))
 # (18, 32)
-model.add(keras.layers.Reshape((2, 3, 3, 32)))
+  model.add(keras.layers.Reshape((2, 3, 3, 32)))
 # (2, 9, 32)
-model.add(keras.layers.Conv3D(N_FILTERS, (1,3,3)))
+  model.add(keras.layers.Conv3D(N_FILTERS, (1,3,3)))
 # (2, 1, 1, 64)
 
-if True:
-  model.add(keras.layers.Reshape((N_FILTERS*2,)))
-else:
-  model.add(keras.layers.Reshape((2, N_FILTERS,)))
-  model.add(keras.layers.GlobalAveragePooling1D())
+  if True:
+    model.add(keras.layers.Reshape((N_FILTERS*2,)))
+  else:
+    model.add(keras.layers.Reshape((2, N_FILTERS,)))
+    model.add(keras.layers.GlobalAveragePooling1D())
 
 # (128)
 # 3 == X O Tie
 #model.add(keras.layers.Dense(3, activation='softmax'))
-model.add(keras.layers.Dense(3, activation=tf.nn.sigmoid))
+  model.add(keras.layers.Dense(3, activation=tf.nn.sigmoid))
 
-model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
-model.fit(training_moves, training_outcomes, epochs=EPOCHS, batch_size=20)
+  model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+  print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
+  model.fit(training_moves, training_outcomes, epochs=EPOCHS, batch_size=20)
+
+  model.save("model")
 
 '''
 pdb.set_trace()
@@ -305,6 +319,16 @@ def pick_move(state, player):
       next_state[i] = player
       prediction = model.predict(np.array([state+next_state]))[0]
 
+      if prediction[OUTCOME_LOSS] < current_win_loss_prediction:
+        current_win_prediction = prediction[OUTCOME_WIN]
+        current_win_loss_prediction = prediction[OUTCOME_LOSS]
+        current_win_next_state = next_state
+
+      if prediction[OUTCOME_LOSS] < current_tie_loss_prediction:
+        current_tie_prediction = prediction[OUTCOME_TIE]
+        current_tie_loss_prediction = prediction[OUTCOME_LOSS]
+        current_tie_next_state = next_state
+      '''
       if prediction[OUTCOME_WIN] > current_win_prediction and prediction[OUTCOME_LOSS] < current_win_loss_prediction:
         current_win_prediction = prediction[OUTCOME_WIN]
         current_win_loss_prediction = prediction[OUTCOME_LOSS]
@@ -314,6 +338,7 @@ def pick_move(state, player):
         current_tie_prediction = prediction[OUTCOME_TIE]
         current_tie_loss_prediction = prediction[OUTCOME_LOSS]
         current_tie_next_state = next_state
+      '''
 
   return (current_tie_prediction, current_tie_next_state, current_win_prediction, current_win_next_state)
 
@@ -354,8 +379,36 @@ def play_game(first_move_is_rand = False):
     print("{0}: {1} {4}/{5}/{6} {7}/_/{8}\n   {2}\n   {3}\n".format(current_player, state_to_line(state[0:3]), state_to_line(state[3:6]), state_to_line(state[6:9]), win, loss, tie, win_pred, tie_pred))
     current_player = other_player(current_player)
 
+
+'''
+2: X   0/216/24 0.0030582600738853216/_/0.10766869783401489
+    XO
+     O
+
+1: X   96/0/0 0.9655637145042419/_/0.10471079498529434
+    XO
+   X O
+
+2: X O 
+    XO
+     O
+'''
+
+'''
+state1 = [X, N, N, N, X, O, N, N, O]
+state2 = [X, N, N, N, X, O, X, N, O]
+state3 = [X, N, O, N, X, O, X, N, O]
+pdb.set_trace()
+win, loss, tie = find_outcome(state2, state3)
+'''
+
+
+
+play_game()
+play_game()
 play_game()
 
+'''
 training_odds_inputs = []
 training_odds_outcomes = []
 for tm, to in zip(training_moves, training_outcomes):
@@ -369,5 +422,5 @@ picker_model.add(keras.layers.Dense(256))
 picker_model.add(keras.layers.Dense(3))
 picker_model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 picker_model.fit(np.array(training_odds_inputs), np.array(training_odds_outcomes), epochs=EPOCHS, batch_size=20)
-
+'''
 
