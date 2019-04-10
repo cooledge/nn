@@ -121,6 +121,7 @@ def state_to_one_hot(state):
 
 def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,5,6,7,8]):
 #def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1]):
+
   if cells == []:
     games += [game]
     return
@@ -161,6 +162,46 @@ def generate_complete_data(model, n_games):
   get_games(X, games)
 
   '''
+   init:
+    
+   move 1/X
+   
+   move 2/O 
+
+   move 3/X
+
+   move 4/0:
+      X  
+       XO
+        O
+   move 5/X
+     X  
+      XO
+     X O
+
+   move 6/O
+     X O
+      XO
+     X O
+  '''
+  state1 = [X, N, N, N, X, O, N, N, O]
+  state2 = [X, N, N, N, X, O, X, N, O]
+  state3 = [X, N, O, N, X, O, X, N, O]
+
+  for game in games:
+    if game[4:7] == [state1, state2, state3]:
+      pdb.set_trace()
+  '''
+  state1 = [X, N, N, N, X, O, N, N, O]
+  state2 = [X, N, N, N, X, O, X, N, O]
+  state3 = [X, N, O, N, X, O, X, N, O]
+  for game in games:
+    if game[0:3] == [state1, state2, state3]:
+      pdb.set_trace()
+
+  pdb.set_trace()
+  pdb.set_trace()
+  
   move O: state1 = [X, N, N, N, X, O, N, N, O]
   move X: state2 = [X, N, N, N, X, O, X, N, O]
   move O: state3 = [X, N, O, N, X, O, X, N, O]
