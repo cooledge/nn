@@ -4,7 +4,17 @@ import tensorflow as tf
 from tensorflow import keras
 import numpy as np
 import pickle
+import argparse
+import os
 
+parser = argparse.ArgumentParser(description="Tic Tac Toe player")
+parser.add_argument("--clean", action='store_true', default=False, help="regenerate data and weights")
+args = parser.parse_args()
+
+if args.clean:
+  os.remove("data")
+  os.remove("model")
+  
 N = 0
 X = 1
 O = 2
@@ -64,7 +74,7 @@ def do_move(model, state, next_player):
 def game_get(game, i, j):
   game[i*3+j]
 
-def calculate_winner(game):
+def calculate_winner(state):
   lines = [
     [0, 1, 2],
     [3, 4, 5],
@@ -77,10 +87,10 @@ def calculate_winner(game):
   ];
   for i in range(len(lines)):
     a, b, c = lines[i]
-    if game[a] is not N and game[a] == game[b] and game[a] == game[c]:
-      return game[a]
+    if state[a] is not N and state[a] == state[b] and state[a] == state[c]:
+      return state[a]
   
-  if all(sq is not N for sq in game):
+  if all(sq is not N for sq in state):
     return TIE;
 
   return None
@@ -123,6 +133,10 @@ def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,
 #def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1]):
 
   if cells == []:
+    games += [game]
+    return
+
+  if calculate_winner(game[-1]) is not None:
     games += [game]
     return
 
@@ -183,7 +197,7 @@ def generate_complete_data(model, n_games):
      X O
       XO
      X O
-  '''
+  
   state1 = [X, N, N, N, X, O, N, N, O]
   state2 = [X, N, N, N, X, O, X, N, O]
   state3 = [X, N, O, N, X, O, X, N, O]
@@ -191,7 +205,9 @@ def generate_complete_data(model, n_games):
   for game in games:
     if game[4:7] == [state1, state2, state3]:
       pdb.set_trace()
-  '''
+      games = [game]
+      break
+ 
   state1 = [X, N, N, N, X, O, N, N, O]
   state2 = [X, N, N, N, X, O, X, N, O]
   state3 = [X, N, O, N, X, O, X, N, O]
