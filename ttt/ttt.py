@@ -11,9 +11,15 @@ parser = argparse.ArgumentParser(description="Tic Tac Toe player")
 parser.add_argument("--clean", action='store_true', default=False, help="regenerate data and weights")
 args = parser.parse_args()
 
+def safe_remove(fn):
+  try:
+    os.remove(fn)
+  except FileNotFoundError:
+    0
+
 if args.clean:
-  os.remove("data")
-  os.remove("model")
+  safe_remove("data")
+  safe_remove("model")
   
 N = 0
 X = 1
@@ -434,6 +440,16 @@ def play_game(first_move_is_rand = False):
    
     win, loss, tie = find_outcome(prev_state, state)
     print("{0}: {1} {4}/{5}/{6} {7}/_/{8}\n   {2}\n   {3}\n".format(current_player, state_to_line(state[0:3]), state_to_line(state[3:6]), state_to_line(state[6:9]), win, loss, tie, win_pred, tie_pred))
+   
+    choices = {} 
+    for i in range(len(prev_state)):
+      tstate = prev_state.copy()
+      if tstate[i] == N:
+        tstate[i] = current_player
+        choices[str(tstate)] = find_outcome(prev_state, tstate)
+
+    print(choices)
+    
     current_player = other_player(current_player)
 
 
