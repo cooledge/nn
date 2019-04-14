@@ -39,44 +39,6 @@ else:
   N_GAMES_1 = 50000
   N_GAMES_2 = 10000
 
-def pick_move_nn(model, state, next_player):
-  current_tie_prediction = 0.0
-  current_win_prediction = 0.0
-  current_tie_i = None
-  current_win_i = None
-  for i in range(len(state)):
-    if state[i] == N: 
-      next_state = [s for s in state]
-      next_state[i] = next_player
-      prediction = model.predict(np.array([state+next_state]))[0]
-
-      if prediction[OUTCOME_WIN] > current_win_prediction:
-        current_win_prediction = prediction[OUTCOME_WIN]
-        current_win_i = i
-
-      if prediction[OUTCOME_TIE] > current_tie_prediction:
-        current_tie_prediction = prediction[OUTCOME_TIE]
-        current_tie_i = i
-
-  if current_win_i is None or current_tie_i is None:
-    pdb.set_trace()
-  if current_win_prediction > current_tie_prediction:
-    return current_win_i
-  else:
-    return current_tie_i
-
-def pick_move_rand(state):
-  positions = [i for i,v in enumerate(state) if v == N]
-  selection = random.randint(1, len(positions))-1
-  return positions[selection]
-
-def do_move(model, state, next_player):
-  if model:
-    move = pick_move_nn(model, state, next_player)
-  else:
-    move = pick_move_rand(state)
-  state[move] = next_player
-
 def game_get(game, i, j):
   game[i*3+j]
 
@@ -101,26 +63,6 @@ def calculate_winner(state):
 
   return None
 
-def get_game(model):
-  next_player = random.randint(1,2)
-  state = [N for i in range(9)]
-
-  transitions_X = [] 
-  transitions_O = []
-  last_state = N
-  while not calculate_winner(state):
-    do_move(model, state, next_player)
-    if next_player == X:
-      if last_state is not N:
-        transitions_X.append(last_state + state)
-      next_player = O
-    else:
-      if last_state is not N:
-        transitions_O.append(last_state + state)
-      next_player = X
-    last_state = [] + state
-  return (calculate_winner(state), transitions_X, transitions_O)
-
 def other_player(player):
   if player == X:
     return O
@@ -135,27 +77,26 @@ def state_to_one_hot(state):
     one_hot += oh
   return one_hot
 
+# games state -> next states
 def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,5,6,7,8]):
 #def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1]):
 
-  if cells == []:
-    games += [game]
-    return
-
   if calculate_winner(game[-1]) is not None:
-    games += [game]
     return
 
+  next_states = []
   for cell in cells:
-    next_cells = cells.copy()
-    next_cells.remove(cell)
-
     next_state = game[-1].copy()
     next_state[cell] = player
+    next_states.append(next_state)
+
+    next_cells = cells.copy()
+    next_cells.remove(cell)
     next_game = game.copy()
     next_game += [next_state]
 
     get_games(other_player(player), games, next_game, next_cells)
+  games += [(game[-1], next_states)]
     
 def get_complete_game(game):
   next_player = X
@@ -175,90 +116,23 @@ def get_complete_game(game):
     last_state = [] + state
   return (calculate_winner(state), transitions_X, transitions_O)
 
-def generate_complete_data(model, n_games):
-  data_moves = []
-  data_outcomes = []
+def get_move_result(state):
+  result = calculate_winner(state)
+  return {OUTCOME_WIN: 1.0, OUTCOME_LOSS: 0, OUTCOME_TIE: 0.5, None: 0.5}[result]
+
+# x: list of state+next_states
+# y: one hot 1.0 if win, 0 if loose, 0.5 if tie
+def generate_data(model, n_games):
+  x = []
+  y = []
   games = []
   get_games(X, games)
 
-  '''
-   init:
-    
-   move 1/X
-   
-   move 2/O 
+  for (state, next_states) in games:
+    x += [np.concatenate([state]+next_states)]
+    y += [get_move_result(next_state) for next_state in next_states]
 
-   move 3/X
-
-   move 4/0:
-      X  
-       XO
-        O
-   move 5/X
-     X  
-      XO
-     X O
-
-   move 6/O
-     X O
-      XO
-     X O
-  
-  state1 = [X, N, N, N, X, O, N, N, O]
-  state2 = [X, N, N, N, X, O, X, N, O]
-  state3 = [X, N, O, N, X, O, X, N, O]
-
-  for game in games:
-    if game[4:7] == [state1, state2, state3]:
-      pdb.set_trace()
-      games = [game]
-      break
- 
-  state1 = [X, N, N, N, X, O, N, N, O]
-  state2 = [X, N, N, N, X, O, X, N, O]
-  state3 = [X, N, O, N, X, O, X, N, O]
-  for game in games:
-    if game[0:3] == [state1, state2, state3]:
-      pdb.set_trace()
-
-  pdb.set_trace()
-  pdb.set_trace()
-  
-  move O: state1 = [X, N, N, N, X, O, N, N, O]
-  move X: state2 = [X, N, N, N, X, O, X, N, O]
-  move O: state3 = [X, N, O, N, X, O, X, N, O]
-  pdb.set_trace()
-  win, loss, tie = find_outcome(state2, state3)
-  look for this game [..., state1, state2, state3, ...] in games and check for loss
-  '''
-
-  for game in games:
-    winner, moves_x, moves_o = get_complete_game(game)
-    get_data(winner, X, moves_x, data_moves, data_outcomes)
-    get_data(winner, O, moves_o, data_moves, data_outcomes)
-
-  return np.array(data_moves), np.array(data_outcomes)
-
-def get_data(winner, current_player, transitions, data_moves, data_outcomes):
-  if winner == current_player:
-    outcome = OUTCOME_WIN
-  elif winner == other_player(current_player):
-    outcome = OUTCOME_LOSS
-  else:
-    outcome = OUTCOME_TIE
-  #data_moves += [state_to_one_hot(t) for t in transitions]
-  data_moves += transitions
-  data_outcomes += [outcome] * len(transitions)
-
-def generate_data(model, n_games):
-  data_moves = []
-  data_outcomes = []
-  for _ in range(n_games):
-    winner, moves_x, moves_o = get_game(model)
-    get_data(winner, X, moves_x, data_moves, data_outcomes)
-    get_data(winner, O, moves_o, data_moves, data_outcomes)
-
-  return np.array(data_moves), np.array(data_outcomes)
+  return np.array(x), np.array(y)
 
 try:
   with open('data', 'rb') as data_file:
@@ -266,24 +140,12 @@ try:
     training_moves = data['training_moves']
     training_outcomes = data['training_outcomes']
 except:
-  training_moves, training_outcomes = generate_complete_data(None, N_GAMES_1)
-  #training_moves, training_outcomes = generate_data(None, N_GAMES_1)
+  training_moves, training_outcomes = generate_data(None, N_GAMES_1)
 
   with open('data', 'wb') as data_file:
     pickle.dump({'training_moves': training_moves, 'training_outcomes': training_outcomes}, data_file)
 
-'''
-ndtm = []
-for tm in training_moves:
-  tm = list(tm)
-  if tm not in ndtm:
-    ndtm += [tm]
-  else:
-    pdb.set_trace()
-    pdb.set_trace()
-
 pdb.set_trace()
-'''
 
 def data_stats(moves, outcomes):
   win, loss, tie = 0, 0, 0
@@ -343,13 +205,6 @@ except:
   model.fit(training_moves, training_outcomes, epochs=EPOCHS, batch_size=20)
 
   model.save("model")
-
-'''
-pdb.set_trace()
-training_moves, training_outcomes = generate_data(model, N_GAMES_2)
-data_stats(training_moves, training_outcomes)
-model.fit(training_moves, training_outcomes, epochs=20, batch_size=20)
-'''
 
 def find_outcome(state, next_state):
   win = 0
@@ -453,47 +308,4 @@ def play_game(first_move_is_rand = False):
     current_player = other_player(current_player)
 
 
-'''
-2: X   0/216/24 0.0030582600738853216/_/0.10766869783401489
-    XO
-     O
-
-1: X   96/0/0 0.9655637145042419/_/0.10471079498529434
-    XO
-   X O
-
-2: X O 
-    XO
-     O
-'''
-
-'''
-state1 = [X, N, N, N, X, O, N, N, O]
-state2 = [X, N, N, N, X, O, X, N, O]
-state3 = [X, N, O, N, X, O, X, N, O]
-pdb.set_trace()
-win, loss, tie = find_outcome(state2, state3)
-'''
-
-
-
 play_game()
-play_game()
-play_game()
-
-'''
-training_odds_inputs = []
-training_odds_outcomes = []
-for tm, to in zip(training_moves, training_outcomes):
-  prediction = model.predict(np.array([tm]))[0]
-  training_odds_inputs.append(prediction)
-  training_odds_outcomes.append(to)
-
-picker_model = keras.Sequential()
-picker_model.add(keras.layers.Dense(256))
-# WIN/LOSS/TIE
-picker_model.add(keras.layers.Dense(3))
-picker_model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-picker_model.fit(np.array(training_odds_inputs), np.array(training_odds_outcomes), epochs=EPOCHS, batch_size=20)
-'''
-
