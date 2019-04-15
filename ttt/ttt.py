@@ -165,9 +165,10 @@ except:
 
   # ((9+9)*9)
   model.add(keras.layers.Conv1D(N_FILTERS, (9), strides=9))
+  # check that this moves the data right
+  model.add(keras.layers.Reshape((2, 9, N_FILTERS)))
   # Features for each state (s1-m1, s1-m2, ...)
   model.add(keras.layers.Embedding(3, 32, input_length=2*9))
-  model.add(keras.layers.Reshape((2, 3, 3, 32)))
 # (2, 9, 32)
   model.add(keras.layers.Conv3D(N_FILTERS, (1,3,3)))
 # (2, 1, 1, 64)
