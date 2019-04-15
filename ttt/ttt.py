@@ -1,4 +1,5 @@
 import pdb
+
 import random
 import tensorflow as tf
 from tensorflow import keras
@@ -96,29 +97,22 @@ def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,
     next_game += [next_state]
 
     get_games(other_player(player), games, next_game, next_cells)
-  games += [(game[-1], next_states)]
+  games += [(game[-1], player, next_states)]
     
-def get_complete_game(game):
-  next_player = X
-
-  transitions_X = [] 
-  transitions_O = []
-  last_state = game[0]
-  for state in game[1:]:
-    if next_player == X:
-      if last_state is not N:
-        transitions_X.append(last_state + state)
-      next_player = O
+def get_move_result(player, state):
+  winner = calculate_winner(state)
+  if winner == O or winner == X:
+    if player == winner:
+      return 1.0
     else:
-      if last_state is not N:
-        transitions_O.append(last_state + state)
-      next_player = X
-    last_state = [] + state
-  return (calculate_winner(state), transitions_X, transitions_O)
-
-def get_move_result(state):
-  result = calculate_winner(state)
-  return {OUTCOME_WIN: 1.0, OUTCOME_LOSS: 0, OUTCOME_TIE: 0.5, None: 0.5}[result]
+      return 0.0
+  elif winner == TIE:
+      return 0.5
+  else:
+      return 0.5
+  
+  #return {X: 1.0, O: 0, TIE: 0.5, None: 0.5}[result]
+  #return {OUTCOME_WIN: 1.0, OUTCOME_LOSS: 0, OUTCOME_TIE: 0.5, None: 0.5}[result]
 
 # x: list of state+next_states
 # y: one hot 1.0 if win, 0 if loose, 0.5 if tie
@@ -128,9 +122,13 @@ def generate_data(model, n_games):
   games = []
   get_games(X, games)
 
-  for (state, next_states) in games:
-    x += [np.concatenate([state]+next_states)]
-    y += [get_move_result(next_state) for next_state in next_states]
+  for (state, player, next_states) in games:
+    choices = []
+    for next_state in next_states:
+      choices += [[state, next_state]]
+    #x += [np.concatenate([state]+next_states)]
+    x.append(choices);
+    y += [[get_move_result(player, next_state) for next_state in next_states]]
 
   return np.array(x), np.array(y)
 
