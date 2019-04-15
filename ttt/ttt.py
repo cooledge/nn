@@ -33,13 +33,6 @@ OUTCOME_TIE = 2
 
 EPOCHS = 1
 
-if False:
-  N_GAMES_1 = 100
-  N_GAMES_2 = 100
-else:
-  N_GAMES_1 = 50000
-  N_GAMES_2 = 10000
-
 def game_get(game, i, j):
   game[i*3+j]
 
@@ -116,7 +109,7 @@ def get_move_result(player, state):
 
 # x: list of state+next_states
 # y: one hot 1.0 if win, 0 if loose, 0.5 if tie
-def generate_data(model, n_games):
+def generate_data(model):
   x = []
   y = []
   games = []
@@ -125,7 +118,7 @@ def generate_data(model, n_games):
   for (state, player, next_states) in games:
     choices = []
     for next_state in next_states:
-      choices += [[state, next_state]]
+      choices += [state, next_state]
     #x += [np.concatenate([state]+next_states)]
     x.append(choices);
     y += [[get_move_result(player, next_state) for next_state in next_states]]
@@ -138,12 +131,10 @@ try:
     training_moves = data['training_moves']
     training_outcomes = data['training_outcomes']
 except:
-  training_moves, training_outcomes = generate_data(None, N_GAMES_1)
+  training_moves, training_outcomes = generate_data(None)
 
   with open('data', 'wb') as data_file:
     pickle.dump({'training_moves': training_moves, 'training_outcomes': training_outcomes}, data_file)
-
-pdb.set_trace()
 
 def data_stats(moves, outcomes):
   win, loss, tie = 0, 0, 0
@@ -169,19 +160,13 @@ try:
   model = keras.models.load_model('model')
 except:
   model = keras.Sequential()
-# 3 == X O None
 
-# Try 1
-  if False:
-    model.add(keras.layers.Embedding(3, 32, input_length=2*9))
-    model.add(keras.layers.Flatten())
-    model.add(keras.layers.Dense(256))
-
-# Try 2
   N_FILTERS = 64
 
+  # ((9+9)*9)
+  model.add(keras.layers.Conv1D(N_FILTERS, (9), strides=9))
+  # Features for each state (s1-m1, s1-m2, ...)
   model.add(keras.layers.Embedding(3, 32, input_length=2*9))
-# (18, 32)
   model.add(keras.layers.Reshape((2, 3, 3, 32)))
 # (2, 9, 32)
   model.add(keras.layers.Conv3D(N_FILTERS, (1,3,3)))
