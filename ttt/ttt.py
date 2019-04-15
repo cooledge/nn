@@ -107,6 +107,8 @@ def get_move_result(player, state):
   #return {X: 1.0, O: 0, TIE: 0.5, None: 0.5}[result]
   #return {OUTCOME_WIN: 1.0, OUTCOME_LOSS: 0, OUTCOME_TIE: 0.5, None: 0.5}[result]
 
+init_state = [0]*9
+
 # x: list of state+next_states
 # y: one hot 1.0 if win, 0 if loose, 0.5 if tie
 def generate_data(model):
@@ -119,7 +121,7 @@ def generate_data(model):
     choices = []
     for next_state in next_states:
       choices += [state, next_state]
-    #x += [np.concatenate([state]+next_states)]
+    choices += [init_state] * (18 - len(choices))
     x.append(choices);
     y += [[get_move_result(player, next_state) for next_state in next_states]]
 
@@ -163,10 +165,13 @@ except:
 
   N_FILTERS = 64
 
+  pdb.set_trace()
   # ((9+9)*9)
-  model.add(keras.layers.Conv1D(N_FILTERS, (9), strides=9))
-  # check that this moves the data right
-  model.add(keras.layers.Reshape((2, 9, N_FILTERS)))
+  model.add(keras.layers.Reshape((18*9, 1), input_shape=(18,9)))
+  model.add(keras.layers.Conv1D(N_FILTERS, (18), strides=9))
+  model.add(keras.layers.Reshape((9, N_FILTERS*2)))
+
+
   # Features for each state (s1-m1, s1-m2, ...)
   model.add(keras.layers.Embedding(3, 32, input_length=2*9))
 # (2, 9, 32)
