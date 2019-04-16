@@ -1,4 +1,6 @@
 import tensorflow as tf
+import numpy as np
+import pdb
 
 tf.enable_eager_execution()
 a = tf.constant([
@@ -23,5 +25,12 @@ a = tf.constant([
 ])
 print(a)
 
-//print(tf.flatten(a))
 print(tf.reshape(a, [9, 18]))
+
+model = tf.keras.Sequential()
+model.add(tf.keras.layers.Reshape((9*2*9, 1), input_shape=(9*2*9,)))
+model.add(tf.keras.layers.Conv1D(1, 18, strides=18))
+model.set_weights(np.array(model.get_weights()) / np.array(model.get_weights()))
+print(model.get_weights())
+print(model.output_shape)
+pdb.set_trace()
