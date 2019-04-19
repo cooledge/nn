@@ -3,7 +3,7 @@ import numpy as np
 import pdb
 
 tf.enable_eager_execution()
-a = tf.constant([
+x = [
     1,1,1,1,1,1,1,1,1,
     2,2,2,2,2,2,2,2,2,
     3,3,3,3,3,3,3,3,3,
@@ -22,15 +22,30 @@ a = tf.constant([
     16,16,16,16,16,16,16,16,16,
     17,17,17,17,17,17,17,17,17,
     18,18,18,18,18,18,18,18,18,
-])
+]
+a = tf.constant(x)
 print(a)
 
 print(tf.reshape(a, [9, 18]))
 
 model = tf.keras.Sequential()
 model.add(tf.keras.layers.Reshape((9*2*9, 1), input_shape=(9*2*9,)))
+pdb.set_trace()
+print(model.predict(tf.cast([[x]], tf.float32)))
 model.add(tf.keras.layers.Conv1D(1, 18, strides=18))
-model.set_weights(np.array(model.get_weights()) / np.array(model.get_weights()))
+print(model.predict(tf.cast([[x]], tf.float32)))
+
+
+weights = model.get_weights()[0]
+bias = model.get_weights()[1]
+weights = weights/weights
+bias = [1.0]
+model.set_weights([weights, bias])
+
+
 print(model.get_weights())
 print(model.output_shape)
+print(model.predict(tf.cast([[x]], tf.float32)))
+
 pdb.set_trace()
+print(model.predict(tf.cast([[x]], tf.float32)))
