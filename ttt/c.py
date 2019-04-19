@@ -28,19 +28,25 @@ print(a)
 
 print(tf.reshape(a, [9, 18]))
 
-model = tf.keras.Sequential()
-model.add(tf.keras.layers.Reshape((9*2*9, 1), input_shape=(9*2*9,)))
 pdb.set_trace()
+model = tf.keras.Sequential()
+VOCAB_SIZE = 19
+EMBEDDING_SIZE = 4
+model.add(tf.keras.layers.Embedding(VOCAB_SIZE, EMBEDDING_SIZE, input_shape=(9*2*9,)))
 print(model.predict(tf.cast([[x]], tf.float32)))
-model.add(tf.keras.layers.Conv1D(1, 18, strides=18))
+model.add(tf.keras.layers.Reshape((9*2*9, EMBEDDING_SIZE), input_shape=(9*2*9,)))
+#pdb.set_trace()
+#print(model.predict(tf.cast([[x]], tf.float32)))
+model.add(tf.keras.layers.Conv1D(1, 18*4, strides=18))
 print(model.predict(tf.cast([[x]], tf.float32)))
 
-
+'''
 weights = model.get_weights()[0]
 bias = model.get_weights()[1]
 weights = weights/weights
 bias = [1.0]
 model.set_weights([weights, bias])
+'''
 
 
 print(model.get_weights())

@@ -165,24 +165,14 @@ except:
 
   N_FILTERS = 64
 
-  pdb.set_trace()
+  VOCAB_SIZE = 4 
+  EMBEDDING_SIZE = 1
+  model.add(keras.layers.Reshape((9*2*9,)))
+  model.add(keras.layers.Embedding(VOCAB_SIZE, EMBEDDING_SIZE))
   # ((9+9)*9)
-  model.add(keras.layers.Reshape((18*9, 1), input_shape=(18,9)))
-  model.add(keras.layers.Conv1D(N_FILTERS, (18), strides=9))
-  model.add(keras.layers.Reshape((9, N_FILTERS*2)))
-
-
-  # Features for each state (s1-m1, s1-m2, ...)
-  model.add(keras.layers.Embedding(3, 32, input_length=2*9))
-# (2, 9, 32)
-  model.add(keras.layers.Conv3D(N_FILTERS, (1,3,3)))
-# (2, 1, 1, 64)
-
-  if True:
-    model.add(keras.layers.Reshape((N_FILTERS*2,)))
-  else:
-    model.add(keras.layers.Reshape((2, N_FILTERS,)))
-    model.add(keras.layers.GlobalAveragePooling1D())
+  model.add(keras.layers.Reshape((9*2*9, EMBEDDING_SIZE)))
+  model.add(keras.layers.Conv1D(N_FILTERS, (18,), strides=18))
+  model.add(keras.layers.Dense(9))
 
 # (128)
 # 3 == X O Tie
@@ -191,6 +181,7 @@ except:
 
   model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
   print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
+  pdb.set_trace()
   model.fit(training_moves, training_outcomes, epochs=EPOCHS, batch_size=20)
 
   model.save("model")
