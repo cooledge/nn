@@ -28,16 +28,21 @@ print(a)
 
 print(tf.reshape(a, [9, 18]))
 
+y = [
+  [1,1], [1,1], [2,2], [2,2], [3,3], [3,3]
+]
+print(tf.reshape(y, (12,)))
+
 pdb.set_trace()
 model = tf.keras.Sequential()
 VOCAB_SIZE = 19
 EMBEDDING_SIZE = 4
 model.add(tf.keras.layers.Embedding(VOCAB_SIZE, EMBEDDING_SIZE, input_shape=(9*2*9,)))
 print(model.predict(tf.cast([[x]], tf.float32)))
-model.add(tf.keras.layers.Reshape((9*2*9, EMBEDDING_SIZE), input_shape=(9*2*9,)))
+model.add(tf.keras.layers.Reshape((9*18, EMBEDDING_SIZE)))
 #pdb.set_trace()
 #print(model.predict(tf.cast([[x]], tf.float32)))
-model.add(tf.keras.layers.Conv1D(1, 18*4, strides=18))
+model.add(tf.keras.layers.Conv1D(1, (18,), strides=(18,)))
 print(model.predict(tf.cast([[x]], tf.float32)))
 
 '''
