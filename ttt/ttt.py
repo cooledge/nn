@@ -31,7 +31,8 @@ OUTCOME_WIN = 0
 OUTCOME_LOSS = 1
 OUTCOME_TIE = 2
 
-EPOCHS = 20
+EPOCHS = 5000
+BATCH_SIZE=200
 
 def game_get(game, i, j):
   game[i*3+j]
@@ -78,11 +79,11 @@ def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,
   if calculate_winner(game[-1]) is not None:
     return
 
-  next_states = []
+  next_states = [init_state]*9
   for cell in cells:
     next_state = game[-1].copy()
     next_state[cell] = player
-    next_states.append(next_state)
+    next_states[cell] = next_state
 
     next_cells = cells.copy()
     next_cells.remove(cell)
@@ -90,23 +91,31 @@ def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,
     next_game += [next_state]
 
     get_games(other_player(player), games, next_game, next_cells)
+  assert len(next_states) == 9
   games += [(game[-1], player, next_states)]
-    
-def get_move_result(player, state):
-  winner = calculate_winner(state)
+   
+def switch_move_to_opponent(state, next_state):
+  opp_state = [0]*9
+  for i in range(9):
+    if state[i] == next_state[i]:
+      opp_state[i] = state[i]
+    else:
+      opp_state[i] = other_player(next_state[i]) 
+  return opp_state
+
+def get_move_result(player, state, next_state):
+  opp_state = switch_move_to_opponent(state, next_state)
+  winner = calculate_winner(next_state)
+  opp_winner = calculate_winner(opp_state)
   if winner == O or winner == X:
     if player == winner:
       return 1.0
-    else:
-      return 0.0
-  elif winner == TIE:
-      return 0.5
-  else:
-      return 0.5
-  
-  #return {X: 1.0, O: 0, TIE: 0.5, None: 0.5}[result]
-  #return {OUTCOME_WIN: 1.0, OUTCOME_LOSS: 0, OUTCOME_TIE: 0.5, None: 0.5}[result]
+  if opp_winner == O or opp_winner == X:
+    if other_player(player) == winner:
+      return 1.0
 
+  return 0.0
+  
 init_state = [0]*9
 
 # x: list of state+next_states
@@ -121,10 +130,10 @@ def generate_data(model):
     choices = []
     for next_state in next_states:
       choices += [state, next_state]
-    choices += [init_state] * (18 - len(choices))
-    x.append(choices);
+    #choices += [init_state] * (18 - len(choices))
     assert len(choices) == 18
-    outcomes = [get_move_result(player, next_state) for next_state in next_states]
+    x.append(choices);
+    outcomes = [get_move_result(player, state, next_state) for next_state in next_states]
     outcomes += [0.0] * (9 - len(next_states))
     assert len(outcomes) == 9
     y.append(outcomes)
@@ -169,9 +178,9 @@ try:
 except:
   model = keras.Sequential()
 
-  N_FEATURES = 64
+  N_FEATURES = 256
   VOCAB_SIZE = 4 
-  EMBEDDING_SIZE = 16
+  EMBEDDING_SIZE = 32
 
   model.add(keras.layers.Reshape((9*2*9,), input_shape=(18,9)))
   model.add(keras.layers.Embedding(VOCAB_SIZE, EMBEDDING_SIZE))
@@ -180,10 +189,10 @@ except:
   model.add(keras.layers.Flatten())
   model.add(keras.layers.Dense(9, activation='softmax'))
 
-  #model.compile(optimizer=tf.train.AdamOptimizer(), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-  model.compile(optimizer=tf.train.AdamOptimizer(), loss='categorical_crossentropy', metrics=['accuracy'])
+  #model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
+  model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
   print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
-  model.fit(training_moves, training_outcomes, epochs=EPOCHS, batch_size=20)
+  model.fit(training_moves, training_outcomes, epochs=EPOCHS, batch_size=BATCH_SIZE)
 
   model.save("model")
 
@@ -213,7 +222,10 @@ def pick_move(state, player):
       next_state[i] = player
       moves.append(state)
       moves.append(next_state)
-  moves += [init_state] * (18 - len(moves))
+    else:
+      moves.append(init_state)
+      moves.append(init_state)
+  assert len(moves) == 18
 
   choices = model.predict(np.array([moves]))
   move = np.argmax(choices)
@@ -253,20 +265,27 @@ def play_game(first_move_is_rand = False):
       state = next_state
 
     print_state(current_player, state) 
-    ''' 
-    print("{0}: {1} {4}/{5}/{6} {7}/_/{8}\n   {2}\n   {3}\n".format(current_player, state_to_line(state[0:3]), state_to_line(state[3:6]), state_to_line(state[6:9]), win, loss, tie, win_pred, tie_pred))
-   
-    choices = {} 
-    for i in range(len(prev_state)):
-      tstate = prev_state.copy()
-      if tstate[i] == N:
-        tstate[i] = current_player
-        choices[str(tstate)] = find_outcome(prev_state, tstate)
-
-    print(choices)
-    '''
-    
     current_player = other_player(current_player)
+  # return true iff tie
+  return calculate_winner(state)
 
 
-play_game(True)
+ties = 0
+x = 0
+o = 0
+games = 1000
+for _ in range(1000):
+  winner = play_game(True)
+  if winner == TIE:
+    ties += 1
+  elif winner == X:
+    x += 1
+  elif winner == O:
+    o += 1
+  else:
+    assert False
+
+print("{0},{1},{2}/{3}".format(x, o, ties, games))
+print("analyze input data");
+print("nn not getting high accuracy");
+print("learn more about structure");
