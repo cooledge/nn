@@ -9,14 +9,22 @@ import argparse
 import os
 
 parser = argparse.ArgumentParser(description="Tic Tac Toe player")
+parser.add_argument("--batch_size", type=int, default=200, help="batch size")
+parser.add_argument("--epochs", type=int, default=1, help="epochs")
+parser.add_argument("--retrain", action='store_true', default=False, help="retrain the nn")
 parser.add_argument("--clean", action='store_true', default=False, help="regenerate data and weights")
 args = parser.parse_args()
+BATCH_SIZE = args.batch_size
+EPOCHS = args.epochs
 
 def safe_remove(fn):
   try:
     os.remove(fn)
   except FileNotFoundError:
     0
+
+if args.retrain:
+  safe_remove("model")
 
 if args.clean:
   safe_remove("data")
@@ -30,9 +38,6 @@ TIE = 3
 OUTCOME_WIN = 0
 OUTCOME_LOSS = 1
 OUTCOME_TIE = 2
-
-EPOCHS = 5000
-BATCH_SIZE=200
 
 def game_get(game, i, j):
   game[i*3+j]
@@ -102,6 +107,16 @@ def switch_move_to_opponent(state, next_state):
     else:
       opp_state[i] = other_player(next_state[i]) 
   return opp_state
+
+def could_win(player, state):
+  opp_state = [0]*9
+  for i in range(9):
+    if state[i] == N:
+      next_state = state.copy();
+      next_state[i] = player
+      if calculate_winner(next_state) == player:
+        return True
+  return False
 
 def get_move_result(player, state, next_state):
   opp_state = switch_move_to_opponent(state, next_state)
@@ -193,7 +208,6 @@ except:
   model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
   print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
   model.fit(training_moves, training_outcomes, epochs=EPOCHS, batch_size=BATCH_SIZE)
-
   model.save("model")
 
 def find_outcome(state, next_state):
@@ -249,8 +263,10 @@ def print_state(current_player, state):
 def play_game(first_move_is_rand = False):
   state = [N]*9
 
+  missed_winning_move = False
   current_player = X
   while calculate_winner(state) is None:
+    has_winning_move = could_win(current_player, state)
     if first_move_is_rand:
       move = random.randint(1, len(state))-1
       next_state = [s for s in state]
@@ -264,18 +280,23 @@ def play_game(first_move_is_rand = False):
       prev_state = state
       state = next_state
 
-    print_state(current_player, state) 
+    #print_state(current_player, state) 
+    if has_winning_move and calculate_winner(state) != current_player:
+      missed_winning_move = True
     current_player = other_player(current_player)
   # return true iff tie
-  return calculate_winner(state)
+  return calculate_winner(state), missed_winning_move
 
 
 ties = 0
 x = 0
 o = 0
+misses = 0
 games = 1000
 for _ in range(1000):
-  winner = play_game(True)
+  winner, missed_winning_move = play_game(True)
+  if missed_winning_move:
+    misses += 1
   if winner == TIE:
     ties += 1
   elif winner == X:
@@ -285,7 +306,7 @@ for _ in range(1000):
   else:
     assert False
 
-print("{0},{1},{2}/{3}".format(x, o, ties, games))
+print("epochs: {6} batch_size {5}: {0},{1},{2}/{3} missing_winning_move: {4}".format(x, o, ties, games, misses, BATCH_SIZE, EPOCHS))
 print("analyze input data");
 print("nn not getting high accuracy");
 print("learn more about structure");
