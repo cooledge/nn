@@ -193,7 +193,7 @@ try:
 except:
   model = keras.Sequential()
 
-  N_FEATURES = 256
+  N_FEATURES = 128
   VOCAB_SIZE = 4 
   EMBEDDING_SIZE = 32
 
@@ -205,7 +205,8 @@ except:
   model.add(keras.layers.Dense(9, activation='softmax'))
 
   #model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
-  model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
+  #model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
+  model.compile(optimizer=tf.keras.optimizers.Adam(), loss='binary_crossentropy', metrics=['accuracy'])
   print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
   model.fit(training_moves, training_outcomes, epochs=EPOCHS, batch_size=BATCH_SIZE)
   model.save("model")
