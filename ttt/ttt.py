@@ -11,6 +11,7 @@ import os
 parser = argparse.ArgumentParser(description="Tic Tac Toe player")
 parser.add_argument("--batch_size", type=int, default=200, help="batch size")
 parser.add_argument("--epochs", type=int, default=1, help="epochs")
+parser.add_argument("--show_games", action='store_true', default=False, help="print the games played")
 parser.add_argument("--retrain", action='store_true', default=False, help="retrain the nn")
 parser.add_argument("--clean", action='store_true', default=False, help="regenerate data and weights")
 args = parser.parse_args()
@@ -265,6 +266,7 @@ def play_game(first_move_is_rand = False):
   state = [N]*9
 
   missed_winning_move = False
+  missed_block_move = False
   current_player = X
   while calculate_winner(state) is None:
     has_winning_move = could_win(current_player, state)
@@ -281,23 +283,31 @@ def play_game(first_move_is_rand = False):
       prev_state = state
       state = next_state
 
-    #print_state(current_player, state) 
+    has_block_move = could_win(other_player(current_player), state)
+
+    if args.show_games:
+      print_state(current_player, state) 
     if has_winning_move and calculate_winner(state) != current_player:
       missed_winning_move = True
+    if has_block_move and calculate_winner(state) != current_player:
+      missed_block_move = True
     current_player = other_player(current_player)
   # return true iff tie
-  return calculate_winner(state), missed_winning_move
+  return calculate_winner(state), missed_winning_move, missed_block_move
 
 
 ties = 0
 x = 0
 o = 0
-misses = 0
+misses_win = 0
+misses_block = 0
 games = 1000
 for _ in range(1000):
-  winner, missed_winning_move = play_game(True)
+  winner, missed_winning_move, missed_block_move = play_game(True)
   if missed_winning_move:
-    misses += 1
+    misses_win += 1
+  if missed_block_move:
+    misses_block += 1
   if winner == TIE:
     ties += 1
   elif winner == X:
@@ -307,7 +317,8 @@ for _ in range(1000):
   else:
     assert False
 
-print("epochs: {6} batch_size {5}: {0},{1},{2}/{3} missing_winning_move: {4}".format(x, o, ties, games, misses, BATCH_SIZE, EPOCHS))
+print("epochs: {6} batch_size {5}: {0},{1},{2}/{3} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, games, misses_win, BATCH_SIZE, EPOCHS, misses_block))
+print("same game over and over again? stats on unique games!");
 print("analyze input data");
 print("nn not getting high accuracy");
 print("learn more about structure");
