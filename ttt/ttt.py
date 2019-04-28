@@ -239,8 +239,33 @@ def pick_move(state, player):
       moves.append(init_state)
   assert len(moves) == 18
 
-  choices = model.predict(np.array([moves]))
+  choices = model.predict(np.array([moves]))[0]
   move = np.argmax(choices)
+
+  if args.show_games:
+    l1 = ""
+    l2 = ""
+    l3 = ""
+    l4 = ""
+    l5 = ""
+    gap = " | "
+    for i in range(8):
+      c = choices[i]
+      s = moves[i*2+1]
+      if i == move:
+        l1 += "+++++++" + gap
+      else:
+        l1 += "       " + gap
+      l2 += "{0}".format(c)[0:7] + gap
+      l3 += "  " + state_to_line(s[0:3]) + "  " + gap
+      l4 += "  " + state_to_line(s[3:6]) + "  " + gap
+      l5 += "  " + state_to_line(s[6:9]) + "  " + gap
+    print(l1)
+    print(l2)
+    print(l3)
+    print(l4)
+    print(l5)
+
   return moves[move*2+1]
 
 def state_to_char(state):
@@ -249,7 +274,7 @@ def state_to_char(state):
   elif state == O:
     return "O"
   else:
-    return " "
+    return "."
 
 def state_to_line(state):
   state = [state_to_char(s) for s in state]
@@ -264,6 +289,10 @@ def play_game(first_move_is_position = None):
   missed_winning_move = False
   missed_block_move = False
   current_player = X
+  if args.show_games:
+    print("")
+    print("-"*50)
+    print("")
   while calculate_winner(state) is None:
     has_winning_move = could_win(current_player, state)
     if first_move_is_position:
@@ -279,8 +308,6 @@ def play_game(first_move_is_position = None):
 
     has_block_move = could_win(other_player(current_player), state)
 
-    if args.show_games:
-      print_state(current_player, state) 
     if has_winning_move and calculate_winner(state) != current_player:
       missed_winning_move = True
     if has_block_move and calculate_winner(state) != current_player:
