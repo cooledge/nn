@@ -249,7 +249,7 @@ def pick_move(state, player):
     l4 = ""
     l5 = ""
     gap = " | "
-    for i in range(8):
+    for i in range(9):
       c = choices[i]
       s = moves[i*2+1]
       if i == move:
@@ -265,6 +265,7 @@ def pick_move(state, player):
     print(l3)
     print(l4)
     print(l5)
+    print("")
 
   return moves[move*2+1]
 
