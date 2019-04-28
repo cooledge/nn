@@ -339,5 +339,6 @@ for i in range(9):
     assert False
 
 print("epochs: {6} batch_size {5}: {0},{1},{2} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, 0, misses_win, BATCH_SIZE, EPOCHS, misses_block))
+print("nn needs more structure to compare choices not just chocie to start state");
 print("next move compare input data to game play data");
 print("learn more about structure");
