@@ -262,7 +262,7 @@ def state_to_line(state):
 def print_state(current_player, state):
   print("{0}: {1}\n   {2}\n   {3}\n".format(current_player, state_to_line(state[0:3]), state_to_line(state[3:6]), state_to_line(state[6:9])))
 
-def play_game(first_move_is_rand = False):
+def play_game(first_move_is_position = None):
   state = [N]*9
 
   missed_winning_move = False
@@ -270,14 +270,12 @@ def play_game(first_move_is_rand = False):
   current_player = X
   while calculate_winner(state) is None:
     has_winning_move = could_win(current_player, state)
-    if first_move_is_rand:
-      move = random.randint(1, len(state))-1
-      next_state = [s for s in state]
-      next_state[move] = current_player
+    if first_move_is_position:
+      next_state  = state.copy()
+      next_state[first_move_is_position] = current_player
+      first_move_is_position = None
       prev_state = state
       state = next_state
-       
-      first_move_is_rand = False
     else:
       next_state  = pick_move(state, current_player)
       prev_state = state
@@ -301,9 +299,8 @@ x = 0
 o = 0
 misses_win = 0
 misses_block = 0
-games = 1000
-for _ in range(1000):
-  winner, missed_winning_move, missed_block_move = play_game(True)
+for i in range(9):
+  winner, missed_winning_move, missed_block_move = play_game(i)
   if missed_winning_move:
     misses_win += 1
   if missed_block_move:
@@ -317,7 +314,7 @@ for _ in range(1000):
   else:
     assert False
 
-print("epochs: {6} batch_size {5}: {0},{1},{2}/{3} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, games, misses_win, BATCH_SIZE, EPOCHS, misses_block))
+print("epochs: {6} batch_size {5}: {0},{1},{2} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, 0, misses_win, BATCH_SIZE, EPOCHS, misses_block))
 print("same game over and over again? stats on unique games!");
 print("analyze input data");
 print("nn not getting high accuracy");
