@@ -7,6 +7,11 @@ import numpy as np
 import pickle
 import argparse
 import os
+import sys
+
+if "../" not in sys.path:
+  sys.path.append("../lib")
+from helpers import splits_by_percentages
 
 parser = argparse.ArgumentParser(description="Tic Tac Toe player")
 parser.add_argument("--batch_size", type=int, default=200, help="batch size")
@@ -159,31 +164,20 @@ def generate_data(model):
 try:
   with open('data', 'rb') as data_file:
     data = pickle.load(data_file)
-    training_moves = data['training_moves']
-    training_outcomes = data['training_outcomes']
-except:
-  training_moves, training_outcomes = generate_data(None)
+    data_moves = data['data_moves']
+    data_outcomes = data['data_outcomes']
+
+except:    
+  data_moves, data_outcomes = generate_data(None)
 
   with open('data', 'wb') as data_file:
-    pickle.dump({'training_moves': training_moves, 'training_outcomes': training_outcomes}, data_file)
+    pickle.dump({'data_moves': data_moves, 'data_outcomes': data_outcomes}, data_file)
 
-'''
-def data_stats(moves, outcomes):
-  win, loss, tie = 0, 0, 0
-  for outcome in outcomes:
-    if outcome == OUTCOME_WIN:
-      win += 1
-    elif outcome == OUTCOME_LOSS:
-      loss += 1
-    else:
-      tie += 1 
-  total = win + loss + tie
-  print("Data: {0}/{1}/{2}\n".format(win/total*100, loss/total*100, tie/total*100))
+data_moves_splits, data_outcomes_splits = splits_by_percentages([data_moves, data_outcomes], [80,10,10])
+data_moves_training, data_moves_validation, data_moves_test = data_moves_splits
+data_outcomes_training, data_outcomes_validation, data_outcomes_test = data_outcomes_splits
 
-data_stats(training_moves, training_outcomes)
-'''
-
-'''
+'''''
   S1+S2 -> X O Tie
 
   What about input the difference?
@@ -208,8 +202,10 @@ except:
   #model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
   #model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
   model.compile(optimizer=tf.keras.optimizers.Adam(), loss='binary_crossentropy', metrics=['accuracy'])
-  print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
-  model.fit(training_moves, training_outcomes, epochs=EPOCHS, batch_size=BATCH_SIZE)
+  #print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
+  model.fit(data_moves_training, data_outcomes_training, epochs=EPOCHS, batch_size=BATCH_SIZE, validation_data=(data_moves_validation, data_outcomes_validation))
+  evaluation = model.evaluate(data_moves_test, data_outcomes_test)
+  print("Test Accuracy = {0}".format(evaluation[1]))
   model.save("model")
 
 def find_outcome(state, next_state):
@@ -315,7 +311,5 @@ for i in range(9):
     assert False
 
 print("epochs: {6} batch_size {5}: {0},{1},{2} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, 0, misses_win, BATCH_SIZE, EPOCHS, misses_block))
-print("same game over and over again? stats on unique games!");
 print("analyze input data");
-print("nn not getting high accuracy");
 print("learn more about structure");
