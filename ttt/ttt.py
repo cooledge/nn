@@ -183,16 +183,37 @@ data_outcomes_training, data_outcomes_validation, data_outcomes_test = data_outc
   What about input the difference?
 '''
 
+class TTTLayer(tf.keras.layers.Layer):
+
+  def __init__(self, n_features):
+    pdb.set_trace()
+    super(TTTLayer, self).__init__()
+    self.n_features = n_features
+
+  # (N, 9)
+  def build(self, input_shape):
+    pdb.set_trace()
+    assert input_shape[1] == 9
+    self.kernel = []
+    for i in range(8):
+      self.kernel.append(self.add_variable("kernel_{0}".format(i), shape=[int(input_shape[-1], self.n_features)]))
+
+  def call(self, input):
+    pdb.set_trace()
+    pdb.set_trace()
+    
 try: 
   model = keras.models.load_model('model')
 except:
   model = keras.Sequential()
 
-  N_FEATURES = 128
+  N_FEATURES = 32
   VOCAB_SIZE = 4 
   EMBEDDING_SIZE = 32
 
-  model.add(keras.layers.Reshape((9*9,), input_shape=(9,9)))
+  pdb.set_trace()
+  model.add(keras.layers.Reshape((9, 9), input_shape=(9,9)))
+  model.add(TTTLayer(N_FEATURES))
   model.add(keras.layers.Reshape((9*9, 1)))
   model.add(keras.layers.Conv1D(N_FEATURES, (9,), strides=(9,)))
   model.add(keras.layers.Flatten())
