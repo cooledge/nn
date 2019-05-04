@@ -150,9 +150,8 @@ def generate_data(model):
   for (state, player, next_states) in games:
     choices = []
     for next_state in next_states:
-      choices += [state, next_state]
-    #choices += [init_state] * (18 - len(choices))
-    assert len(choices) == 18
+      choices.append(next_state)
+    assert len(choices) == 9
     x.append(choices);
     outcomes = [get_move_result(player, state, next_state) for next_state in next_states]
     outcomes += [0.0] * (9 - len(next_states))
@@ -192,10 +191,10 @@ except:
   VOCAB_SIZE = 4 
   EMBEDDING_SIZE = 32
 
-  model.add(keras.layers.Reshape((9*2*9,), input_shape=(18,9)))
+  model.add(keras.layers.Reshape((9*9,), input_shape=(9,9)))
   model.add(keras.layers.Embedding(VOCAB_SIZE, EMBEDDING_SIZE))
-  model.add(keras.layers.Reshape((9*18, EMBEDDING_SIZE)))
-  model.add(keras.layers.Conv1D(N_FEATURES, (18,), strides=(18,)))
+  model.add(keras.layers.Reshape((9*9, EMBEDDING_SIZE)))
+  model.add(keras.layers.Conv1D(N_FEATURES, (9,), strides=(9,)))
   model.add(keras.layers.Flatten())
   model.add(keras.layers.Dense(9, activation='softmax'))
 
@@ -232,12 +231,10 @@ def pick_move(state, player):
     if state[i] == N:
       next_state = state.copy()
       next_state[i] = player
-      moves.append(state)
       moves.append(next_state)
     else:
       moves.append(init_state)
-      moves.append(init_state)
-  assert len(moves) == 18
+  assert len(moves) == 9
 
   choices = model.predict(np.array([moves]))[0]
   move = np.argmax(choices)
@@ -267,7 +264,7 @@ def pick_move(state, player):
     print(l5)
     print("")
 
-  return moves[move*2+1]
+  return moves[move]
 
 def state_to_char(state):
   if state == X:
