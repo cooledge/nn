@@ -127,7 +127,7 @@ def get_move_result(player, state, next_state):
     if player == winner:
       return 1.0
   if opp_winner == O or opp_winner == X:
-    if other_player(player) == winner:
+    if other_player(player) == opp_winner:
       return 1.0
 
   return 0.0
@@ -268,6 +268,7 @@ def play_game(first_move_is_position = None):
   missed_winning_move = False
   missed_block_move = False
   current_player = X
+  pdb.set_trace()
   while calculate_winner(state) is None:
     has_winning_move = could_win(current_player, state)
     if first_move_is_position:

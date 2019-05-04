@@ -132,7 +132,7 @@ def get_move_result(player, state, next_state):
     if player == winner:
       return 1.0
   if opp_winner == O or opp_winner == X:
-    if other_player(player) == winner:
+    if other_player(player) == opp_winner:
       return 1.0
 
   return 0.0
@@ -176,6 +176,7 @@ data_moves_splits, data_outcomes_splits = splits_by_percentages([data_moves, dat
 data_moves_training, data_moves_validation, data_moves_test = data_moves_splits
 data_outcomes_training, data_outcomes_validation, data_outcomes_test = data_outcomes_splits
 
+
 '''''
   S1+S2 -> X O Tie
 
@@ -192,8 +193,7 @@ except:
   EMBEDDING_SIZE = 32
 
   model.add(keras.layers.Reshape((9*9,), input_shape=(9,9)))
-  model.add(keras.layers.Embedding(VOCAB_SIZE, EMBEDDING_SIZE))
-  model.add(keras.layers.Reshape((9*9, EMBEDDING_SIZE)))
+  model.add(keras.layers.Reshape((9*9, 1)))
   model.add(keras.layers.Conv1D(N_FEATURES, (9,), strides=(9,)))
   model.add(keras.layers.Flatten())
   model.add(keras.layers.Dense(9, activation='softmax'))
@@ -239,6 +239,10 @@ def pick_move(state, player):
   choices = model.predict(np.array([moves]))[0]
   move = np.argmax(choices)
 
+  if moves[move] == [0]*9:
+    # picking a move with no choice
+    pdb.set_trace()
+
   if args.show_games:
     l1 = ""
     l2 = ""
@@ -248,7 +252,7 @@ def pick_move(state, player):
     gap = " | "
     for i in range(9):
       c = choices[i]
-      s = moves[i*2+1]
+      s = moves[i]
       if i == move:
         l1 += "+++++++" + gap
       else:
@@ -314,7 +318,39 @@ def play_game(first_move_is_position = None):
   # return true iff tie
   return calculate_winner(state), missed_winning_move, missed_block_move
 
+def move_equal(m1, m2):
+  for i in range(len(m1)):
+    if m1[i] != m2[i]:
+      return False
+  return True
 
+def moves_matches(moves, move, position):
+  return move_equal(moves[position], move)
+
+def matches(moves, outcomes, move, position):
+  print(move)
+  #pdb.set_trace()
+  return [(moves[i], outcomes[i]) for i in range(len(moves)) if moves_matches(moves[i], move, position)]
+
+#print("Test Moves");
+#print(matches(data_moves, [1, 2, 1, 2, 1, 2, 2, 1, 1], 8))
+
+'''
+state = [N, N, N, N, N, O, N, X, X]
+next_state = [N, N, N, N, N, O, O, X, X]
+pdb.set_trace()
+result = get_move_result(O, state, next_state)
+print("Result is " + result)
+'''
+'''
+print("Desired move");
+print(matches(data_moves, data_outcomes, [N, N, N, N, N, O, O, X, X], 6))
+print("Actual move");
+print(matches(data_moves, data_outcomes, [N, N, N, O, N, O, N, X, X], 3))
+'''
+play_game(8)
+
+'''
 ties = 0
 x = 0
 o = 0
@@ -336,6 +372,7 @@ for i in range(9):
     assert False
 
 print("epochs: {6} batch_size {5}: {0},{1},{2} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, 0, misses_win, BATCH_SIZE, EPOCHS, misses_block))
+'''
 print("nn needs more structure to compare choices not just chocie to start state");
 print("next move compare input data to game play data");
 print("learn more about structure");
