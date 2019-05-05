@@ -186,21 +186,25 @@ data_outcomes_training, data_outcomes_validation, data_outcomes_test = data_outc
 class TTTLayer(tf.keras.layers.Layer):
 
   def __init__(self, n_features):
-    pdb.set_trace()
     super(TTTLayer, self).__init__()
     self.n_features = n_features
 
   # (N, 9)
   def build(self, input_shape):
-    pdb.set_trace()
-    assert input_shape[1] == 9
+    assert input_shape[-1] == 9
     self.kernel = []
     for i in range(8):
-      self.kernel.append(self.add_variable("kernel_{0}".format(i), shape=[int(input_shape[-1], self.n_features)]))
+      self.kernel.append(self.add_variable("kernel_{0}".format(i), shape=[int(input_shape[-1]), self.n_features]))
 
   def call(self, input):
     pdb.set_trace()
+    # list of tic tac toe boards
+    boards = tf.split(input, 9, 1)
+    boards = [tf.squeeze(board, 1) for board in boards]
+    rows = [tf.split(board, 1) for board in boards]
     pdb.set_trace()
+    pdb.set_trace()
+
     
 try: 
   model = keras.models.load_model('model')
@@ -211,7 +215,6 @@ except:
   VOCAB_SIZE = 4 
   EMBEDDING_SIZE = 32
 
-  pdb.set_trace()
   model.add(keras.layers.Reshape((9, 9), input_shape=(9,9)))
   model.add(TTTLayer(N_FEATURES))
   model.add(keras.layers.Reshape((9*9, 1)))
