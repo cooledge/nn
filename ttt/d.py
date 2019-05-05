@@ -66,6 +66,17 @@ print(samples_of_boards2)
 cols = [tf.concat(sample2, 0) for sample2 in samples_of_boards2]
 print(cols)
 
+diags = []
+for sample in samples_of_boards:
+  boards = []
+  for board in sample:
+    board = tf.squeeze(board)
+    diag1 = tf.convert_to_tensor([board[0], board[4], board[8]])
+    diag2 = tf.convert_to_tensor([board[2], board[4], board[6]])
+    boards.append([diag1, diag2])
+  diags.append(boards)
+
+print(diags)
 pdb.set_trace()
 #cols = [tf.reshape(board, (n_samples, 3, 3)) for board in boards]
 #cols = [tf.split(board, n_boards) for board in boards]
