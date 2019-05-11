@@ -193,18 +193,48 @@ class TTTLayer(tf.keras.layers.Layer):
   def build(self, input_shape):
     assert input_shape[-1] == 9
     self.kernel = []
-    for i in range(8):
-      self.kernel.append(self.add_variable("kernel_{0}".format(i), shape=[int(input_shape[-1]), self.n_features]))
+    self.kernel = self.add_variable("TTTLayer_kernel", shape=[3, self.n_features])
 
-  def call(self, input):
+  # input (?, Choices, BoaGamesrd)
+  def call(self, samples):
     pdb.set_trace()
-    # list of tic tac toe boards
-    boards = tf.split(input, 9, 1)
-    boards = [tf.squeeze(board, 1) for board in boards]
-    rows = [tf.split(board, 1) for board in boards]
-    pdb.set_trace()
-    pdb.set_trace()
+    samples_of_boards = [ tf.split(sample[0], 9, 0) for sample in tf.split(samples, samples.shape[0])]
 
+    sample_output = []
+    for sample in samples_of_boards:
+      boards = []
+      for board in sample:
+        board = tf.squeeze(board)
+        row1 = tf.convert_to_tensor([board[0], board[1], board[2]])
+        row2 = tf.convert_to_tensor([board[3], board[4], board[5]])
+        row3 = tf.convert_to_tensor([board[6], board[7], board[8]])
+
+        col1 = tf.convert_to_tensor([board[0], board[3], board[6]])
+        col2 = tf.convert_to_tensor([board[1], board[4], board[7]])
+        col3 = tf.convert_to_tensor([board[2], board[5], board[8]])
+
+        diag1 = tf.convert_to_tensor([board[0], board[4], board[8]])
+        diag2 = tf.convert_to_tensor([board[2], board[4], board[6]])
+
+        # 3 squares by 1 feature
+
+        # (3, n_features)
+        feature = [1 for _ in range(self.n_features)]
+        features = tf.constant([feature, feature, feature])
+
+        # set trace
+        print(tf.linalg.matmul([row2], features))
+        components = [row1, row2, row3, col1, col2, col3, diag1, diag2]
+        feature_layer = [tf.linalg.matmul([component], features)[0] for component in components]
+        feature_layer = tf.convert_to_tensor(feature_layer)
+        feature_layer = tf.reshape(feature_layer, (len(components)*self.n_features,))
+
+        boards.append(feature_layer)
+
+      sample_output.append(boards)
+
+    sample_output = tf.convert_to_tensor(sample_output)
+    return sample_output
     
 try: 
   model = keras.models.load_model('model')
@@ -216,7 +246,9 @@ except:
   EMBEDDING_SIZE = 32
 
   model.add(keras.layers.Reshape((9, 9), input_shape=(9,9)))
+  pdb.set_trace()
   model.add(TTTLayer(N_FEATURES))
+  pdb.set_trace()
   model.add(keras.layers.Reshape((9*9, 1)))
   model.add(keras.layers.Conv1D(N_FEATURES, (9,), strides=(9,)))
   model.add(keras.layers.Flatten())
