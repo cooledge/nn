@@ -4,30 +4,33 @@ import pdb
 
 tf.enable_eager_execution()
 
+n_embedding = 2
+
+r = n_embedding
 input = [
   [
-    [1,2,3,4,5,6,7,8,9],
-    [11,12,13,14,15,16,17,18,19],
-    [21,22,23,24,25,26,27,28,29],
-    [31,32,33,34,35,36,37,38,39],
-    [41,42,43,44,45,46,47,48,49],
-    [51,52,53,54,55,56,57,58,59],
-    [61,62,63,64,65,66,67,68,69],
-    [71,72,73,74,75,76,77,78,79],
-    [81,82,83,84,85,86,87,88,89],
+    [[1]*r,[2]*r,[3]*r,[4]*r,[5]*r,[6]*r,[7]*r,[8]*r,[9]*r],
+    [[11]*r,[12]*r,[13]*r,[14]*r,[15]*r,[16]*r,[17]*r,[18]*r,[19]*r],
+    [[21]*r,[22]*r,[23]*r,[24]*r,[25]*r,[26]*r,[27]*r,[28]*r,[29]*r],
+    [[31]*r,[32]*r,[33]*r,[34]*r,[35]*r,[36]*r,[37]*r,[38]*r,[39]*r],
+    [[41]*r,[42]*r,[43]*r,[44]*r,[45]*r,[46]*r,[47]*r,[48]*r,[49]*r],
+    [[51]*r,[52]*r,[53]*r,[54]*r,[55]*r,[56]*r,[57]*r,[58]*r,[59]*r],
+    [[61]*r,[62]*r,[63]*r,[64]*r,[65]*r,[66]*r,[67]*r,[68]*r,[69]*r],
+    [[71]*r,[72]*r,[73]*r,[74]*r,[75]*r,[76]*r,[77]*r,[78]*r,[79]*r],
+    [[81]*r,[82]*r,[83]*r,[84]*r,[85]*r,[86]*r,[87]*r,[88]*r,[89]*r],
   ],
 
   [
-    [1,2,3,4,5,6,7,8,9],
-    [11,12,13,14,15,16,17,18,19],
-    [21,22,23,24,25,26,27,28,29],
-    [31,32,33,34,35,36,37,38,39],
-    [41,42,43,44,45,46,47,48,49],
-    [51,52,53,54,55,56,57,58,59],
-    [61,62,63,64,65,66,67,68,69],
-    [71,72,73,74,75,76,77,78,79],
-    [81,82,83,84,85,86,87,88,89],
-  ]
+    [[1]*r,[2]*r,[3]*r,[4]*r,[5]*r,[6]*r,[7]*r,[8]*r,[9]*r],
+    [[11]*r,[12]*r,[13]*r,[14]*r,[15]*r,[16]*r,[17]*r,[18]*r,[19]*r],
+    [[21]*r,[22]*r,[23]*r,[24]*r,[25]*r,[26]*r,[27]*r,[28]*r,[29]*r],
+    [[31]*r,[32]*r,[33]*r,[34]*r,[35]*r,[36]*r,[37]*r,[38]*r,[39]*r],
+    [[41]*r,[42]*r,[43]*r,[44]*r,[45]*r,[46]*r,[47]*r,[48]*r,[49]*r],
+    [[51]*r,[52]*r,[53]*r,[54]*r,[55]*r,[56]*r,[57]*r,[58]*r,[59]*r],
+    [[61]*r,[62]*r,[63]*r,[64]*r,[65]*r,[66]*r,[67]*r,[68]*r,[69]*r],
+    [[71]*r,[72]*r,[73]*r,[74]*r,[75]*r,[76]*r,[77]*r,[78]*r,[79]*r],
+    [[81]*r,[82]*r,[83]*r,[84]*r,[85]*r,[86]*r,[87]*r,[88]*r,[89]*r],
+  ],
 
 ]
 
@@ -53,7 +56,6 @@ n_features = 1
 
 def board_to_features(board):
   #board = tf.squeeze(board)
-
   row1 = tf.convert_to_tensor([board[0], board[1], board[2]])
   row2 = tf.convert_to_tensor([board[3], board[4], board[5]])
   row3 = tf.convert_to_tensor([board[6], board[7], board[8]])
@@ -65,16 +67,16 @@ def board_to_features(board):
   diag1 = tf.convert_to_tensor([board[0], board[4], board[8]])
   diag2 = tf.convert_to_tensor([board[2], board[4], board[6]])
 
-# 3 squares by 1 feature
+  # 3 squares by 1 feature
 
-# (3, n_features)
+  # (3, n_features)
   feature = [1 for _ in range(n_features)] 
-  features = tf.constant([feature, feature, feature]) 
+  features = tf.constant([feature]*3*n_embedding) 
 
-# set trace
-  print(tf.linalg.matmul([row2], features))
+  # set trace
+  print(tf.linalg.matmul([tf.reshape(row2, (3*n_embedding,))], features))
   components = [row1, row2, row3, col1, col2, col3, diag1, diag2]
-  feature_layer = [tf.linalg.matmul([component], features)[0] for component in components]
+  feature_layer = [tf.linalg.matmul([tf.reshape(component, (3*n_embedding,))], features)[0] for component in components]
   feature_layer = tf.convert_to_tensor(feature_layer)
   feature_layer = tf.reshape(feature_layer, (len(components)*n_features,))
 
@@ -91,19 +93,8 @@ def sample_to_features(sample):
 
 def setup(samples):
   #pdb.set_trace()
-  samples = tf.map_fn(sample_to_features, samples)
-  pdb.set_trace()
-  samples_of_boards = [ tf.split(sample[0], 9, 0) for sample in tf.split(samples, samples.shape[0])]
-
-  sample_output = []
-  for sample in samples_of_boards:
-    boards = []
-    for board in sample:
-      boards.append(board_to_features(board))
-    sample_output.append(boards)
-
-  sample_output = tf.convert_to_tensor(sample_output)
-  print(sample_output)
+  output = tf.map_fn(sample_to_features, samples)
+  print(output)
 
 setup(samples)
 

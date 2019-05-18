@@ -185,13 +185,15 @@ data_outcomes_training, data_outcomes_validation, data_outcomes_test = data_outc
 
 class TTTLayer(tf.keras.layers.Layer):
 
-  def __init__(self, n_features):
+  def __init__(self, n_embedding, n_features):
     super(TTTLayer, self).__init__()
     self.n_features = n_features
+    self.n_embedding = n_embedding
 
   # (N, 9)
   def build(self, input_shape):
-    assert input_shape[-1] == 9
+    assert input_shape[-1] == self.n_embedding
+    assert input_shape[-2] == 9
     self.kernel = []
     self.kernel = self.add_variable("TTTLayer_kernel", shape=[3, self.n_features])
 
@@ -211,12 +213,14 @@ class TTTLayer(tf.keras.layers.Layer):
 
     # (3, n_features)
     feature = [1.0 for _ in range(self.n_features)]
-    features = tf.constant([feature, feature, feature])
+    features = tf.constant([feature]*3*self.n_embedding)
+    pdb.set_trace()
+    features = tf.random.uniform((3*self.n_embedding, self.n_features));
 
 # set trace
     #print(tf.linalg.matmul([row2], features))
     components = [row1, row2, row3, col1, col2, col3, diag1, diag2]
-    feature_layer = [tf.linalg.matmul([component], features)[0] for component in components]
+    feature_layer = [tf.linalg.matmul([tf.reshape(component, (3*self.n_embedding,))], features)[0] for component in components]
     feature_layer = tf.convert_to_tensor(feature_layer)
     feature_layer = tf.reshape(feature_layer, (len(components)*self.n_features,))
 
@@ -278,14 +282,14 @@ try:
 except:
   model = keras.Sequential()
 
-  N_FEATURES = 32
+  N_FEATURES = 2
   VOCAB_SIZE = 4 
   EMBEDDING_SIZE = 32
 
   model.add(keras.layers.Reshape((9, 9), input_shape=(9,9)))
   pdb.set_trace()
   model.add(keras.layers.Embedding(VOCAB_SIZE, EMBEDDING_SIZE))
-  model.add(TTTLayer(N_FEATURES))
+  model.add(TTTLayer(EMBEDDING_SIZE, N_FEATURES))
   model.add(tf.layers.Flatten())
   pdb.set_trace()
   model.add(keras.layers.Dense(9, activation='softmax'))
