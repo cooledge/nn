@@ -195,8 +195,44 @@ class TTTLayer(tf.keras.layers.Layer):
     self.kernel = []
     self.kernel = self.add_variable("TTTLayer_kernel", shape=[3, self.n_features])
 
+  def board_to_features(self, board):
+    row1 = tf.convert_to_tensor([board[0], board[1], board[2]])
+    row2 = tf.convert_to_tensor([board[3], board[4], board[5]])
+    row3 = tf.convert_to_tensor([board[6], board[7], board[8]])
+
+    col1 = tf.convert_to_tensor([board[0], board[3], board[6]])
+    col2 = tf.convert_to_tensor([board[1], board[4], board[7]])
+    col3 = tf.convert_to_tensor([board[2], board[5], board[8]])
+
+    diag1 = tf.convert_to_tensor([board[0], board[4], board[8]])
+    diag2 = tf.convert_to_tensor([board[2], board[4], board[6]])
+
+    # 3 squares by 1 feature
+
+    # (3, n_features)
+    feature = [1.0 for _ in range(self.n_features)]
+    features = tf.constant([feature, feature, feature])
+
+# set trace
+    #print(tf.linalg.matmul([row2], features))
+    components = [row1, row2, row3, col1, col2, col3, diag1, diag2]
+    feature_layer = [tf.linalg.matmul([component], features)[0] for component in components]
+    feature_layer = tf.convert_to_tensor(feature_layer)
+    feature_layer = tf.reshape(feature_layer, (len(components)*self.n_features,))
+
+    return feature_layer
+
+  # 9, 9
+  def sample_to_features(self, sample):
+    mapped = tf.map_fn(lambda board: TTTLayer.board_to_features(self, board), sample, dtype=tf.float32)
+    return mapped
+
   # input (?, Choices, BoaGamesrd)
   def call(self, samples):
+    output = tf.map_fn(lambda sample: TTTLayer.sample_to_features(self, sample), samples)
+    return output
+
+  def call2(self, samples):
     pdb.set_trace()
     samples_of_boards = [ tf.split(sample[0], 9, 0) for sample in tf.split(samples, samples.shape[0])]
 
@@ -219,8 +255,9 @@ class TTTLayer(tf.keras.layers.Layer):
         # 3 squares by 1 feature
 
         # (3, n_features)
-        feature = [1 for _ in range(self.n_features)]
-        features = tf.constant([feature, feature, feature])
+        #feature = [1.0 for _ in range(self.n_features)]
+        #features = tf.constant([feature, feature, feature])
+        features = tf.random.uniform((1,3));
 
         # set trace
         print(tf.linalg.matmul([row2], features))
@@ -247,11 +284,10 @@ except:
 
   model.add(keras.layers.Reshape((9, 9), input_shape=(9,9)))
   pdb.set_trace()
+  model.add(keras.layers.Embedding(VOCAB_SIZE, EMBEDDING_SIZE))
   model.add(TTTLayer(N_FEATURES))
+  model.add(tf.layers.Flatten())
   pdb.set_trace()
-  model.add(keras.layers.Reshape((9*9, 1)))
-  model.add(keras.layers.Conv1D(N_FEATURES, (9,), strides=(9,)))
-  model.add(keras.layers.Flatten())
   model.add(keras.layers.Dense(9, activation='softmax'))
 
   #model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])

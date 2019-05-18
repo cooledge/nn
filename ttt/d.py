@@ -16,6 +16,7 @@ input = [
     [71,72,73,74,75,76,77,78,79],
     [81,82,83,84,85,86,87,88,89],
   ],
+
   [
     [1,2,3,4,5,6,7,8,9],
     [11,12,13,14,15,16,17,18,19],
@@ -27,6 +28,7 @@ input = [
     [71,72,73,74,75,76,77,78,79],
     [81,82,83,84,85,86,87,88,89],
   ]
+
 ]
 
 print(tf.constant(input).shape)
@@ -47,10 +49,9 @@ samples = tf.convert_to_tensor(samples)
 
 # samples (?, 9, 9)
 
-n_features = 2
+n_features = 1
 
 def board_to_features(board):
-  pdb.set_trace()
   #board = tf.squeeze(board)
 
   row1 = tf.convert_to_tensor([board[0], board[1], board[2]])
@@ -76,23 +77,22 @@ def board_to_features(board):
   feature_layer = [tf.linalg.matmul([component], features)[0] for component in components]
   feature_layer = tf.convert_to_tensor(feature_layer)
   feature_layer = tf.reshape(feature_layer, (len(components)*n_features,))
-  print("return type shape {0}".format(feature_layer.shape))
-  pdb.set_trace()
-  feature_layer.dtype
+
   return feature_layer
 
 # 9, 9
 def sample_to_features(sample):
-  pdb.set_trace()
-  mapped = tf.map_fn(board_to_features, sample, dtype=(tf.int32,))
-  pdb.set_trace()
-  pdb.set_trace()
- 
-sample_to_features(samples[0]) 
+  mapped = tf.map_fn(board_to_features, sample, dtype=tf.int32)
+  return mapped
+
+#pdb.set_trace() 
+#sample_to_features(samples[0]) 
+#pdb.set_trace() 
 
 def setup(samples):
+  #pdb.set_trace()
+  samples = tf.map_fn(sample_to_features, samples)
   pdb.set_trace()
-  tf.map_fn(sample_to_features, samples)
   samples_of_boards = [ tf.split(sample[0], 9, 0) for sample in tf.split(samples, samples.shape[0])]
 
   sample_output = []
@@ -107,6 +107,7 @@ def setup(samples):
 
 setup(samples)
 
+print(samples)
 pdb.set_trace()
 #cols = [tf.reshape(board, (n_samples, 3, 3)) for board in boards]
 #cols = [tf.split(board, n_boards) for board in boards]
