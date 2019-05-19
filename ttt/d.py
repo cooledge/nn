@@ -4,7 +4,9 @@ import pdb
 
 tf.enable_eager_execution()
 
-n_embedding = 2
+n_embedding = 1
+n_features = 2
+
 
 r = n_embedding
 input = [
@@ -52,20 +54,22 @@ samples = tf.convert_to_tensor(samples)
 
 # samples (?, 9, 9)
 
-n_features = 1
+def f(t):
+  return tf.reshape(t, (1, n_embedding))
 
 def board_to_features(board):
   #board = tf.squeeze(board)
-  row1 = tf.convert_to_tensor([board[0], board[1], board[2]])
-  row2 = tf.convert_to_tensor([board[3], board[4], board[5]])
-  row3 = tf.convert_to_tensor([board[6], board[7], board[8]])
 
-  col1 = tf.convert_to_tensor([board[0], board[3], board[6]])
-  col2 = tf.convert_to_tensor([board[1], board[4], board[7]])
-  col3 = tf.convert_to_tensor([board[2], board[5], board[8]])
+  row1 = tf.concat([f(board[0]), f(board[1]), f(board[2])], 0)
+  row2 = tf.concat([f(board[3]), f(board[4]), f(board[5])], 0)
+  row3 = tf.concat([f(board[6]), f(board[7]), f(board[8])], 0)
 
-  diag1 = tf.convert_to_tensor([board[0], board[4], board[8]])
-  diag2 = tf.convert_to_tensor([board[2], board[4], board[6]])
+  col1 = tf.concat([f(board[0]), f(board[3]), f(board[6])], 0)
+  col2 = tf.concat([f(board[1]), f(board[4]), f(board[7])], 0)
+  col3 = tf.concat([f(board[2]), f(board[5]), f(board[8])], 0)
+
+  diag1 = tf.concat([f(board[0]), f(board[4]), f(board[8])], 0)
+  diag2 = tf.concat([f(board[2]), f(board[4]), f(board[6])], 0)
 
   # 3 squares by 1 feature
 
@@ -77,7 +81,8 @@ def board_to_features(board):
   print(tf.linalg.matmul([tf.reshape(row2, (3*n_embedding,))], features))
   components = [row1, row2, row3, col1, col2, col3, diag1, diag2]
   feature_layer = [tf.linalg.matmul([tf.reshape(component, (3*n_embedding,))], features)[0] for component in components]
-  feature_layer = tf.convert_to_tensor(feature_layer)
+  #feature_layer = tf.convert_to_tensor(feature_layer)
+  feature_layer = tf.concat(feature_layer, 0)
   feature_layer = tf.reshape(feature_layer, (len(components)*n_features,))
 
   return feature_layer
@@ -98,8 +103,8 @@ def setup(samples):
 
 setup(samples)
 
-print(samples)
-pdb.set_trace()
+#print(samples)
+#pdb.set_trace()
 #cols = [tf.reshape(board, (n_samples, 3, 3)) for board in boards]
 #cols = [tf.split(board, n_boards) for board in boards]
 #cols = [tf.transpose(board, perm=(0,2,1)) for board in boards]
