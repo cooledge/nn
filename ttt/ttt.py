@@ -195,7 +195,7 @@ class TTTLayer(tf.keras.layers.Layer):
     assert input_shape[-1] == self.n_embedding
     assert input_shape[-2] == 9
     self.kernel = []
-    self.kernel = self.add_variable("TTTLayer_kernel", shape=[3, self.n_features])
+    self.kernel = self.add_variable("TTTLayer_kernel", shape=[3*self.n_embedding, self.n_features])
 
   def f(self, t):
     return tf.reshape(t, (1, self.n_embedding))
@@ -213,18 +213,8 @@ class TTTLayer(tf.keras.layers.Layer):
     diag1 = tf.concat([TTTLayer.f(self, board[0]), TTTLayer.f(self, board[4]), TTTLayer.f(self, board[8])], 0)
     diag2 = tf.concat([TTTLayer.f(self, board[2]), TTTLayer.f(self, board[4]), TTTLayer.f(self, board[6])], 0)
 
-    # 3 squares by 1 feature
-
-    # (3, n_features)
-    #feature = [1.0 for _ in range(self.n_features)]
-    #features = tf.constant([feature]*3*self.n_embedding)
-    #pdb.set_trace()
-    features = tf.random.uniform((3*self.n_embedding, self.n_features));
-
-# set trace
-    #print(tf.linalg.matmul([row2], features))
     components = [row1, row2, row3, col1, col2, col3, diag1, diag2]
-    feature_layer = [tf.linalg.matmul([tf.reshape(component, (3*self.n_embedding,))], features)[0] for component in components]
+    feature_layer = [tf.linalg.matmul([tf.reshape(component, (3*self.n_embedding,))], self.kernel)[0] for component in components]
     feature_layer = tf.concat(feature_layer, 0)
     feature_layer = tf.reshape(feature_layer, (len(components)*self.n_features,))
 
