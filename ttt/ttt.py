@@ -190,6 +190,13 @@ class TTTLayer(tf.keras.layers.Layer):
     self.n_features = n_features
     self.n_embedding = n_embedding
 
+  def get_config(self):
+    config = {'n_embedding': self.n_embedding,
+              'n_features': self.n_features,
+             }
+    base_config = super(TTTLayer, self).get_config()
+    return dict(list(base_config.items()) + list(config.items()))
+    
   # (N, 9)
   def build(self, input_shape):
     assert input_shape[-1] == self.n_embedding
@@ -229,28 +236,27 @@ class TTTLayer(tf.keras.layers.Layer):
   def call(self, samples):
     output = tf.map_fn(lambda sample: TTTLayer.sample_to_features(self, sample), samples)
     return output
-    
-try: 
-  model = keras.models.load_model('model')
-except:
+
+def build_model():
   model = keras.Sequential()
 
-  N_FEATURES = 2
+  N_FEATURES = 16
   VOCAB_SIZE = 4 
   EMBEDDING_SIZE = 32
 
   model.add(keras.layers.Reshape((9, 9), input_shape=(9,9)))
-  pdb.set_trace()
   model.add(keras.layers.Embedding(VOCAB_SIZE, EMBEDDING_SIZE))
   model.add(TTTLayer(EMBEDDING_SIZE, N_FEATURES))
   model.add(tf.layers.Flatten())
-  pdb.set_trace()
   model.add(keras.layers.Dense(9, activation='softmax'))
+  return model
 
-  #model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
-  #model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
+model = build_model()
+
+try: 
+  model.load_weights('model')
+except:
   model.compile(optimizer=tf.keras.optimizers.Adam(), loss='binary_crossentropy', metrics=['accuracy'])
-  #print("training_moves: {0} training_outcomes {1}".format(training_moves.shape, training_outcomes.shape))
   model.fit(data_moves_training, data_outcomes_training, epochs=EPOCHS, batch_size=BATCH_SIZE, validation_data=(data_moves_validation, data_outcomes_validation))
   evaluation = model.evaluate(data_moves_test, data_outcomes_test)
   print("Test Accuracy = {0}".format(evaluation[1]))
@@ -288,9 +294,9 @@ def pick_move(state, player):
   choices = model.predict(np.array([moves]))[0]
   move = np.argmax(choices)
 
-  if moves[move] == [0]*9:
+  #if moves[move] == [0]*9:
     # picking a move with no choice
-    pdb.set_trace()
+    #pdb.set_trace()
 
   if args.show_games:
     l1 = ""
@@ -422,6 +428,8 @@ for i in range(9):
 
 print("epochs: {6} batch_size {5}: {0},{1},{2} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, 0, misses_win, BATCH_SIZE, EPOCHS, misses_block))
 '''
-print("nn needs more structure to compare choices not just chocie to start state");
-print("next move compare input data to game play data");
-print("learn more about structure");
+
+print("have a no choice is best output TTTLayer");
+print("add activation to TTTLayer");
+print("TTTLayer make savable");
+print("get rid of ambiguous data");
