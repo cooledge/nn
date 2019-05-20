@@ -240,14 +240,15 @@ class TTTLayer(tf.keras.layers.Layer):
 def build_model():
   model = keras.Sequential()
 
-  N_FEATURES = 16
-  VOCAB_SIZE = 4 
-  EMBEDDING_SIZE = 32
+  N_FEATURES = 3  # hope for winx/winy/nowin
+  VOCAB_SIZE = 4  
+  EMBEDDING_SIZE = 4
 
   model.add(keras.layers.Reshape((9, 9), input_shape=(9,9)))
   model.add(keras.layers.Embedding(VOCAB_SIZE, EMBEDDING_SIZE))
   model.add(TTTLayer(EMBEDDING_SIZE, N_FEATURES))
-  model.add(tf.layers.Flatten())
+  model.add(keras.layers.Flatten())
+  model.add(keras.layers.ReLU());
   model.add(keras.layers.Dense(9, activation='softmax'))
   return model
 
@@ -255,6 +256,11 @@ model = build_model()
 
 try: 
   model.load_weights('model')
+
+  pdb.set_trace()
+  # hand code the weights
+  one_hot_weights = tf.constant([[1.0, 0, 0, 0], [0, 1.0, 0, 0], [0, 0, 1.0, 0], [0, 0, 0, 1.0]])
+  model.layers[1].set_weights([one_hot_weights])
 except:
   model.compile(optimizer=tf.keras.optimizers.Adam(), loss='binary_crossentropy', metrics=['accuracy'])
   model.fit(data_moves_training, data_outcomes_training, epochs=EPOCHS, batch_size=BATCH_SIZE, validation_data=(data_moves_validation, data_outcomes_validation))
@@ -291,6 +297,7 @@ def pick_move(state, player):
       moves.append(init_state)
   assert len(moves) == 9
 
+  pdb.set_trace()
   choices = model.predict(np.array([moves]))[0]
   move = np.argmax(choices)
 
@@ -351,6 +358,7 @@ def play_game(first_move_is_position = None):
     print("-"*50)
     print("")
   while calculate_winner(state) is None:
+    pdb.set_trace()
     has_winning_move = could_win(current_player, state)
     if first_move_is_position:
       next_state  = state.copy()
