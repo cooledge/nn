@@ -16,7 +16,7 @@ from helpers import splits_by_percentages
 parser = argparse.ArgumentParser(description="Tic Tac Toe player")
 parser.add_argument("--batch_size", type=int, default=200, help="batch size")
 parser.add_argument("--epochs", type=int, default=1, help="epochs")
-parser.add_argument("--show_games", action='store_true', default=False, help="print the games played")
+parser.add_argument("--show-games", action='store_true', default=False, help="print the games played")
 parser.add_argument("--retrain", action='store_true', default=False, help="retrain the nn")
 parser.add_argument("--clean", action='store_true', default=False, help="regenerate data and weights")
 args = parser.parse_args()
@@ -106,6 +106,9 @@ def get_games(player, games, game = [[0 for _ in range(9)]], cells = [0,1,2,3,4,
   games += [(game[-1], player, next_states)]
    
 def switch_move_to_opponent(state, next_state):
+  # if all zeros no move switch
+  if sum(next_state) == 0:
+    return next_state
   opp_state = [0]*9
   for i in range(9):
     if state[i] == next_state[i]:
@@ -136,44 +139,68 @@ def get_move_result(player, state, next_state):
       return 1.0
 
   return 0.0
-  
+
+''' 
+state = [1, 2, 1, 2, 1, 2, 0, 1, 0] 
+next_state = [0]*9
+player = O
+pdb.set_trace()
+result = get_move_result(player, state, next_state)
+pdb.set_trace()
+'''
+
 init_state = [0]*9
+
+def player_to_one_hot(player):
+  if player == X:
+    return np.array([1.0, 0.0])
+  else:
+    return np.array([0.0, 1.0])
 
 # x: list of state+next_states
 # y: one hot 1.0 if win, 0 if loose, 0.5 if tie
 def generate_data(model):
-  x = []
+  x_choices = []
+  x_player = []
   y = []
   games = []
   get_games(X, games)
+  #games = games[1:50]
 
   for (state, player, next_states) in games:
+    outcomes = [get_move_result(player, state, next_state) for next_state in next_states]
+    outcomes += [0.0] * (9 - len(next_states))
+    # skip the non-wins
+    if sum(outcomes) == 0:
+      continue
+    if sum(outcomes) > 3:
+      pdb.set_trace()
+      pdb.set_trace()
     choices = []
     for next_state in next_states:
       choices.append(next_state)
     assert len(choices) == 9
-    x.append(choices);
-    outcomes = [get_move_result(player, state, next_state) for next_state in next_states]
-    outcomes += [0.0] * (9 - len(next_states))
+    x_choices.append(choices);
+    x_player.append(player_to_one_hot(player))
     assert len(outcomes) == 9
     y.append(outcomes)
 
-  return np.array(x), np.array(y)
+  return np.array(x_choices), np.array(x_player), np.array(y)
 
 try:
   with open('data', 'rb') as data_file:
     data = pickle.load(data_file)
     data_moves = data['data_moves']
+    data_player = data['data_player']
     data_outcomes = data['data_outcomes']
-
 except:    
-  data_moves, data_outcomes = generate_data(None)
-
+  data_moves, data_player, data_outcomes = generate_data(None)
   with open('data', 'wb') as data_file:
-    pickle.dump({'data_moves': data_moves, 'data_outcomes': data_outcomes}, data_file)
+    pickle.dump({'data_moves': data_moves, 'data_player': data_player, 'data_outcomes': data_outcomes}, data_file)
 
-data_moves_splits, data_outcomes_splits = splits_by_percentages([data_moves, data_outcomes], [80,10,10])
+data_moves_splits, data_player_splits, data_outcomes_splits = splits_by_percentages([data_moves, data_player, data_outcomes], [80,10,10])
 data_moves_training, data_moves_validation, data_moves_test = data_moves_splits
+data_player_training, data_player_validation, data_player_test = data_player_splits
 data_outcomes_training, data_outcomes_validation, data_outcomes_test = data_outcomes_splits
 
 
@@ -240,31 +267,61 @@ class TTTLayer(tf.keras.layers.Layer):
 def build_model():
   model = keras.Sequential()
 
-  N_FEATURES = 3  # hope for winx/winy/nowin
+  N_FEATURES = 32  # hope for winx/winy/nowin
   VOCAB_SIZE = 4  
-  EMBEDDING_SIZE = 4
+  EMBEDDING_SIZE = 16
 
-  model.add(keras.layers.Reshape((9, 9), input_shape=(9,9)))
-  model.add(keras.layers.Embedding(VOCAB_SIZE, EMBEDDING_SIZE))
-  model.add(TTTLayer(EMBEDDING_SIZE, N_FEATURES))
-  model.add(keras.layers.Flatten())
-  model.add(keras.layers.ReLU());
-  model.add(keras.layers.Dense(9, activation='softmax'))
-  return model
+  inputChoices = keras.layers.Input(shape=(9,9))
+  # one hot for current player
+  inputPlayer = keras.layers.Input(shape=(2,))
+
+  #model = keras.layers.Reshape((9, 9), input_shape=(9,9))(inputChoices)
+  winLossModel = keras.layers.Reshape((9, 9))(inputChoices)
+  winLossModel = keras.layers.Embedding(VOCAB_SIZE, EMBEDDING_SIZE)(winLossModel)
+  winLossModel = TTTLayer(EMBEDDING_SIZE, N_FEATURES)(winLossModel)
+  winLossModel = keras.layers.Flatten()(winLossModel)
+  winLossModel = keras.layers.ReLU()(winLossModel)
+  winLossModel = keras.Model(inputs=inputChoices, outputs=winLossModel)
+
+  combined = keras.layers.concatenate([winLossModel.output, inputPlayer])
+  combined = keras.layers.Dense(9, activation='softmax')(combined)
+  combined = keras.Model(inputs=[winLossModel.input, inputPlayer], outputs=combined)
+
+  return combined
 
 model = build_model()
 
 try: 
   model.load_weights('model')
 
+  '''
   pdb.set_trace()
   # hand code the weights
-  one_hot_weights = tf.constant([[1.0, 0, 0, 0], [0, 1.0, 0, 0], [0, 0, 1.0, 0], [0, 0, 0, 1.0]])
+  one_hot_weights = np.array([[1.0, 0, 0, 0], [0, 1.0, 0, 0], [0, 0, 1.0, 0], [0, 0, 0, 1.0]])
   model.layers[1].set_weights([one_hot_weights])
+
+  ttt_weights = np.array([
+       [ 1.0, 0.0, 0.0],
+       [ 0.0, 1.0, 0.0],
+       [ 0.0, 0.0, 0.0],
+       [ 0.0, 0.0, 0.0],
+       [ 1.0, 0.0, 0.0],
+       [ 0.0, 1.0, 0.0 ],
+       [ 0.0, 0.0, 0.0],
+       [ 0.0, 0.0, 0.0],
+       [ 1.0, 0.0, 0.0],
+       [ 0.0, 1.0, 0.0 ],
+       [ 0.0, 0.0, 0.0],
+       [ 0.0, 0.0, 0.0]])
+  pdb.set_trace()
+  model.layers[2].set_weights([ttt_weights])
+  '''
+
 except:
-  model.compile(optimizer=tf.keras.optimizers.Adam(), loss='binary_crossentropy', metrics=['accuracy'])
-  model.fit(data_moves_training, data_outcomes_training, epochs=EPOCHS, batch_size=BATCH_SIZE, validation_data=(data_moves_validation, data_outcomes_validation))
-  evaluation = model.evaluate(data_moves_test, data_outcomes_test)
+  #model.compile(optimizer=tf.keras.optimizers.Adam(), loss='binary_crossentropy', metrics=['accuracy'])
+  model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
+  model.fit([data_moves_training, data_player_training], data_outcomes_training, epochs=EPOCHS, batch_size=BATCH_SIZE, validation_data=([data_moves_validation, data_player_validation], data_outcomes_validation))
+  evaluation = model.evaluate([data_moves_test, data_player_test], data_outcomes_test)
   print("Test Accuracy = {0}".format(evaluation[1]))
   model.save("model")
 
@@ -297,8 +354,9 @@ def pick_move(state, player):
       moves.append(init_state)
   assert len(moves) == 9
 
-  pdb.set_trace()
-  choices = model.predict(np.array([moves]))[0]
+  #pdb.set_trace()
+  inputs = [np.array([moves]), np.array([player_to_one_hot(player)])]
+  choices = model.predict([np.array([moves]), np.array([player_to_one_hot(player)])])[0]
   move = np.argmax(choices)
 
   #if moves[move] == [0]*9:
@@ -358,7 +416,6 @@ def play_game(first_move_is_position = None):
     print("-"*50)
     print("")
   while calculate_winner(state) is None:
-    pdb.set_trace()
     has_winning_move = could_win(current_player, state)
     if first_move_is_position:
       next_state  = state.copy()
@@ -437,7 +494,4 @@ for i in range(9):
 print("epochs: {6} batch_size {5}: {0},{1},{2} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, 0, misses_win, BATCH_SIZE, EPOCHS, misses_block))
 '''
 
-print("have a no choice is best output TTTLayer");
-print("add activation to TTTLayer");
-print("TTTLayer make savable");
 print("get rid of ambiguous data");
