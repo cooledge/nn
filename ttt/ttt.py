@@ -149,6 +149,9 @@ result = get_move_result(player, state, next_state)
 pdb.set_trace()
 '''
 
+pdb.set_trace()
+assert get_move_result(O, [N, N, O, X, O, N, X, N, X], [O, N, O, X, O, N, X, N, X]) == 0.0
+
 init_state = [0]*9
 
 def player_to_one_hot(player):
@@ -293,6 +296,7 @@ model = build_model()
 
 try: 
   model.load_weights('model')
+  model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
 
   '''
   pdb.set_trace()
@@ -324,6 +328,12 @@ except:
   evaluation = model.evaluate([data_moves_test, data_player_test], data_outcomes_test)
   print("Test Accuracy = {0}".format(evaluation[1]))
   model.save("model")
+
+def inverse_loss(y_true, y_pred, from_logits=False, axis=-1):
+  return -keras.backend.categorical_crossentropy(y_true, y_pred, from_logits=from_logits, axis=axis)
+
+imodel = keras.Model(inputs=model.inputs, outputs=model.outputs)
+imodel.compile(optimizer=tf.keras.optimizers.Adam(), loss=inverse_loss, metrics=['accuracy'])
 
 def find_outcome(state, next_state):
   win = 0
@@ -359,6 +369,11 @@ def pick_move(state, player):
   choices = model.predict([np.array([moves]), np.array([player_to_one_hot(player)])])[0]
   move = np.argmax(choices)
 
+  choice_input_moves = np.array(moves)
+  choice_input_players = player_to_one_hot(player)
+  choice_output = np.array([0]*9)
+  choice_output[move] = 1.0
+
   #if moves[move] == [0]*9:
     # picking a move with no choice
     #pdb.set_trace()
@@ -375,9 +390,11 @@ def pick_move(state, player):
       s = moves[i]
       if i == move:
         l1 += "+++++++" + gap
+      elif get_move_result(player, state, moves[i]) == 1.0:
+        l1 += "*******" + gap
       else:
         l1 += "       " + gap
-      l2 += "{0}".format(c)[0:7] + gap
+      l2 += "{:7.5f}".format(c if c > 0.00001 else 0.0)[0:7] + gap
       l3 += "  " + state_to_line(s[0:3]) + "  " + gap
       l4 += "  " + state_to_line(s[3:6]) + "  " + gap
       l5 += "  " + state_to_line(s[6:9]) + "  " + gap
@@ -388,7 +405,9 @@ def pick_move(state, player):
     print(l5)
     print("")
 
-  return moves[move]
+
+  return [moves[move], choice_input_moves, choice_input_players, choice_output]
+
 
 def state_to_char(state):
   if state == X:
@@ -415,6 +434,11 @@ def play_game(first_move_is_position = None):
     print("")
     print("-"*50)
     print("")
+  # X or O lists
+  choice_inputs_moves = [[], []]
+  choice_inputs_players = [[], []]
+  choice_outputs = [[], []]
+  counter = 0
   while calculate_winner(state) is None:
     has_winning_move = could_win(current_player, state)
     if first_move_is_position:
@@ -424,7 +448,10 @@ def play_game(first_move_is_position = None):
       prev_state = state
       state = next_state
     else:
-      next_state  = pick_move(state, current_player)
+      next_state, choice_input_moves, choice_input_players, choice_output  = pick_move(state, current_player)
+      choice_inputs_moves[current_player-1].append(choice_input_moves)
+      choice_inputs_players[current_player-1].append(choice_input_players)
+      choice_outputs[current_player-1].append(choice_output)
       prev_state = state
       state = next_state
 
@@ -435,8 +462,11 @@ def play_game(first_move_is_position = None):
     if has_block_move and calculate_winner(state) != current_player:
       missed_block_move = True
     current_player = other_player(current_player)
+    counter += 1
+    if counter > 9:
+      break
   # return true iff tie
-  return calculate_winner(state), missed_winning_move, missed_block_move
+  return calculate_winner(state), missed_winning_move, missed_block_move, choice_inputs_moves, choice_inputs_players, choice_outputs
 
 def move_equal(m1, m2):
   for i in range(len(m1)):
@@ -468,30 +498,40 @@ print(matches(data_moves, data_outcomes, [N, N, N, N, N, O, O, X, X], 6))
 print("Actual move");
 print(matches(data_moves, data_outcomes, [N, N, N, O, N, O, N, X, X], 3))
 '''
-play_game(8)
+play_game(3)
 
-'''
-ties = 0
-x = 0
-o = 0
-misses_win = 0
-misses_block = 0
-for i in range(9):
-  winner, missed_winning_move, missed_block_move = play_game(i)
-  if missed_winning_move:
-    misses_win += 1
-  if missed_block_move:
-    misses_block += 1
-  if winner == TIE:
-    ties += 1
-  elif winner == X:
-    x += 1
-  elif winner == O:
-    o += 1
-  else:
-    assert False
+def run_games():
+  ties = 0
+  x = 0
+  o = 0
+  misses_win = 0
+  misses_block = 0
+  for i in range(9):
+    winner, missed_winning_move, missed_block_move, choice_inputs_moves, choice_inputs_players, choice_outputs = play_game(i)
+   
+    # incremental re-training 
+    '''
+    if winner != TIE:
+      mx = model if winner == X else imodel
+      mx.fit([np.array(choice_inputs_moves[0]), np.array(choice_inputs_players[0])], np.array(choice_outputs[0])) # , validation_data=([data_moves_validation, data_player_validation], data_outcomes_validation))
+      mo = model if winner == O else imodel
+      mo.fit([np.array(choice_inputs_moves[1]), np.array(choice_inputs_players[1])], np.array(choice_outputs[1])) # , validation_data=([data_moves_validation, data_player_validation], data_outcomes_validation))
+    '''
+    
+    if missed_winning_move:
+      misses_win += 1
+    if missed_block_move:
+      misses_block += 1
+    if winner == TIE:
+      ties += 1
+    elif winner == X:
+      x += 1
+    elif winner == O:
+      o += 1
+    else:
+      assert False
 
-print("epochs: {6} batch_size {5}: {0},{1},{2} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, 0, misses_win, BATCH_SIZE, EPOCHS, misses_block))
-'''
+  print("epochs: {6} batch_size {5}: {0},{1},{2} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, 0, misses_win, BATCH_SIZE, EPOCHS, misses_block))
 
-print("get rid of ambiguous data");
+#run_games()
+
