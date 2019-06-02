@@ -136,7 +136,7 @@ def get_move_result(player, state, next_state):
       return 1.0
   if opp_winner == O or opp_winner == X:
     if other_player(player) == opp_winner:
-      return 1.0
+      return 0.5
 
   return 0.0
 
@@ -149,8 +149,9 @@ result = get_move_result(player, state, next_state)
 pdb.set_trace()
 '''
 
-pdb.set_trace()
-assert get_move_result(O, [N, N, O, X, O, N, X, N, X], [O, N, O, X, O, N, X, N, X]) == 0.0
+assert get_move_result(O, [N, N, O, X, O, N, X, N, X], [O, N, O, X, O, N, X, N, X]) == 0.5
+assert get_move_result(O, [N, N, O, X, O, N, X, N, X], [X, N, O, X, O, N, X, O, X]) == 0.5
+assert get_move_result(O, [N, N, O, X, O, N, X, N, X], [N, X, O, X, O, N, X, O, X]) == 0.5
 
 init_state = [0]*9
 
@@ -391,7 +392,9 @@ def pick_move(state, player):
       if i == move:
         l1 += "+++++++" + gap
       elif get_move_result(player, state, moves[i]) == 1.0:
-        l1 += "*******" + gap
+        l1 += "WWWWWWW" + gap
+      elif get_move_result(player, state, moves[i]) == 0.5:
+        l1 += "LLLLLLL" + gap
       else:
         l1 += "       " + gap
       l2 += "{:7.5f}".format(c if c > 0.00001 else 0.0)[0:7] + gap
@@ -498,7 +501,7 @@ print(matches(data_moves, data_outcomes, [N, N, N, N, N, O, O, X, X], 6))
 print("Actual move");
 print(matches(data_moves, data_outcomes, [N, N, N, O, N, O, N, X, X], 3))
 '''
-play_game(3)
+#play_game(3)
 
 def run_games():
   ties = 0
@@ -510,13 +513,12 @@ def run_games():
     winner, missed_winning_move, missed_block_move, choice_inputs_moves, choice_inputs_players, choice_outputs = play_game(i)
    
     # incremental re-training 
-    '''
+
     if winner != TIE:
       mx = model if winner == X else imodel
       mx.fit([np.array(choice_inputs_moves[0]), np.array(choice_inputs_players[0])], np.array(choice_outputs[0])) # , validation_data=([data_moves_validation, data_player_validation], data_outcomes_validation))
       mo = model if winner == O else imodel
       mo.fit([np.array(choice_inputs_moves[1]), np.array(choice_inputs_players[1])], np.array(choice_outputs[1])) # , validation_data=([data_moves_validation, data_player_validation], data_outcomes_validation))
-    '''
     
     if missed_winning_move:
       misses_win += 1
@@ -533,5 +535,7 @@ def run_games():
 
   print("epochs: {6} batch_size {5}: {0},{1},{2} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, 0, misses_win, BATCH_SIZE, EPOCHS, misses_block))
 
-#run_games()
+run_games()
+run_games()
+run_games()
 
