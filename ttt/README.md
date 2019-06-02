@@ -8,24 +8,28 @@ This worked pretty good. I had the neural net play itself for all possible games
 
 I added an incremental learning feature that happened after each game was played. The neural net kept track of the moves of each player. Then for the winner I trained the neural net on the winning moves to reinforce that. For the loser I trained the same neural net but used the negation of the loss function to un-reinforce those moves. The original model is this
 
-
+```python
 model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
+```
 
 The inverse model is
 
+```python
 def inverse_loss(y_true, y_pred, from_logits=False, axis=-1):
   return -keras.backend.categorical_crossentropy(y_true, y_pred, from_logits=from_logits, axis=axis)
 
   imodel = keras.Model(inputs=model.inputs, outputs=model.outputs)
   imodel.compile(optimizer=tf.keras.optimizers.Adam(), loss=inverse_loss, metrics=['accuracy'])
-
+```
 
 Then after each game if the game was not a tie
 
+```python
 if winner != TIE:
   mx = model if winner == X else imodel
   mx.fit([np.array(choice_inputs_moves[0]), np.array(choice_inputs_players[0])], np.array(choice_outputs[0]))
   mo = model if winner == O else imodel
   mo.fit([np.array(choice_inputs_moves[1]), np.array(choice_inputs_players[1])], np.array(choice_outputs[1]))
+```
 
 The result was the neural net learned from its mistakes and every game became a tie. The Code is [here] (https://github.com/cooledge/nn/blob/master/ttt/ttt.py)
