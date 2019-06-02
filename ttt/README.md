@@ -2,7 +2,7 @@
 
 I wanted to write a neural net to play tic-tac-toe. It is pretty straightforward. The input is the set of moves and the current player. The output is which move to make. If the move is a winning move the output is 1.0. If the move blocks a winning move by the opposing player the outputs is 0.5. All other outputs are zero. For example
 
-![Image of Inputs and Outputs] (/nn/blob/master/ttt/ttt.png)
+![Image of Inputs and Outputs] (/blob/master/ttt/ttt.png)
 
 This worked pretty good. I had the neural net play itself for all possible games. There are nine since once trained the neural net is deterministic. Of the nine games eight were ties and one was not. But I expect all the games to be ties.
 
