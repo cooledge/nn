@@ -6,6 +6,13 @@ import random
 import string
 from PIL import Image, ImageFont, ImageDraw
 import os
+import sys
+
+if "../" not in sys.path:
+    sys.path.append("../lib")
+from helpers import split_by_percentage
+
+import pdb
 
 def random_string(slen):
     letters = string.ascii_letters + "    "
@@ -16,7 +23,7 @@ FONT_START = 4
 FONT_SIZE_RANGE = range(FONT_START, 43)
 TARGET_FONT_SIZE = 16
 DATA_DIR = './data'
-BATCH_SIZE = 20
+BATCH_SIZE = 16
 
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
@@ -42,6 +49,7 @@ for font_size in FONT_SIZE_RANGE:
     save_image("y", sample_counter, TARGET_FONT_SIZE)
     sample_counter += 1
 
+NUMBER_OF_FILES = len(os.listdir("{0}/x".format(DATA_DIR)))
 
 def get_image(fname, fno):
     return Image.open("{0}/{1}/{2}.png".format(DATA_DIR, fname, fno))
@@ -49,21 +57,25 @@ def get_image(fname, fno):
 def preprocess_image(image):
     return image
 
-def image_generator(files,label_file, batch_size = 64):
-    
+data = [i for i in range(0, NUMBER_OF_FILES)]
+np.random.shuffle(data)
+data_training, data_validate, data_test = split_by_percentage(data, [80, 10, 10])
+
+def image_generator(data):
+   
+    i = 0 
     while True:
-        choices = random.sample(range(0,NUMBER_OF_FILES))
         batch_x = []
         batch_y = [] 
                                                             
-        # Read in each input, perform preprocessing and get labels
-        for choice in choices:
+        for _ in range(BATCH_SIZE):
+            choice = data[i]
             x = get_image("x", choice)
             y = get_image("y", choice)
             x = preprocess_image(image=x)
-            batch_x += [ x ]
-            batch_y += [ y ]
-            # Return a tuple of (input,output) to feed the network
+            batch_x += [ np.array(x.getdata()).reshape(IMAGE_SIZE+(3,)) ]
+            batch_y += [ np.array(y.getdata()).reshape(IMAGE_SIZE+(3,)) ]
+            i += 1
 
         batch_x = np.array( batch_x )
         batch_y = np.array( batch_y )
@@ -74,4 +86,9 @@ image = get_image("x", 1)
 print(np.array(image).shape)
 
 input_layer = keras.layers.Input(shape=IMAGE_SIZE+(3,))
-model = model(
+model = keras.Model(input_layer, input_layer)
+
+model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
+pdb.set_trace()
+model.fit_generator(image_generator(data_training), steps_per_epoch=int(len(data_training)/BATCH_SIZE))
+
