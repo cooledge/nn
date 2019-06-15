@@ -17,9 +17,11 @@ import pdb
 
 parser = argparse.ArgumentParser(description="Text Resizer")
 parser.add_argument("--batch_size", type=int, default=32, help="batch size")
-parser.add_argument("--epochs", type=int, default=1, help="epochs")
+parser.add_argument("--epochs", type=int, default=1, help="number of epochs")
 parser.add_argument("--retrain", action='store_true', default=False, help="retrain the nn")
 parser.add_argument("--clean", action='store_true', default=False, help="regenerate data and weights")
+parser.add_argument("--model", type=int, default=1, help="Model number to run with")
+parser.add_argument("--show", action='store_true', default=False, help="show the images test and predictions")
 args = parser.parse_args()
 
 def random_string(slen):
@@ -33,6 +35,8 @@ TARGET_FONT_SIZE = 16
 DATA_DIR = './data'
 BATCH_SIZE = args.batch_size
 N_STRINGS = 100
+ENCODING_DIM = 1024
+WEIGHTS_FILE = "weights_{0}".format(args.model)
 
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
@@ -56,13 +60,25 @@ def generate_data():
     sample_counter = 0
     for _ in range(N_STRINGS):
         text = random_string(10)
+        print(text)
         for font_size in FONT_SIZE_RANGE:
             save_image("x", sample_counter, font_size, text)
             save_image("y", sample_counter, TARGET_FONT_SIZE, text)
             sample_counter += 1
 
+def safe_remove(fn):
+   try:
+       os.remove(fn)
+   except FileNotFoundError:
+        0
+
+if args.retrain:
+    safe_remove(WEIGHTS_FILE)
+
 if args.clean:
     generate_data()
+    safe_remove(WEIGHTS_FILE)
+    
 
 NUMBER_OF_FILES = len(os.listdir("{0}/x".format(DATA_DIR)))
 
@@ -93,6 +109,7 @@ def image_generator(data):
             i += 1
 
         batch_x = np.array( batch_x )
+
         batch_y = np.array( batch_y )
             
         yield( batch_x, batch_y )
@@ -100,33 +117,129 @@ def image_generator(data):
 image = get_image("x", 1)
 print(np.array(image).shape)
 
-input_layer = keras.layers.Input(shape=IMAGE_SIZE+(3,))
-output_layer = keras.layers.Dense(3)(input_layer)
-model = keras.Model(input_layer, output_layer)
+def super_model():
+    # 256,256,3
+    input_layer = keras.layers.Input(shape=IMAGE_SIZE+(3,))
+    # 256, 256, 128
+    output_layer = keras.layers.Conv2D(128, (3,3), activation='relu', padding='same')(input_layer)
+    # 128, 128, 128
+    output_layer = keras.layers.MaxPooling2D(pool_size=(2,2), padding='same')(output_layer)
+    # 256, 256, 128
+    output_layer = keras.layers.Conv2D(128, (3,3), activation='relu', padding='same')(output_layer)
+    # 64, 64, 128
+    output_layer = keras.layers.MaxPooling2D(pool_size=(2,2), padding='same')(output_layer)
 
-import matplotlib.pyplot as plt
-plt.ion()
-plt.show()
+    # 
+    output_layer = keras.layers.Flatten()(output_layer)
+    # 1024
+    output_layer = keras.layers.Dense(ENCODING_DIM)(output_layer)
 
-n_rows = 1
-n_cols = 2
-plt.figure(figsize=(n_rows,n_cols))
-n_images = 1
+    # 16384
+    output_layer = keras.layers.Dense(4*4*1024)(output_layer)
+    # 4,4,1024
+    output_layer = keras.layers.Reshape((4,4,1024))(output_layer)
+    # 8,8,1024
+    output_layer = keras.layers.UpSampling2D((2,2))(output_layer)
+    # 8,8,512
+    output_layer = keras.layers.Conv2D(512, (3,3), activation='relu', padding='same')(output_layer)
+    # 16,16,512
+    output_layer = keras.layers.UpSampling2D((2,2))(output_layer)
+    # 8,8,256
+    output_layer = keras.layers.Conv2D(256, (3,3), activation='relu', padding='same')(output_layer)
+    # 64,64,256
+    output_layer = keras.layers.UpSampling2D((4,4))(output_layer)
+    # 64,64,3
+    output_layer = keras.layers.Conv2D(3, (3,3), activation='relu', padding='same')(output_layer)
+    # 256,256,3
+    output_layer = keras.layers.UpSampling2D((4,4))(output_layer)
 
-def no_axis(ax):
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
+    return keras.Model(input_layer, output_layer)
 
-def show_data(x, y, pause_time=1.0):
-    ax = plt.subplot(n_rows,n_cols,1)
-    plt.imshow(x)
-    no_axis(ax)
+def simple_model():
+    # 256,256,3
+    il = keras.layers.Input(shape=IMAGE_SIZE+(3,))
+    # 256, 256, 128
+    ol = keras.layers.Conv2D(128, (3,3), activation='relu', padding='same')(il)
 
-    ax = plt.subplot(n_rows,n_cols,2)
-    plt.imshow(y)
-    no_axis(ax)
+    ol = keras.layers.Flatten()(ol)
+    # 1024
+    ol = keras.layers.Dense(ENCODING_DIM)(ol)
 
-    plt.pause(1)
+    # 16384
+    ol = keras.layers.Dense(256*256*1024)(ol)
+    # 256,256,1024
+    ol = keras.layers.Reshape((256,256,1024))(ol)
+    # 256,256,3
+    ol = keras.layers.Conv2D(3, (3,3), activation='relu', padding='same')(ol)
+
+    return keras.Model(il, ol)
+
+def split_model():
+    # 256,256,3
+    il = keras.layers.Input(shape=IMAGE_SIZE+(3,))
+    # 256, 256, 128
+    ol1 = keras.layers.Conv2D(128, (3,3), activation='relu', padding='same')(il)
+    ol2 = keras.layers.Conv2D(128, (5,5), activation='relu', padding='same')(il)
+
+    ol = keras.layers.Concatenate([ol1, ol2])(il)
+
+    ol = keras.layers.Flatten()(ol)
+    # 1024
+    ol = keras.layers.Dense(ENCODING_DIM)(ol)
+
+    # 16384
+    ol = keras.layers.Dense(256*256*1024)(ol)
+    # 256,256,1024
+    ol = keras.layers.Reshape((256,256,1024))(ol)
+    # 256,256,3
+    ol = keras.layers.Conv2D(3, (3,3), activation='relu', padding='same')(ol)
+
+    return keras.Model(il, ol)
+
+def null_model():
+    input_layer = keras.layers.Input(shape=IMAGE_SIZE+(3,))
+    output_layer = keras.layers.Dense(3)(input_layer)
+    return keras.Model(input_layer, output_layer)
+
+'''
+print(null_model().output_shape)
+print(simple_model().output_shape)
+print(super_model().output_shape)
+print(split_model().output_shape)
+pdb.set_trace()
+'''
+
+if args.model == 1:
+    model = null_model()
+if args.model == 2:
+    model = simple_model()
+if args.model == 3:
+    model = super_model()
+
+if args.show:
+    import matplotlib.pyplot as plt
+    plt.ion()
+    plt.show()
+
+    n_rows = 1
+    n_cols = 2
+    plt.figure(figsize=(n_rows,n_cols))
+    n_images = 1
+
+    def no_axis(ax):
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+
+    def show_data(x, y, pause_time=1.0):
+        ax = plt.subplot(n_rows,n_cols,1)
+        plt.imshow(x)
+        no_axis(ax)
+
+        ax = plt.subplot(n_rows,n_cols,2)
+        plt.imshow(y)
+        no_axis(ax)
+
+        plt.pause(1)
 
 '''
 pdb.set_trace()
@@ -135,17 +248,20 @@ pdb.set_trace()
 show_data(get_image("y", 0), get_image("x", 0))
 pdb.set_trace()
 '''
-  
-model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
-#model.fit_generator(image_generator(data_training), steps_per_epoch=int(len(data_training)/BATCH_SIZE), validation_data=image_generator(data_validation), validation_steps=int(len(data_validation)/BATCH_SIZE))
+try:
+    model.load_weights(WEIGHTS_FILE)
+    model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
+except:
+    model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
+    model.fit_generator(image_generator(data_training), steps_per_epoch=int(len(data_training)/BATCH_SIZE), validation_data=image_generator(data_validation), validation_steps=int(len(data_validation)/BATCH_SIZE))
+    model.save(WEIGHTS_FILE)
 
 predictions = model.predict_generator(image_generator(data_test), steps=int(len(data_test)/BATCH_SIZE))
-pdb.set_trace()
-pdb.set_trace()
 
-for i in range(len(data_test)):
-    x = get_image('x', i)
-    y = predictions[i]
-    show_data(x, y)
+if args.show:
+    for i in range(len(data_test)):
+        x = get_image('x', i)
+        y = predictions[i]
+        show_data(x, y)
 
 
