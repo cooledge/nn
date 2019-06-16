@@ -300,7 +300,6 @@ if args.model == 5:
     model = split_model_v2()
 
 model.summary()
-pdb.set_trace()
 
 if args.show:
     import matplotlib.pyplot as plt
@@ -339,8 +338,7 @@ try:
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
 except:
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
-    #model.fit_generator(image_generator(data_training), steps_per_epoch=int(len(data_training)/BATCH_SIZE), validation_data=image_generator(data_validation), validation_steps=int(len(data_validation)/BATCH_SIZE))
-    model.fit_generator(image_generator(data_training), steps_per_epoch=1, validation_data=image_generator(data_validation), validation_steps=1)
+    model.fit_generator(image_generator(data_training), steps_per_epoch=int(len(data_training)/BATCH_SIZE), validation_data=image_generator(data_validation), validation_steps=int(len(data_validation)/BATCH_SIZE))
     model.save(WEIGHTS_FILE)
 
 predictions = model.predict_generator(image_generator(data_test), steps=int(len(data_test)/BATCH_SIZE))
