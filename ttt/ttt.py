@@ -12,6 +12,7 @@ import sys
 if "../" not in sys.path:
   sys.path.append("../lib")
 from helpers import splits_by_percentages
+from layers.ttt import TTTLayer
 
 parser = argparse.ArgumentParser(description="Tic Tac Toe player")
 parser.add_argument("--batch_size", type=int, default=200, help="batch size")
@@ -213,7 +214,7 @@ data_outcomes_training, data_outcomes_validation, data_outcomes_test = data_outc
 
   What about input the difference?
 '''
-
+'''
 class TTTLayer(tf.keras.layers.Layer):
 
   def __init__(self, n_embedding, n_features):
@@ -267,7 +268,7 @@ class TTTLayer(tf.keras.layers.Layer):
   def call(self, samples):
     output = tf.map_fn(lambda sample: TTTLayer.sample_to_features(self, sample), samples)
     return output
-
+'''
 def build_model():
   model = keras.Sequential()
 
