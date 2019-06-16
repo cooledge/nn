@@ -181,21 +181,101 @@ def split_model():
     ol1 = keras.layers.Conv2D(128, (3,3), activation='relu', padding='same')(il)
     ol2 = keras.layers.Conv2D(128, (5,5), activation='relu', padding='same')(il)
 
-    ol = keras.layers.Concatenate([ol1, ol2])(il)
+    # 256, 256, 128+128
+    ol = keras.layers.Concatenate()([ol1, ol2])
+
+    # 128, 128, 256
+    ol = keras.layers.MaxPooling2D(pool_size=(2,2), padding='same')(ol)
+
+    ol1 = keras.layers.Conv2D(32, (3,3), activation='relu', padding='same')(ol)
+    ol2 = keras.layers.Conv2D(32, (5,5), activation='relu', padding='same')(ol)
+
+    # 128, 128, 64
+    ol = keras.layers.Concatenate()([ol1, ol2])
+
+    # 64, 64, 64
+    ol = keras.layers.MaxPooling2D(pool_size=(2,2), padding='same')(ol)
 
     ol = keras.layers.Flatten()(ol)
     # 1024
     ol = keras.layers.Dense(ENCODING_DIM)(ol)
 
-    # 16384
-    ol = keras.layers.Dense(256*256*1024)(ol)
-    # 256,256,1024
-    ol = keras.layers.Reshape((256,256,1024))(ol)
-    # 256,256,3
-    ol = keras.layers.Conv2D(3, (3,3), activation='relu', padding='same')(ol)
+    # 
+    ol = keras.layers.Dense(32*32*128)(ol)
+    # 32, 32, 128
+    ol = keras.layers.Reshape((32,32,128))(ol)
+    # 64, 64, 128
+
+    ol = keras.layers.UpSampling2D((2,2))(ol)
+    # 64, 64, 64
+    ol = keras.layers.Conv2D(64, (2,2), activation='relu', padding='same')(ol)
+
+    # 128, 128, 64
+    ol = keras.layers.UpSampling2D((2,2))(ol)
+    # 128, 128, 16
+    ol = keras.layers.Conv2D(16, (2,2), activation='relu', padding='same')(ol)
+
+    # 256, 256, 16
+    ol = keras.layers.UpSampling2D((2,2))(ol)
+   
+    # 256, 256, 3 
+    ol = keras.layers.Conv2D(3, (2,2), activation='relu', padding='same')(ol)
 
     return keras.Model(il, ol)
 
+def split_model_v2():
+    # 256,256,3
+    il = keras.layers.Input(shape=IMAGE_SIZE+(3,))
+    # 256, 256, 128
+    ol1 = keras.layers.Conv2D(128, (3,3), activation='relu', padding='same')(il)
+    ol2 = keras.layers.Conv2D(128, (5,5), activation='relu', padding='same')(il)
+
+    # 256, 256, 128+128
+    ol = keras.layers.Concatenate()([ol1, ol2])
+
+    # 128, 128, 256
+    ol = keras.layers.MaxPooling2D(pool_size=(2,2), padding='same')(ol)
+
+    ol1 = keras.layers.Conv2D(32, (3,3), activation='relu', padding='same')(ol)
+    ol2 = keras.layers.Conv2D(32, (5,5), activation='relu', padding='same')(ol)
+
+    # 128, 128, 64
+    ol = keras.layers.Concatenate()([ol1, ol2])
+
+    # 64, 64, 64
+    ol = keras.layers.MaxPooling2D(pool_size=(2,2), padding='same')(ol)
+
+    ol = keras.layers.Flatten()(ol)
+    # 1024
+    ol = keras.layers.Dense(ENCODING_DIM)(ol)
+
+    # 
+    ol = keras.layers.Dense(32*32*128)(ol)
+    # 32, 32, 128
+    ol = keras.layers.Reshape((32,32,128))(ol)
+
+    # 64, 64, 128
+    ol = keras.layers.UpSampling2D((2,2))(ol)
+    ol1 = keras.layers.Conv2D(64, (2,2), activation='relu', padding='same')(ol)
+    ol2 = keras.layers.Conv2D(64, (5,5), activation='relu', padding='same')(ol)
+    # 64, 64, 128
+    ol = keras.layers.Concatenate()([ol1, ol2])
+
+    # 128, 128, 128
+    ol = keras.layers.UpSampling2D((2,2))(ol)
+    
+    ol1 = keras.layers.Conv2D(16, (2,2), activation='relu', padding='same')(ol)
+    ol2 = keras.layers.Conv2D(16, (5,5), activation='relu', padding='same')(ol)
+    # 128, 128, 32
+    ol = keras.layers.Concatenate()([ol1, ol2])
+    # 256, 256, 32
+    ol = keras.layers.UpSampling2D((2,2))(ol)
+    ol = keras.layers.Conv2D(3, (3,3), activation='relu', padding='same')(ol)
+   
+    # 256, 256, 3 
+    ol = keras.layers.Conv2D(3, (2,2), activation='relu', padding='same')(ol)
+
+    return keras.Model(il, ol)
 def null_model():
     input_layer = keras.layers.Input(shape=IMAGE_SIZE+(3,))
     output_layer = keras.layers.Dense(3)(input_layer)
@@ -205,7 +285,6 @@ def null_model():
 print(null_model().output_shape)
 print(simple_model().output_shape)
 print(super_model().output_shape)
-print(split_model().output_shape)
 pdb.set_trace()
 '''
 
@@ -215,6 +294,13 @@ if args.model == 2:
     model = simple_model()
 if args.model == 3:
     model = super_model()
+if args.model == 4:
+    model = split_model()
+if args.model == 5:
+    model = split_model_v2()
+
+model.summary()
+pdb.set_trace()
 
 if args.show:
     import matplotlib.pyplot as plt
@@ -253,7 +339,8 @@ try:
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
 except:
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
-    model.fit_generator(image_generator(data_training), steps_per_epoch=int(len(data_training)/BATCH_SIZE), validation_data=image_generator(data_validation), validation_steps=int(len(data_validation)/BATCH_SIZE))
+    #model.fit_generator(image_generator(data_training), steps_per_epoch=int(len(data_training)/BATCH_SIZE), validation_data=image_generator(data_validation), validation_steps=int(len(data_validation)/BATCH_SIZE))
+    model.fit_generator(image_generator(data_training), steps_per_epoch=1, validation_data=image_generator(data_validation), validation_steps=1)
     model.save(WEIGHTS_FILE)
 
 predictions = model.predict_generator(image_generator(data_test), steps=int(len(data_test)/BATCH_SIZE))
