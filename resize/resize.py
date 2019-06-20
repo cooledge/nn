@@ -93,26 +93,27 @@ np.random.shuffle(data)
 data_training, data_validation, data_test = split_by_percentage(data, [80, 10, 10])
 
 def image_generator(data):
-   
-    i = 0 
-    while True:
-        batch_x = []
-        batch_y = [] 
-                                                            
-        for _ in range(BATCH_SIZE):
-            choice = data[i]
-            x = get_image("x", choice)
-            y = get_image("y", choice)
-            x = preprocess_image(image=x)
-            batch_x += [ x ]
-            batch_y += [ y ]
-            i += 1
+  
+    while True: 
+        i = 0 
+        while i+BATCH_SIZE < len(data):
+            batch_x = []
+            batch_y = [] 
+                                                                
+            for _ in range(BATCH_SIZE):
+                choice = data[i]
+                x = get_image("x", choice)
+                y = get_image("y", choice)
+                x = preprocess_image(image=x)
+                batch_x += [ x ]
+                batch_y += [ y ]
+                i += 1
 
-        batch_x = np.array( batch_x )
+            batch_x = np.array( batch_x )
 
-        batch_y = np.array( batch_y )
-            
-        yield( batch_x, batch_y )
+            batch_y = np.array( batch_y )
+                
+            yield( batch_x, batch_y )
 
 image = get_image("x", 1)
 print(np.array(image).shape)
@@ -338,7 +339,7 @@ try:
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
 except:
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
-    model.fit_generator(image_generator(data_training), steps_per_epoch=int(len(data_training)/BATCH_SIZE), validation_data=image_generator(data_validation), validation_steps=int(len(data_validation)/BATCH_SIZE))
+    model.fit_generator(image_generator(data_training), epochs=args.epochs, steps_per_epoch=int(len(data_training)/BATCH_SIZE), validation_data=image_generator(data_validation), validation_steps=int(len(data_validation)/BATCH_SIZE))
     model.save(WEIGHTS_FILE)
 
 predictions = model.predict_generator(image_generator(data_test), steps=int(len(data_test)/BATCH_SIZE))

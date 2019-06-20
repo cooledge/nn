@@ -1,5 +1,5 @@
 python resize.py --model 1 --retrain --epochs 1
-python resize.py --model 2 --retrain --epochs 2
-python resize.py --model 3 --retrain --epochs 2
-python resize.py --model 4 --retrain --epochs 2
-python resize.py --model 5 --retrain --epochs 2
+python resize.py --model 2 --retrain --epochs 5
+python resize.py --model 3 --retrain --epochs 5
+python resize.py --model 4 --retrain --epochs 5
+python resize.py --model 5 --retrain --epochs 5
