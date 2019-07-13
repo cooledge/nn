@@ -19,6 +19,7 @@ parser.add_argument("--batch_size", type=int, default=200, help="batch size")
 parser.add_argument("--epochs", type=int, default=1, help="epochs")
 parser.add_argument("--show-games", action='store_true', default=False, help="print the games played")
 parser.add_argument("--retrain", action='store_true', default=False, help="retrain the nn")
+parser.add_argument("--incremental", action='store_true', default=False, help="retrain the nn by playing games only")
 parser.add_argument("--clean", action='store_true', default=False, help="regenerate data and weights")
 args = parser.parse_args()
 BATCH_SIZE = args.batch_size
@@ -326,10 +327,13 @@ try:
 except:
   #model.compile(optimizer=tf.keras.optimizers.Adam(), loss='binary_crossentropy', metrics=['accuracy'])
   model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
-  model.fit([data_moves_training, data_player_training], data_outcomes_training, epochs=EPOCHS, batch_size=BATCH_SIZE, validation_data=([data_moves_validation, data_player_validation], data_outcomes_validation))
-  evaluation = model.evaluate([data_moves_test, data_player_test], data_outcomes_test)
-  print("Test Accuracy = {0}".format(evaluation[1]))
-  model.save("model")
+  if args.incremental:
+      print("Not training the model off the test data")
+  else:
+      model.fit([data_moves_training, data_player_training], data_outcomes_training, epochs=EPOCHS, batch_size=BATCH_SIZE, validation_data=([data_moves_validation, data_player_validation], data_outcomes_validation))
+      evaluation = model.evaluate([data_moves_test, data_player_test], data_outcomes_test)
+      print("Test Accuracy = {0}".format(evaluation[1]))
+      model.save("model")
 
 def inverse_loss(y_true, y_pred, from_logits=False, axis=-1):
   return -keras.backend.categorical_crossentropy(y_true, y_pred, from_logits=from_logits, axis=axis)
@@ -409,7 +413,6 @@ def pick_move(state, player):
     print(l5)
     print("")
 
-
   return [moves[move], choice_input_moves, choice_input_players, choice_output]
 
 
@@ -456,6 +459,9 @@ def play_game(first_move_is_position = None):
       choice_inputs_moves[current_player-1].append(choice_input_moves)
       choice_inputs_players[current_player-1].append(choice_input_players)
       choice_outputs[current_player-1].append(choice_output)
+      # invalid moves count as loss
+      if args.incremental and sum(next_state) == 0:
+        return other_player(current_player), False, False, choice_inputs_moves, choice_inputs_players, choice_outputs
       prev_state = state
       state = next_state
 
@@ -508,6 +514,7 @@ def run_games():
   ties = 0
   x = 0
   o = 0
+  no_winner = 0
   misses_win = 0
   misses_block = 0
   for i in range(9):
@@ -516,15 +523,18 @@ def run_games():
     # incremental re-training 
 
     if winner != TIE:
-      mx = model if winner == X else imodel
-      mx.fit([np.array(choice_inputs_moves[0]), np.array(choice_inputs_players[0])], np.array(choice_outputs[0])) # , validation_data=([data_moves_validation, data_player_validation], data_outcomes_validation))
-      mo = model if winner == O else imodel
-      mo.fit([np.array(choice_inputs_moves[1]), np.array(choice_inputs_players[1])], np.array(choice_outputs[1])) # , validation_data=([data_moves_validation, data_player_validation], data_outcomes_validation))
+      if len(choice_inputs_moves[0]) != 0:
+        mx = model if winner == X else imodel
+        mx.fit([np.array(choice_inputs_moves[0]), np.array(choice_inputs_players[0])], np.array(choice_outputs[0])) # , validation_data=([data_moves_validation, data_player_validation], data_outcomes_validation))
+      if len(choice_inputs_moves[1]) != 0:
+        mo = model if winner == O else imodel
+        mo.fit([np.array(choice_inputs_moves[1]), np.array(choice_inputs_players[1])], np.array(choice_outputs[1])) # , validation_data=([data_moves_validation, data_player_validation], data_outcomes_validation))
     
     if missed_winning_move:
       misses_win += 1
     if missed_block_move:
       misses_block += 1
+
     if winner == TIE:
       ties += 1
     elif winner == X:
@@ -532,11 +542,10 @@ def run_games():
     elif winner == O:
       o += 1
     else:
-      assert False
+      no_winner += 1
 
-  print("epochs: {6} batch_size {5}: {0},{1},{2} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, 0, misses_win, BATCH_SIZE, EPOCHS, misses_block))
+  print("epochs: {6} batch_size {5}: {0},{1},{2},{8} missing_winning_move: {4} missed_blocking_move: {7}".format(x, o, ties, 0, misses_win, BATCH_SIZE, EPOCHS, misses_block, no_winner))
 
-run_games()
-run_games()
-run_games()
+for i in range(1000):
+  run_games()
 

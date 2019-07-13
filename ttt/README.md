@@ -34,3 +34,8 @@ if winner != TIE:
 ```
 
 The result was the neural net learned from its mistakes and every game became a tie. The Code is [here] (https://github.com/cooledge/nn/blob/master/ttt/ttt.py)
+
+## Incremental mode
+
+I added a new flag --incremental which when combined with --retrain will start the neural net from a random state and then only with incremental updates will train
+the neural net to all ties. So no training data needs be generated other than just playing the games.
