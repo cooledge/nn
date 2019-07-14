@@ -42,6 +42,8 @@ from tensorflow import keras
 # Helper libraries
 import numpy as np
 import matplotlib.pyplot as plt
+import random
+import sys
 import pdb
 
 print(tf.__version__)
@@ -116,17 +118,50 @@ imodel = keras.Model(inputs=model.inputs, outputs=model.outputs)
 imodel.compile(optimizer='adam', loss=inverse_loss, metrics=['accuracy'])
 
 # five epochs
+'''
+for i in range(2):
+  model.fit(train_images, train_labels)
+  imodel.fit(itrain_images, itrain_labels)
+
+model.fit(train_images, train_labels, epochs=10)
+
 for i in range(2):
   model.fit(train_images, train_labels)
   imodel.fit(itrain_images, itrain_labels)
 
 model.fit(train_images, train_labels, epochs=20)
+'''
 
-for i in range(2):
-  model.fit(train_images, train_labels)
-  imodel.fit(itrain_images, itrain_labels)
+epochs = 20
+BATCH_SIZE = 32
+IBATCH_SIZE = BATCH_SIZE*9
+for epoch in range(epochs):
+  print('Epoch {0}'.format(epoch))
 
-model.fit(train_images, train_labels, epochs=20)
+  train_index = [i for i in range(len(train_images))]
+  itrain_index = [i for i in range(len(itrain_images))]
+
+  random.shuffle(train_index)
+  random.shuffle(itrain_index)
+  n_batches = len(train_index) // BATCH_SIZE
+
+  n_steps = 1
+
+  for step in range(n_steps):
+    for batch_no in range(n_batches):
+      ibatch_start = batch_no * IBATCH_SIZE
+      ti = np.array([itrain_images[i] for i in itrain_index[ibatch_start:ibatch_start+IBATCH_SIZE]])
+      tl = np.array([itrain_labels[i] for i in itrain_index[ibatch_start:ibatch_start+IBATCH_SIZE]])
+      iloss = imodel.train_on_batch(ti, tl)
+
+      batch_start = batch_no * BATCH_SIZE
+      ti = np.array([train_images[i] for i in train_index[batch_start:batch_start+BATCH_SIZE]])
+      tl = np.array([train_labels[i] for i in train_index[batch_start:batch_start+BATCH_SIZE]])
+      loss = model.train_on_batch(ti, tl)
+
+      sys.stdout.write("step: {0} loss_a: {1} loss_b: {2}\r".format(step, loss, iloss))
+
+  print("\n")
 
 test_loss, test_acc = model.evaluate(test_images, test_labels)
 
@@ -170,7 +205,7 @@ def plot_value_array(i, predictions_array, true_label):
   
   thisplot[predicted_label].set_color('red')
   thisplot[true_label].set_color('blue')
-
+pdb.set_trace()
 i = 0
 plt.figure(figsize=(6,3))
 plt.subplot(1,2,1)
