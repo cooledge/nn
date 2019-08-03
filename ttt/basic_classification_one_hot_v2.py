@@ -72,20 +72,24 @@ for label in train_labels_sparse:
   one_hot = [0.0]*n_classes
   one_hot[label] = 1.0
   train_labels.append( one_hot )
-
-  ione_hot = [1/(n_classes-1)]*n_classes
-  ione_hot[label] = 0.0
 train_labels = np.array(train_labels)
 
-model = keras.Sequential([
-    keras.layers.Flatten(input_shape=(28, 28)),
-    keras.layers.Dense(128, activation=tf.nn.relu),
-    keras.layers.Dense(10, activation=tf.nn.softmax)
-])
+inputs = keras.layers.Input(shape=(28,28))
+flatten = keras.layers.Flatten()(inputs)
 
-poutput = keras.layers.Lambda(lambda x: x, name='positive')(model.outputs[0])
-pmodel = keras.Model(inputs=model.inputs, outputs=poutput)
-ioutput = keras.layers.Lambda(lambda x: x, name='inverted')(model.outputs[0])
+l1 = keras.layers.Dense(128, activation=tf.nn.relu)
+poutput = l1(flatten)
+l2 = keras.layers.Dense(10, activation=tf.nn.softmax, name='positive')
+poutput = l2(poutput)
+pmodel=keras.Model(inputs=inputs, outputs=poutput)
+
+il1 = keras.layers.Dense(128, activation=tf.nn.relu, trainable=False)
+ioutput = il1(flatten)
+il1.set_weights(l1.get_weights())
+il2 = keras.layers.Dense(10, activation=tf.nn.softmax, name='inverted')
+ioutput = il2(ioutput)
+il2.set_weights(l2.get_weights())
+imodel=keras.Model(inputs=inputs, outputs=ioutput)
 
 pmodel.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 pmodel.fit([train_images], [train_labels], epochs = 10);
@@ -94,26 +98,39 @@ pmodel.fit([train_images], [train_labels], epochs = 10);
 
 # inverse train? 
 
-pdb.set_trace()
-predictions = pmodel.predict([train_images])
+def get_itrain_data(images, labels):
+  predictions = pmodel.predict([images])
 
-itrain_images = []
-itrain_labels = []
-for i in range(len(predictions)):
-  pred = np.argmax(predictions[i])
-  if pred != train_labels[i]:
-    itrain_images.add(train_images[0])
-    itrain_labels.add(pred)
+  itrain_images = []
+  itrain_labels = []
+  for i in range(len(predictions)):
+    pred = np.argmax(predictions[i])
+    label = np.argmax(labels[i])
+    if pred != label:
+      itrain_images.append(images[0])
+      itrain_labels.append(pred)
 
-itrain_images = np.array(itrain_images)
-itrain_labels = np.array(itrain_labels)
+  itrain_images = np.array(itrain_images)
+  itrain_labels = np.array(itrain_labels)
+  return itrain_images, itrain_labels
+
+itrain_images, itrain_labels = get_itrain_data(test_images, test_labels)
 
 def inverse_loss(y_true, y_pred, from_logits=False, axis=-1):
-  return -keras.backend.categorical_crossentropy(y_true, y_pred, from_logits=from_logits, axis=axis)
-
-imodel.compile(optimizer='adam', loss=inverse_loss, metrics=['accuracy'])
-imodel.fit([itrain_images], [itrain_labels], epochs = 1);
+  #return -keras.backend.categorical_crossentropy(y_true, y_pred, from_logits=from_logits, axis=axis)
+  loss = keras.backend.categorical_crossentropy(y_true, y_pred, from_logits=from_logits, axis=axis)
+  return tf.math.divide(tf.constant(1.0), loss+0.0000001)
 
 test_loss, test_acc = pmodel.evaluate(test_images, test_labels)
+print('Before Test accuracy:', test_acc)
+print('There are {0} inverse images'.format(len(itrain_images)))
 
-print('Test accuracy:', test_acc)
+for i in range(1):
+  imodel.compile(optimizer='adam', loss=inverse_loss, metrics=['accuracy'])
+  imodel.fit([itrain_images], [itrain_labels], epochs = 10);
+
+  #pmodel.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+  #pmodel.fit([train_images], [train_labels], epochs = 10);
+
+test_loss, test_acc = pmodel.evaluate(test_images, test_labels)
+print('After Test accuracy:', test_acc)

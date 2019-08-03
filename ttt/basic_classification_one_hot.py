@@ -81,20 +81,28 @@ train_labels = np.array(train_labels)
 itrain_labels = np.array(itrain_labels)
 itrain_images = train_images
 
-model = keras.Sequential([
-    keras.layers.Flatten(input_shape=(28, 28)),
-    keras.layers.Dense(128, activation=tf.nn.relu),
-    keras.layers.Dense(10, activation=tf.nn.softmax)
-])
+inputs = keras.layers.Input(shape=(28,28))
+flatten = keras.layers.Flatten()(inputs)
 
-poutput = keras.layers.Lambda(lambda x: x, name='positive')(model.outputs[0])
-pmodel = keras.Model(inputs=model.inputs, outputs=poutput)
-ioutput = keras.layers.Lambda(lambda x: x, name='inverted')(model.outputs[0])
+l1 = keras.layers.Dense(128, activation=tf.nn.relu)
+poutput = l1(flatten)
+l2 = keras.layers.Dense(10, activation=tf.nn.softmax, name='positive')
+poutput = l2(poutput)
+pmodel = keras.Model(inputs=inputs, outputs=poutput)
+
+pdb.set_trace()
+il1 = keras.layers.Dense(128, activation=tf.nn.relu, trainable=False)
+ioutput = il1(flatten)
+il1.set_weights(l1.get_weights())
+il2 = keras.layers.Dense(10, activation=tf.nn.softmax, name='inverted')
+ioutput = il2(ioutput)
+il2.set_weights(l2.get_weights())
+imodel = keras.Model(inputs=inputs, outputs=ioutput)
 
 pmodel.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-pmodel.fit([train_images], [train_labels], epochs = 50);
+pmodel.fit([train_images], [train_labels], epochs = 10);
 
-cmodel = keras.Model(inputs=model.inputs, outputs=[poutput, ioutput])
+cmodel = keras.Model(inputs=inputs, outputs=[poutput, ioutput])
 
 def inverse_loss(y_true, y_pred, from_logits=False, axis=-1):
   return -keras.backend.categorical_crossentropy(y_true, y_pred, from_logits=from_logits, axis=axis)
@@ -114,9 +122,7 @@ y = {
   "positive": train_labels,
   "inverted": itrain_labels
 }
-cmodel.fit([train_images], [train_labels, itrain_labels], epochs = 50);
+#cmodel.fit([train_images], [train_labels, itrain_labels], epochs = 10);
 
 pmodel.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 test_loss, test_acc = pmodel.evaluate(test_images, test_labels)
-
-print('Test accuracy:', test_acc)

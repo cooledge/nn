@@ -132,7 +132,7 @@ for i in range(2):
 model.fit(train_images, train_labels, epochs=20)
 '''
 
-epochs = 20
+epochs = 50
 BATCH_SIZE = 32
 IBATCH_SIZE = BATCH_SIZE*9
 for epoch in range(epochs):
