@@ -16,7 +16,7 @@ from helpers import split_by_percentage
 import pdb
 
 parser = argparse.ArgumentParser(description="Text Resizer")
-parser.add_argument("--batch_size", type=int, default=32, help="batch size")
+parser.add_argument("--batch_size", type=int, default=16, help="batch size")
 parser.add_argument("--epochs", type=int, default=1, help="number of epochs")
 parser.add_argument("--retrain", action='store_true', default=False, help="retrain the nn")
 parser.add_argument("--clean", action='store_true', default=False, help="regenerate data and weights")
@@ -28,10 +28,14 @@ def random_string(slen):
     letters = string.ascii_letters + "    "
     return ''.join(random.choice(letters) for _ in range(slen))
 
-IMAGE_SIZE = (256, 256)
+IMAGE_WIDTH = 256
+IMAGE_HEIGHT = 32
+IMAGE_SIZE = (IMAGE_WIDTH, IMAGE_HEIGHT)
 FONT_START = 4
-FONT_SIZE_RANGE = range(FONT_START, 43)
-TARGET_FONT_SIZE = 16
+FONT_END = 4
+FONT_SIZE_RANGE = range(FONT_START, FONT_END+1)
+TARGET_FONT_SIZE = 24
+GENERATE_FONT_SIZE_RANGE = range(FONT_START, max(FONT_END, TARGET_FONT_SIZE)+1)
 DATA_DIR = './data'
 BATCH_SIZE = args.batch_size
 N_STRINGS = 100
@@ -44,7 +48,7 @@ if not os.path.exists(DATA_DIR):
     os.makedirs("{0}/y".format(DATA_DIR))
     args.clean = True
 
-fonts = [ImageFont.truetype("LiberationSans-Regular.ttf", i) for i in FONT_SIZE_RANGE]
+fonts = [ImageFont.truetype("LiberationSans-Regular.ttf", i) for i in GENERATE_FONT_SIZE_RANGE]
 def get_font(size):
     return fonts[size-FONT_START]
 
@@ -79,18 +83,20 @@ if args.clean:
     generate_data()
     safe_remove(WEIGHTS_FILE)
     
-
-NUMBER_OF_FILES = len(os.listdir("{0}/x".format(DATA_DIR)))
+DIR_X = "{0}/x".format(DATA_DIR)
+NUMBER_OF_FILES = len([f for f in os.listdir(DIR_X) if os.path.isfile(os.path.join(DIR_X, f))])
 
 def get_image(fname, fno):
-    return np.array(Image.open("{0}/{1}/{2}.png".format(DATA_DIR, fname, fno)).getdata()).reshape(IMAGE_SIZE+(3,))
+    image = np.array(Image.open("{0}/{1}/{2}.png".format(DATA_DIR, fname, fno)).getdata()).reshape(IMAGE_SIZE+(3,))
+    image = image / 255.
+    return image
 
 def preprocess_image(image):
     return image
 
 data = [i for i in range(0, NUMBER_OF_FILES)]
 np.random.shuffle(data)
-data_training, data_validation, data_test = split_by_percentage(data, [80, 10, 10])
+data_training, data_validation, data_test = split_by_percentage(data, [34, 33, 33])
 
 def image_generator(data):
   
@@ -119,15 +125,15 @@ image = get_image("x", 1)
 print(np.array(image).shape)
 
 def super_model():
-    # 256,256,3
+    # 256,32,3
     input_layer = keras.layers.Input(shape=IMAGE_SIZE+(3,))
-    # 256, 256, 128
+    # 256, 32, 128
     output_layer = keras.layers.Conv2D(128, (3,3), activation='relu', padding='same')(input_layer)
-    # 128, 128, 128
+    # 128, 16, 128
     output_layer = keras.layers.MaxPooling2D(pool_size=(2,2), padding='same')(output_layer)
-    # 256, 256, 128
+    # 256, 16, 128
     output_layer = keras.layers.Conv2D(128, (3,3), activation='relu', padding='same')(output_layer)
-    # 64, 64, 128
+    # 64, 8, 128
     output_layer = keras.layers.MaxPooling2D(pool_size=(2,2), padding='same')(output_layer)
 
     # 
@@ -139,20 +145,20 @@ def super_model():
     output_layer = keras.layers.Dense(4*4*1024)(output_layer)
     # 4,4,1024
     output_layer = keras.layers.Reshape((4,4,1024))(output_layer)
-    # 8,8,1024
-    output_layer = keras.layers.UpSampling2D((2,2))(output_layer)
-    # 8,8,512
+    # 8,4,1024
+    output_layer = keras.layers.UpSampling2D((2,1))(output_layer)
+    # 8,4,512
     output_layer = keras.layers.Conv2D(512, (3,3), activation='relu', padding='same')(output_layer)
-    # 16,16,512
-    output_layer = keras.layers.UpSampling2D((2,2))(output_layer)
-    # 8,8,256
+    # 16,4,512
+    output_layer = keras.layers.UpSampling2D((2,1))(output_layer)
+    # 16,4,256
     output_layer = keras.layers.Conv2D(256, (3,3), activation='relu', padding='same')(output_layer)
-    # 64,64,256
+    # 64,16,,256
     output_layer = keras.layers.UpSampling2D((4,4))(output_layer)
-    # 64,64,3
+    # 64,16,3
     output_layer = keras.layers.Conv2D(3, (3,3), activation='relu', padding='same')(output_layer)
-    # 256,256,3
-    output_layer = keras.layers.UpSampling2D((4,4))(output_layer)
+    # 256,32,3
+    output_layer = keras.layers.UpSampling2D((4,2))(output_layer)
 
     return keras.Model(input_layer, output_layer)
 
@@ -167,9 +173,9 @@ def simple_model():
     ol = keras.layers.Dense(ENCODING_DIM)(ol)
 
     # 16384
-    ol = keras.layers.Dense(256*256*1024)(ol)
+    ol = keras.layers.Dense(256*IMAGE_HEIGHT*1024)(ol)
     # 256,256,1024
-    ol = keras.layers.Reshape((256,256,1024))(ol)
+    ol = keras.layers.Reshape((256,IMAGE_HEIGHT,1024))(ol)
     # 256,256,3
     ol = keras.layers.Conv2D(3, (3,3), activation='relu', padding='same')(ol)
 
@@ -277,6 +283,7 @@ def split_model_v2():
     ol = keras.layers.Conv2D(3, (2,2), activation='relu', padding='same')(ol)
 
     return keras.Model(il, ol)
+
 def null_model():
     input_layer = keras.layers.Input(shape=IMAGE_SIZE+(3,))
     output_layer = keras.layers.Dense(3)(input_layer)
@@ -288,7 +295,6 @@ print(simple_model().output_shape)
 print(super_model().output_shape)
 pdb.set_trace()
 '''
-
 if args.model == 1:
     model = null_model()
 if args.model == 2:
@@ -317,6 +323,7 @@ if args.show:
         ax.get_yaxis().set_visible(False)
 
     def show_data(x, y, pause_time=1.0):
+        pdb.set_trace()
         ax = plt.subplot(n_rows,n_cols,1)
         plt.imshow(x)
         no_axis(ax)
@@ -334,12 +341,23 @@ pdb.set_trace()
 show_data(get_image("y", 0), get_image("x", 0))
 pdb.set_trace()
 '''
+
+training_steps_per_epoch = int(len(data_training)/BATCH_SIZE)
+validation_steps_per_epoch = int(len(data_validation)/BATCH_SIZE)
+if training_steps_per_epoch == 0:
+  print("Not enough training data")
+  exit(-1)
+
+if validation_steps_per_epoch == 0:
+  print("Not enough validation data")
+  exit(-1)
+
 try:
     model.load_weights(WEIGHTS_FILE)
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
 except:
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
-    model.fit_generator(image_generator(data_training), epochs=args.epochs, steps_per_epoch=int(len(data_training)/BATCH_SIZE), validation_data=image_generator(data_validation), validation_steps=int(len(data_validation)/BATCH_SIZE))
+    model.fit_generator(image_generator(data_training), epochs=args.epochs, steps_per_epoch=training_steps_per_epoch, validation_data=image_generator(data_validation), validation_steps=validation_steps_per_epoch)
     model.save(WEIGHTS_FILE)
 
 predictions = model.predict_generator(image_generator(data_test), steps=int(len(data_test)/BATCH_SIZE))
