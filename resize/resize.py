@@ -54,6 +54,11 @@ def get_font(size):
 
 font_y = get_font(TARGET_FONT_SIZE)
 
+def data_to_image(data):
+  data *= 255
+  data.resize(IMAGE_HEIGHT, IMAGE_WIDTH, 3)
+  return Image.fromarray(np.uint8(data))
+
 def save_image(fn, sample_counter, font_size, text):
     img_x = Image.new("RGB", IMAGE_SIZE, "white")
     draw_x = ImageDraw.Draw(img_x)
@@ -313,8 +318,8 @@ if args.show:
     plt.ion()
     plt.show()
 
-    n_rows = 1
-    n_cols = 2
+    n_rows = 3
+    n_cols = 1
     plt.figure(figsize=(n_rows,n_cols))
     n_images = 1
 
@@ -322,14 +327,17 @@ if args.show:
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
 
-    def show_data(x, y, pause_time=1.0):
-        pdb.set_trace()
+    def show_data(x, y, p, pause_time=1.0):
         ax = plt.subplot(n_rows,n_cols,1)
-        plt.imshow(x)
+        plt.imshow(data_to_image(x))
         no_axis(ax)
 
         ax = plt.subplot(n_rows,n_cols,2)
-        plt.imshow(y)
+        plt.imshow(data_to_image(y))
+        no_axis(ax)
+
+        ax = plt.subplot(n_rows,n_cols,3)
+        plt.imshow(data_to_image(p))
         no_axis(ax)
 
         plt.pause(1)
@@ -365,7 +373,8 @@ predictions = model.predict_generator(image_generator(data_test), steps=int(len(
 if args.show:
     for i in range(len(data_test)):
         x = get_image('x', i)
-        y = predictions[i]
-        show_data(x, y)
+        y = get_image('y', i)
+        p = predictions[i]
+        show_data(x, y, p)
 
 
