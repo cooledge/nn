@@ -54,6 +54,11 @@ def get_font(size):
 
 font_y = get_font(TARGET_FONT_SIZE)
 
+def mean_absolute_error(imageA, imageB):
+  mae = np.sum(np.absolute(imageB.astype("float") - imageA.astype("float")))
+  mae /= float(imageA.shape[0] * imageA.shape[1] * 255) 
+  return mae
+
 def data_to_image(data):
   data *= 255
   data.resize(IMAGE_HEIGHT, IMAGE_WIDTH, 3)
@@ -339,6 +344,10 @@ if args.show:
       ax = plt.subplot(n_rows,n_cols,3)
       plt.imshow(data_to_image(p))
       no_axis(ax)
+
+      mae = mean_absolute_error(y, y) 
+      print(mae)
+      pdb.set_trace()
 
       plt.pause(1)
 
