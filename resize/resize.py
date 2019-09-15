@@ -20,7 +20,7 @@ parser.add_argument("--batch_size", type=int, default=16, help="batch size")
 parser.add_argument("--epochs", type=int, default=1, help="number of epochs")
 parser.add_argument("--retrain", action='store_true', default=False, help="retrain the nn")
 parser.add_argument("--clean", action='store_true', default=False, help="regenerate data and weights")
-parser.add_argument("--model", type=int, default=1, help="Model number to run with")
+parser.add_argument("--model", type=int, default=3, help="Model number to run with")
 parser.add_argument("--show", action='store_true', default=False, help="show the images test and predictions")
 args = parser.parse_args()
 
@@ -32,8 +32,8 @@ IMAGE_WIDTH = 256
 IMAGE_HEIGHT = 32
 IMAGE_SIZE = (IMAGE_WIDTH, IMAGE_HEIGHT)
 NUMBER_OF_COLORS = 1
-FONT_START = 4
-FONT_END = 4
+FONT_START = 16
+FONT_END = 16
 FONT_SIZE_RANGE = range(FONT_START, FONT_END+1)
 TARGET_FONT_SIZE = 24
 GENERATE_FONT_SIZE_RANGE = range(FONT_START, max(FONT_END, TARGET_FONT_SIZE)+1)
@@ -364,6 +364,23 @@ show_data(get_image("y", 0), get_image("x", 0))
 pdb.set_trace()
 '''
 
+@tf.function
+def compute_loss(model, data):
+  x = data[0]
+  y = data[1]
+  pdb.set_trace()
+  py = model.predict([x], steps=1)
+  return tf.losses.mean_squared_error(y, py)
+
+@tf.function
+def compute_apply_gradients(model, data, optimizer):
+  pdb.set_trace()
+  with tf.GradientTape() as tape:
+    loss = compute_loss(model, data)
+  pdb.set_trace()
+  gradients = tape.gradient(loss, model.trainable_variables)
+  optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
 training_steps_per_epoch = int(len(data_training)/BATCH_SIZE)
 validation_steps_per_epoch = int(len(data_validation)/BATCH_SIZE)
 if training_steps_per_epoch == 0:
@@ -378,24 +395,27 @@ if os.path.exists(WEIGHTS_FILE):
   model.load_weights(WEIGHTS_FILE)
   model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
 else:
-  use_tape = False
+  use_tape = True
   if use_tape:
     optimizer=tf.keras.optimizers.Adam()
     generator = image_generator(data_training)
     for i in range(training_steps_per_epoch):
-      compute_apply_gradients(model, next(generator) , optimizer)
+      data = next(generator)
+      compute_apply_gradients(model, data, optimizer)
   else:
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_squared_error')
     model.fit_generator(image_generator(data_training), epochs=args.epochs, steps_per_epoch=training_steps_per_epoch, validation_data=image_generator(data_validation), validation_steps=validation_steps_per_epoch)
   
   model.save(WEIGHTS_FILE)
 
+pdb.set_trace()
 predictions = model.predict_generator(image_generator(data_test), steps=int(len(data_test)/BATCH_SIZE))
 
 if args.show:
-  for i in range(len(data_test)):
-    x = get_image('x', i)
-    y = get_image('y', i)
+  for i in range(len(predictions)):
+    index = data_test[i]
+    x = get_image('x', index)
+    y = get_image('y', index)
     p = predictions[i]
     show_data(x, y, p)
 
