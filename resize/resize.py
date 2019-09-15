@@ -31,6 +31,7 @@ def random_string(slen):
 IMAGE_WIDTH = 256
 IMAGE_HEIGHT = 32
 IMAGE_SIZE = (IMAGE_WIDTH, IMAGE_HEIGHT)
+NUMBER_OF_COLORS = 1
 FONT_START = 4
 FONT_END = 4
 FONT_SIZE_RANGE = range(FONT_START, FONT_END+1)
@@ -61,7 +62,10 @@ def mean_absolute_error(imageA, imageB):
 
 def data_to_image(data):
   data *= 255
-  data.resize(IMAGE_HEIGHT, IMAGE_WIDTH, 3)
+  if NUMBER_OF_COLORS == 1:
+    data.resize(IMAGE_HEIGHT, IMAGE_WIDTH)
+  else:
+    data.resize(IMAGE_HEIGHT, IMAGE_WIDTH, NUMBER_OF_COLORS)
   return Image.fromarray(np.uint8(data))
 
 def save_image(fn, sample_counter, font_size, text):
@@ -81,10 +85,11 @@ def generate_data():
           sample_counter += 1
 
 def safe_remove(fn):
-   try:
-     os.remove(fn)
-   except FileNotFoundError:
-      0
+  import shutil
+  try:
+    shutil.rmtree(fn)
+  except FileNotFoundError:
+    0 
 
 if args.retrain:
   safe_remove(WEIGHTS_FILE)
@@ -97,7 +102,9 @@ DIR_X = "{0}/x".format(DATA_DIR)
 NUMBER_OF_FILES = len([f for f in os.listdir(DIR_X) if os.path.isfile(os.path.join(DIR_X, f))])
 
 def get_image(fname, fno):
-  image = np.array(Image.open("{0}/{1}/{2}.png".format(DATA_DIR, fname, fno)).getdata()).reshape(IMAGE_SIZE+(3,))
+  image = Image.open("{0}/{1}/{2}.png".format(DATA_DIR, fname, fno))
+  image = image.convert('1')
+  image = np.array(image.getdata()).reshape(IMAGE_SIZE+(1,))
   image = image / 255.
   return image
 
@@ -131,12 +138,12 @@ def image_generator(data):
               
           yield( batch_x, batch_y )
 
-image = get_image("x", 1)
-print(np.array(image).shape)
+#image = get_image("x", 1)
+#print(np.array(image).shape)
 
 def super_model():
   # 256,32,3
-  input_layer = keras.layers.Input(shape=IMAGE_SIZE+(3,))
+  input_layer = keras.layers.Input(shape=IMAGE_SIZE+(NUMBER_OF_COLORS,))
   # 256, 32, 128
   output_layer = keras.layers.Conv2D(128, (3,3), activation='relu', padding='same')(input_layer)
   # 128, 16, 128
@@ -166,7 +173,7 @@ def super_model():
   # 64,16,,256
   output_layer = keras.layers.UpSampling2D((4,4))(output_layer)
   # 64,16,3
-  output_layer = keras.layers.Conv2D(3, (3,3), activation='relu', padding='same')(output_layer)
+  output_layer = keras.layers.Conv2D(NUMBER_OF_COLORS, (3,3), activation='relu', padding='same')(output_layer)
   # 256,32,3
   output_layer = keras.layers.UpSampling2D((4,2))(output_layer)
 
@@ -174,7 +181,7 @@ def super_model():
 
 def simple_model():
   # 256,256,3
-  il = keras.layers.Input(shape=IMAGE_SIZE+(3,))
+  il = keras.layers.Input(shape=IMAGE_SIZE+(NUMBER_OF_COLORS,))
   # 256, 256, 128
   ol = keras.layers.Conv2D(128, (3,3), activation='relu', padding='same')(il)
 
@@ -187,13 +194,13 @@ def simple_model():
   # 256,256,1024
   ol = keras.layers.Reshape((256,IMAGE_HEIGHT,1024))(ol)
   # 256,256,3
-  ol = keras.layers.Conv2D(3, (3,3), activation='relu', padding='same')(ol)
+  ol = keras.layers.Conv2D(NUMBER_OF_COLORS, (3,3), activation='relu', padding='same')(ol)
 
   return keras.Model(il, ol)
 
 def split_model():
   # 256,256,3
-  il = keras.layers.Input(shape=IMAGE_SIZE+(3,))
+  il = keras.layers.Input(shape=IMAGE_SIZE+(NUMBER_OF_COLORS,))
   # 256, 256, 128
   ol1 = keras.layers.Conv2D(128, (3,3), activation='relu', padding='same')(il)
   ol2 = keras.layers.Conv2D(128, (5,5), activation='relu', padding='same')(il)
@@ -236,13 +243,13 @@ def split_model():
   ol = keras.layers.UpSampling2D((2,2))(ol)
    
   # 256, 256, 3 
-  ol = keras.layers.Conv2D(3, (2,2), activation='relu', padding='same')(ol)
+  ol = keras.layers.Conv2D(NUMBER_OF_COLORS, (2,2), activation='relu', padding='same')(ol)
 
   return keras.Model(il, ol)
 
 def split_model_v2():
   # 256,256,3
-  il = keras.layers.Input(shape=IMAGE_SIZE+(3,))
+  il = keras.layers.Input(shape=IMAGE_SIZE+(NUMBER_OF_COLORS,))
   # 256, 256, 128
   ol1 = keras.layers.Conv2D(128, (3,3), activation='relu', padding='same')(il)
   ol2 = keras.layers.Conv2D(128, (5,5), activation='relu', padding='same')(il)
@@ -290,20 +297,19 @@ def split_model_v2():
   ol = keras.layers.Conv2D(3, (3,3), activation='relu', padding='same')(ol)
    
   # 256, 256, 3 
-  ol = keras.layers.Conv2D(3, (2,2), activation='relu', padding='same')(ol)
+  ol = keras.layers.Conv2D(NUMBER_OF_COLORS, (2,2), activation='relu', padding='same')(ol)
 
   return keras.Model(il, ol)
 
 def null_model():
-  input_layer = keras.layers.Input(shape=IMAGE_SIZE+(3,))
-  output_layer = keras.layers.Dense(3)(input_layer)
+  input_layer = keras.layers.Input(shape=IMAGE_SIZE+(NUMBER_OF_COLORS,))
+  output_layer = keras.layers.Dense(NUMBER_OF_COLORS)(input_layer)
   return keras.Model(input_layer, output_layer)
 
 '''
 print(null_model().output_shape)
 print(simple_model().output_shape)
 print(super_model().output_shape)
-pdb.set_trace()
 '''
 if args.model == 1:
   model = null_model()
@@ -345,9 +351,8 @@ if args.show:
       plt.imshow(data_to_image(p))
       no_axis(ax)
 
-      mae = mean_absolute_error(y, y) 
-      print(mae)
-      pdb.set_trace()
+      #mae = mean_absolute_error(y, y) 
+      #print(mae)
 
       plt.pause(1)
 
@@ -369,12 +374,20 @@ if validation_steps_per_epoch == 0:
   print("Not enough validation data")
   exit(-1)
 
-try:
+if os.path.exists(WEIGHTS_FILE):
   model.load_weights(WEIGHTS_FILE)
   model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
-except:
-  model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_absolute_error')
-  model.fit_generator(image_generator(data_training), epochs=args.epochs, steps_per_epoch=training_steps_per_epoch, validation_data=image_generator(data_validation), validation_steps=validation_steps_per_epoch)
+else:
+  use_tape = False
+  if use_tape:
+    optimizer=tf.keras.optimizers.Adam()
+    generator = image_generator(data_training)
+    for i in range(training_steps_per_epoch):
+      compute_apply_gradients(model, next(generator) , optimizer)
+  else:
+    model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_squared_error')
+    model.fit_generator(image_generator(data_training), epochs=args.epochs, steps_per_epoch=training_steps_per_epoch, validation_data=image_generator(data_validation), validation_steps=validation_steps_per_epoch)
+  
   model.save(WEIGHTS_FILE)
 
 predictions = model.predict_generator(image_generator(data_test), steps=int(len(data_test)/BATCH_SIZE))
@@ -385,5 +398,4 @@ if args.show:
     y = get_image('y', i)
     p = predictions[i]
     show_data(x, y, p)
-
 
