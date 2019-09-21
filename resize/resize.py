@@ -115,6 +115,28 @@ data = [i for i in range(0, NUMBER_OF_FILES)]
 np.random.shuffle(data)
 data_training, data_validation, data_test = split_by_percentage(data, [34, 33, 33])
 
+def convert_to_dataset(data):
+  images_x = []
+  images_y = []
+  for choice in data:
+    x = get_image("x", choice)
+    y = get_image("y", choice)
+    x = preprocess_image(image=x)
+    images_x += [ x ]
+    images_y += [ y ]
+ 
+  images_x = np.array(images_x)
+  images_y = np.array(images_y) 
+  ds_x = tf.data.Dataset.from_tensor_slices(images_x).shuffle(images_x.shape[0]).batch(BATCH_SIZE)
+  ds_y = tf.data.Dataset.from_tensor_slices(images_y).shuffle(images_x.shape[0]).batch(BATCH_SIZE)
+  return (ds_x, ds_y)
+
+ds_x_training, ds_y_training = convert_to_dataset(data_training)
+ds_x_validation, ds_y_validation = convert_to_dataset(data_validation)
+ds_x_test, ds_y_test = convert_to_dataset(data_test)
+ 
+'''
+# generator is not currently supported by tf.function
 def image_generator(data):
   
   while True: 
@@ -137,6 +159,7 @@ def image_generator(data):
           batch_y = np.array( batch_y )
               
           yield( batch_x, batch_y )
+'''
 
 #image = get_image("x", 1)
 #print(np.array(image).shape)
@@ -366,10 +389,11 @@ pdb.set_trace()
 
 @tf.function
 def compute_loss(model, data):
+  pdb.set_trace()
   x = data[0]
   y = data[1]
-  pdb.set_trace()
-  py = model.predict([x], steps=1)
+  #py = model.predict([x], batch_size=BATCH_SIZE)
+  py = model(x)
   return tf.losses.mean_squared_error(y, py)
 
 @tf.function
@@ -398,10 +422,15 @@ else:
   use_tape = True
   if use_tape:
     optimizer=tf.keras.optimizers.Adam()
+    for train_x, train_y in zip(ds_x_training, ds_y_training):
+      pdb.set_trace()
+      compute_apply_gradients(model, (train_x, train_y), optimizer)
+    '''
     generator = image_generator(data_training)
     for i in range(training_steps_per_epoch):
       data = next(generator)
       compute_apply_gradients(model, data, optimizer)
+    '''
   else:
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_squared_error')
     model.fit_generator(image_generator(data_training), epochs=args.epochs, steps_per_epoch=training_steps_per_epoch, validation_data=image_generator(data_validation), validation_steps=validation_steps_per_epoch)
