@@ -135,8 +135,6 @@ ds_x_training, ds_y_training = convert_to_dataset(data_training)
 ds_x_validation, ds_y_validation = convert_to_dataset(data_validation)
 ds_x_test, ds_y_test = convert_to_dataset(data_test)
  
-'''
-# generator is not currently supported by tf.function
 def image_generator(data):
   
   while True: 
@@ -159,10 +157,6 @@ def image_generator(data):
           batch_y = np.array( batch_y )
               
           yield( batch_x, batch_y )
-'''
-
-#image = get_image("x", 1)
-#print(np.array(image).shape)
 
 def super_model():
   # 256,32,3
@@ -379,17 +373,8 @@ if args.show:
 
       plt.pause(1)
 
-'''
-pdb.set_trace()
-show_data(get_image("x", 0), get_image("y", 0))
-pdb.set_trace()
-show_data(get_image("y", 0), get_image("x", 0))
-pdb.set_trace()
-'''
-
 @tf.function
 def compute_loss(model, data):
-  pdb.set_trace()
   x = data[0]
   y = data[1]
   #py = model.predict([x], batch_size=BATCH_SIZE)
@@ -398,10 +383,8 @@ def compute_loss(model, data):
 
 @tf.function
 def compute_apply_gradients(model, data, optimizer):
-  pdb.set_trace()
   with tf.GradientTape() as tape:
     loss = compute_loss(model, data)
-  pdb.set_trace()
   gradients = tape.gradient(loss, model.trainable_variables)
   optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
@@ -423,19 +406,12 @@ else:
   if use_tape:
     optimizer=tf.keras.optimizers.Adam()
     for train_x, train_y in zip(ds_x_training, ds_y_training):
-      pdb.set_trace()
       compute_apply_gradients(model, (train_x, train_y), optimizer)
-    '''
-    generator = image_generator(data_training)
-    for i in range(training_steps_per_epoch):
-      data = next(generator)
-      compute_apply_gradients(model, data, optimizer)
-    '''
   else:
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss='mean_squared_error')
     model.fit_generator(image_generator(data_training), epochs=args.epochs, steps_per_epoch=training_steps_per_epoch, validation_data=image_generator(data_validation), validation_steps=validation_steps_per_epoch)
   
-  model.save(WEIGHTS_FILE)
+  model.save_weights(WEIGHTS_FILE)
 
 pdb.set_trace()
 predictions = model.predict_generator(image_generator(data_test), steps=int(len(data_test)/BATCH_SIZE))
