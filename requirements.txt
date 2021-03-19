@@ -29,7 +29,7 @@ image==1.5.17
 ipaddr==2.1.11
 ipaddress==1.0.16
 itsdangerous==0.24
-Jinja2==2.10
+Jinja2==2.11.3
 joblib==0.11
 Keras==2.1.4
 librosa==0.5.1
