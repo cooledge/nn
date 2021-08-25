@@ -70,7 +70,7 @@ six==1.11.0
 SQLAlchemy==1.2.2
 subprocess32==3.2.7
 tabulate==0.7.7
-tensorflow==1.4.0
+tensorflow==2.5.1
 tensorflow-gpu==1.4.0
 tensorflow-tensorboard==0.4.0rc3
 tflearn==0.3.2
